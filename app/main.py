@@ -1,0 +1,317 @@
+from fastapi import FastAPI, HTTPException, status, Request
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+from fastapi.logger import logger as fastapi_logger
+from pydantic import BaseModel
+from contextlib import asynccontextmanager
+from datetime import datetime
+from typing import Dict, List, Optional, Any
+import logging
+import os
+import time
+import json
+from sqlalchemy import text
+from sqlalchemy.exc import SQLAlchemyError
+
+from app.routers import devices, dosing, config
+from app.services.mqtt import MQTTPublisher
+from app.services.device_discovery import DeviceDiscoveryService
+from app.core.database import (
+    init_db, 
+    AsyncSessionLocal, 
+    DATABASE_URL,
+    check_db_connection,
+    get_table_stats,
+    get_migration_status
+)
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+)
+logger = logging.getLogger(__name__)
+
+# Pydantic models for responses
+class HealthResponse(BaseModel):
+    status: str
+    version: str
+    timestamp: datetime
+    environment: str
+    uptime: float
+
+class MQTTHealthResponse(BaseModel):
+    status: str
+    broker: str
+    port: int
+    client_id: str
+    timestamp: datetime
+    topics: List[str] = []
+    last_test: Optional[str] = None
+    connected_since: Optional[datetime] = None
+
+class TableInfo(BaseModel):
+    existing: List[str]
+    missing: List[str]
+    status: str
+
+class MigrationInfo(BaseModel):
+    status: str
+    existing_tables: List[str]
+    missing_tables: List[str]
+    error: Optional[str] = None
+
+class DatabaseHealthResponse(BaseModel):
+    status: str
+    type: str
+    timestamp: datetime
+    last_check: Optional[datetime] = None
+    error: Optional[str] = None
+    migrations: MigrationInfo
+    tables: Dict[str, Any]
+
+    class Config:
+        arbitrary_types_allowed = True
+
+class SystemHealthResponse(BaseModel):
+    system: Dict[str, Any]
+    mqtt: Dict[str, Any]
+    database: Dict[str, Any]
+    timestamp: datetime
+    api_version: str
+    environment: str
+
+    class Config:
+        arbitrary_types_allowed = True
+
+# Global variables
+START_TIME = time.time()
+API_VERSION = "1.0.0"
+
+# Application lifespan
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Application lifespan manager"""
+    logger.info("Starting Krishiverse API")
+    try:
+        await init_db()
+        mqtt_client = MQTTPublisher()
+        device_discovery = DeviceDiscoveryService()
+        
+        app.state.start_time = time.time()
+        app.state.mqtt_client = mqtt_client
+        app.state.device_discovery = device_discovery
+        
+        yield
+        
+        logger.info("Shutting down Krishiverse API")
+        if hasattr(app.state, 'mqtt_client'):
+            app.state.mqtt_client.cleanup()
+            
+    except Exception as e:
+        logger.error(f"Error during application lifecycle: {e}")
+        raise
+
+# Create FastAPI application
+app = FastAPI(
+    title="Krishiverse API",
+    description="API for managing IoT devices and automated dosing in hydroponic systems",
+    version=API_VERSION,
+    lifespan=lifespan,
+    docs_url="/api/docs",
+    redoc_url="/api/redoc",
+    openapi_url="/api/openapi.json"
+)
+
+# CORS middleware
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=os.getenv("ALLOWED_ORIGINS", "*").split(","),
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+@app.middleware("http")
+async def log_requests(request: Request, call_next):
+    """Log request details"""
+    start_time = time.time()
+    client_ip = request.client.host if request.client else "unknown"
+    
+    logger.info(f"Request started: {request.method} {request.url.path} from {client_ip}")
+    
+    try:
+        response = await call_next(request)
+        process_time = time.time() - start_time
+        
+        logger.info(
+            f"Request completed: {request.method} {request.url.path} "
+            f"Status: {response.status_code} "
+            f"Duration: {process_time:.3f}s "
+            f"Client: {client_ip}"
+        )
+        
+        response.headers["X-Process-Time"] = str(process_time)
+        response.headers["X-API-Version"] = API_VERSION
+        
+        return response
+    except Exception as e:
+        logger.error(f"Request failed: {request.method} {request.url.path} Error: {e}")
+        raise
+
+# Health check endpoints
+@app.get("/api/v1/health", response_model=HealthResponse)
+async def health_check():
+    """Basic health check endpoint"""
+    try:
+        uptime = time.time() - START_TIME
+        return {
+            "status": "healthy",
+            "version": API_VERSION,
+            "timestamp": datetime.utcnow(),
+            "environment": os.getenv("ENVIRONMENT", "development"),
+            "uptime": uptime
+        }
+    except Exception as e:
+        logger.error(f"Health check failed: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="System health check failed"
+        )
+
+@app.get("/api/v1/health/mqtt", response_model=MQTTHealthResponse)
+async def mqtt_health_check():
+    """MQTT health check endpoint"""
+    try:
+        mqtt_client = app.state.mqtt_client
+        return {
+            "status": "connected" if mqtt_client.connected else "disconnected",
+            "broker": mqtt_client.broker,
+            "port": mqtt_client.port,
+            "client_id": mqtt_client.client_id,
+            "timestamp": datetime.utcnow(),
+            "topics": list(mqtt_client.subscribed_topics.keys()) if hasattr(mqtt_client, 'subscribed_topics') else [],
+            "last_test": "success" if mqtt_client.connected else "not_tested",
+            "connected_since": getattr(mqtt_client, 'connected_since', None)
+        }
+    except Exception as e:
+        logger.error(f"MQTT health check failed: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"MQTT health check failed: {str(e)}"
+        )
+
+@app.get("/api/v1/health/database", response_model=DatabaseHealthResponse)
+async def database_health_check():
+    """Database health check endpoint"""
+    try:
+        db_info = await check_db_connection()
+        migration_info = await get_migration_status()
+        table_stats = await get_table_stats()
+        
+        current_time = datetime.utcnow()
+        
+        return {
+            "status": "healthy" if db_info["status"] == "connected" else "unhealthy",
+            "type": "sqlite",
+            "timestamp": current_time,
+            "last_check": current_time,
+            "error": db_info.get("error"),
+            "migrations": {
+                "status": migration_info["status"],
+                "existing_tables": migration_info.get("existing_tables", []),
+                "missing_tables": migration_info.get("missing_tables", []),
+                "error": migration_info.get("error")
+            },
+            "tables": {
+                "counts": table_stats.get("counts", {}),
+                "status": table_stats.get("status", "unknown")
+            }
+        }
+    except Exception as e:
+        logger.error(f"Database health check failed: {e}")
+        return {
+            "status": "error",
+            "type": "sqlite",
+            "timestamp": datetime.utcnow(),
+            "last_check": datetime.utcnow(),
+            "error": str(e),
+            "migrations": {
+                "status": "error",
+                "existing_tables": [],
+                "missing_tables": [],
+                "error": str(e)
+            },
+            "tables": {
+                "counts": {},
+                "status": "error"
+            }
+        }
+
+@app.get("/api/v1/health/all", response_model=SystemHealthResponse)
+async def system_health_check():
+    """Complete system health check"""
+    try:
+        system = await health_check()
+        mqtt = await mqtt_health_check()
+        database = await database_health_check()
+        
+        return {
+            "system": system,
+            "mqtt": mqtt,
+            "database": database,
+            "timestamp": datetime.utcnow(),
+            "api_version": API_VERSION,
+            "environment": os.getenv("ENVIRONMENT", "development")
+        }
+    except Exception as e:
+        logger.error(f"System health check failed: {e}")
+        return {
+            "system": {"status": "error", "error": str(e)},
+            "mqtt": {"status": "unknown"},
+            "database": {"status": "unknown"},
+            "timestamp": datetime.utcnow(),
+            "api_version": API_VERSION,
+            "environment": os.getenv("ENVIRONMENT", "development")
+        }
+
+# Error handlers
+@app.exception_handler(HTTPException)
+async def http_exception_handler(request: Request, exc: HTTPException):
+    """Handle HTTP exceptions"""
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={
+            "detail": exc.detail,
+            "timestamp": datetime.utcnow().isoformat(),
+            "path": request.url.path
+        }
+    )
+
+@app.exception_handler(Exception)
+async def general_exception_handler(request: Request, exc: Exception):
+    """Handle general exceptions"""
+    logger.error(f"Unhandled exception: {exc}", exc_info=True)
+    return JSONResponse(
+        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        content={
+            "detail": "Internal server error",
+            "timestamp": datetime.utcnow().isoformat(),
+            "path": request.url.path
+        }
+    )
+
+# Include routers
+app.include_router(devices.router, prefix="/api/v1/devices", tags=["devices"])
+app.include_router(dosing.router, prefix="/api/v1/dosing", tags=["dosing"])
+app.include_router(config.router, prefix="/api/v1/config", tags=["config"])
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(
+        "main:app",
+        host="0.0.0.0",
+        port=int(os.getenv("PORT", 8000)),
+        reload=bool(os.getenv("DEBUG", "True")),
+        log_level=os.getenv("LOG_LEVEL", "info")
+    )
