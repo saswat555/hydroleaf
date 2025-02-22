@@ -107,7 +107,8 @@ Consider:
 
 async def call_llm_async(prompt: str) -> Dict:
     """
-    Asynchronously call the local Ollama model and process the response
+    Asynchronously call the local Ollama model and process the response.
+    It now strips any <think>...</think> blocks and attempts to extract the first valid JSON object.
     """
     logger.info(f"Sending prompt to LLM:\n{prompt}")
     
@@ -118,26 +119,32 @@ async def call_llm_async(prompt: str) -> Dict:
             messages=[{"role": "user", "content": prompt}]
         )
         
-        content = response.get("message", {}).get("content", "").strip()
+        raw_content = response.get("message", {}).get("content", "").strip()
+        logger.info(f"Raw LLM response: {raw_content}")
         
-        if not content:
-            raise ValueError("Empty response from LLM")
+        # Remove any <think>...</think> blocks
+        content = re.sub(r'<think>.*?</think>', '', raw_content, flags=re.DOTALL).strip()
         
-        # Remove any thinking blocks
-        content = re.sub(r'<think>.*?</think>', '', content, flags=re.DOTALL).strip()
+        # Try to load JSON directly
+        try:
+            parsed_response = json.loads(content)
+        except json.JSONDecodeError as e:
+            # If there's extra data, try to extract the first JSON object.
+            match = re.search(r'({.*})', content, re.DOTALL)
+            if match:
+                content = match.group(1)
+                parsed_response = json.loads(content)
+            else:
+                logger.error(f"LLM raw response could not be parsed: {raw_content}")
+                raise ValueError(f"Invalid JSON response from LLM: {e}")
         
-        # Parse and validate response
-        parsed_response = json.loads(content)
         validate_llm_response(parsed_response)
-        
         return parsed_response
 
-    except json.JSONDecodeError as e:
-        logger.error(f"Failed to parse LLM response: {e}")
-        raise ValueError(f"Invalid JSON response from LLM: {e}")
     except Exception as e:
         logger.error(f"LLM call failed: {e}")
         raise
+
 
 def validate_llm_response(response: Dict):
     """

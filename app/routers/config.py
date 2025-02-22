@@ -57,12 +57,15 @@ async def create_dosing_profile(
             detail="Dosing profiles can only be created for dosing units"
         )
 
-    # Use model_dump() for Pydantic v2
+    # Create the new profile from the request payload
     new_profile = DosingProfile(**profile.model_dump())
     db.add(new_profile)
     try:
         await db.commit()
         await db.refresh(new_profile)
+        # Fix: Ensure updated_at is a valid datetime value
+        if new_profile.updated_at is None:
+            new_profile.updated_at = new_profile.created_at
         return new_profile
     except Exception as exc:
         await db.rollback()
@@ -70,7 +73,7 @@ async def create_dosing_profile(
             status_code=500,
             detail=f"Error creating dosing profile: {exc}"
         )
-
+        
 @router.get("/dosing-profiles/{device_id}", response_model=List[DosingProfileResponse])
 async def get_device_profiles(
     device_id: int,

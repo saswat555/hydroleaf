@@ -42,9 +42,16 @@ class DosingProfile(Base):
     target_tds_min = Column(Float, nullable=False)
     target_tds_max = Column(Float, nullable=False)
     dosing_schedule = Column(JSON, nullable=False)
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
-    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    # Fix: Set updated_at with a default value so it is never None.
+    updated_at = Column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        onupdate=func.now(),
+        nullable=False
+    )
 
+    # Relationships
     device = relationship("Device", back_populates="dosing_profiles")
 
 class SensorReading(Base):
