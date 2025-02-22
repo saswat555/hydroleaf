@@ -1,5 +1,3 @@
-# app/schemas.py
-
 from pydantic import BaseModel, Field, ConfigDict, field_validator
 from typing import Optional, List, Dict
 from datetime import datetime
@@ -56,6 +54,13 @@ class DeviceResponse(DeviceBase):
 
     model_config = ConfigDict(from_attributes=True)
 
+# New model for an action inside a dosing operation.
+class DosingAction(BaseModel):
+    pump_number: int
+    chemical_name: str
+    dose_ml: float
+    reasoning: str
+
 class DosingProfileBase(BaseModel):
     device_id: int
     plant_name: str = Field(..., max_length=100)
@@ -81,7 +86,7 @@ class DosingProfileResponse(DosingProfileBase):
 class DosingOperation(BaseModel):
     device_id: int
     operation_id: str
-    actions: List[Dict[str, float]]
+    actions: List[DosingAction]
     status: str
     timestamp: datetime
 
@@ -121,3 +126,7 @@ class FullHealthCheck(BaseModel):
     mqtt: MQTTHealthCheck
     database: DatabaseHealthCheck
     timestamp: datetime
+
+class SimpleDosingCommand(BaseModel):
+    pump: int = Field(..., ge=1, le=4, description="Pump number (1-4)")
+    amount: float = Field(..., gt=0, description="Dose in milliliters")

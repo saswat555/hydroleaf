@@ -1,36 +1,24 @@
-# tests/conftest.py
-
 import os
 import logging
 import pytest
 import pytest_asyncio
-from typing import AsyncGenerator
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.orm import sessionmaker
-from fastapi.testclient import TestClient
-from datetime import datetime, UTC
-from sqlalchemy.ext.asyncio import AsyncSession
-from app.core.database import AsyncSessionLocal, init_db
-# Set test environment before imports
-os.environ["TESTING"] = "1"
-os.environ["DATABASE_URL"] = "sqlite+aiosqlite:///./test.db"
+from app.core.database import init_db, Base, get_db
 from app.main import app
-from app.core.database import Base, get_db
+from datetime import datetime, timezone
 from app.services.mqtt import MQTTPublisher
 
-logger = logging.getLogger(__name__)
+# Set test environment variables BEFORE app imports occur
+os.environ["TESTING"] = "1"
+os.environ["DATABASE_URL"] = "sqlite+aiosqlite:///./test.db"
 
-# Test database setup
-TEST_DB_URL = "sqlite+aiosqlite:///./test.db"
+TEST_DB_URL = os.environ["DATABASE_URL"]
 test_engine = create_async_engine(
     TEST_DB_URL,
     echo=False,
     future=True
 )
-@pytest_asyncio.fixture(autouse=True)
-async def setup_db():
-    await init_db()
-    yield
 
 TestingSessionLocal = sessionmaker(
     test_engine,
@@ -40,28 +28,37 @@ TestingSessionLocal = sessionmaker(
     autoflush=False
 )
 
-@pytest_asyncio.fixture(scope="session")
+# Ensure that the test database is initialized (run once per session)
+@pytest_asyncio.fixture(scope="session", autouse=True)
 async def setup_test_db():
-    """Initialize test database"""
-    try:
-        async with test_engine.begin() as conn:
-            await conn.run_sync(Base.metadata.drop_all)
-            await conn.run_sync(Base.metadata.create_all)
-        yield
-        async with test_engine.begin() as conn:
-            await conn.run_sync(Base.metadata.drop_all)
-    except Exception as e:
-        logger.error(f"Error setting up test database: {e}")
-        raise
+    # Drop and create all tables for a clean slate
+    async with test_engine.begin() as conn:
+        await conn.run_sync(Base.metadata.drop_all)
+        await conn.run_sync(Base.metadata.create_all)
+    yield
+    async with test_engine.begin() as conn:
+        await conn.run_sync(Base.metadata.drop_all)
+
+# Provide a test session fixture
 @pytest_asyncio.fixture
 async def test_session() -> AsyncSession:
-    async with AsyncSessionLocal() as session:
-        try:
-            yield session
-            await session.rollback()
-        finally:
-            await session.close()
+    async with TestingSessionLocal() as session:
+        yield session
+        await session.rollback()
 
+# Override the get_db dependency so that our app uses the test database.
+@pytest_asyncio.fixture(autouse=True)
+async def override_get_db_fixture(test_session: AsyncSession):
+    async def _override_get_db():
+        try:
+            yield test_session
+        finally:
+            pass
+    app.dependency_overrides[get_db] = _override_get_db
+    yield
+    app.dependency_overrides.clear()
+
+# A simple MQTT publisher mock for testing device discovery
 class MockMQTTPublisher:
     def __init__(self):
         self.connected = True
@@ -71,8 +68,7 @@ class MockMQTTPublisher:
 
     def publish(self, topic: str, payload: dict, qos: int = 1):
         if isinstance(payload, dict) and 'timestamp' not in payload:
-            payload['timestamp'] = datetime.now(UTC).isoformat()
-        
+            payload['timestamp'] = datetime.now(timezone.utc).isoformat()
         self.published_messages.append({
             "topic": topic,
             "payload": payload,
@@ -97,27 +93,6 @@ class MockMQTTPublisher:
 def mqtt_mock():
     return MockMQTTPublisher()
 
-@pytest.fixture
-def override_get_db(test_session: AsyncSession):
-    """Override get_db dependency"""
-    async def _override_get_db():
-        try:
-            yield test_session
-        finally:
-            pass  # Session cleanup is handled by test_session fixture
-    return _override_get_db
-
-@pytest.fixture
-def client(override_get_db, mqtt_mock: MockMQTTPublisher) -> TestClient:
-    """Create test client with mocked dependencies"""
-    app.dependency_overrides[get_db] = override_get_db
-    app.dependency_overrides[MQTTPublisher] = lambda: mqtt_mock
-
-    with TestClient(app) as test_client:
-        yield test_client
-
-    app.dependency_overrides.clear()
-
 # Test data fixtures
 @pytest.fixture
 def test_dosing_device():
@@ -139,7 +114,7 @@ def test_dosing_device():
             }
         ]
     }
-    
+
 @pytest.fixture
 def test_sensor_device():
     return {
@@ -152,42 +127,5 @@ def test_sensor_device():
             "tds_calibration": "500"
         }
     }
-
-@pytest.fixture(autouse=True)
-def setup_device_discovery(mqtt_mock):
-    """Setup device discovery service with mock MQTT client"""
-    from app.services.device_discovery import DeviceDiscoveryService
-    DeviceDiscoveryService.initialize(mqtt_mock)
-    yield
-    DeviceDiscoveryService._instance = None
-    DeviceDiscoveryService._mqtt_client = None
     
-@pytest.fixture
-async def test_session():
-    async with AsyncSessionLocal() as session:
-        yield session
-        await session.rollback()
-        
-@pytest.fixture
-def test_dosing_profile(test_dosing_device):
-    return {
-        "device_id": None,  # Will be set during test
-        "plant_name": "Test Tomato",
-        "plant_type": "Vegetable",
-        "growth_stage": "vegetative",
-        "seeding_date": datetime.now(UTC).isoformat(),
-        "target_ph_min": 5.5,
-        "target_ph_max": 6.5,
-        "target_tds_min": 800,
-        "target_tds_max": 1200,
-        "dosing_schedule": {
-            "nutrient_a": {
-                "morning": 50.0,
-                "evening": 50.0
-            },
-            "nutrient_b": {
-                "morning": 25.0,
-                "evening": 25.0
-            }
-        }
-    }
+# (Optionally, add additional fixtures as needed)
