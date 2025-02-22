@@ -137,6 +137,10 @@ krishiverse/
   SKIP_MQTT=1 uvicorn app.main:app --host 0.0.0.0 --port 8000 --log-level info
   ```
 
+## Run Backend 
+```bash
+uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+```
 ## Additional Notes
 
 - Customize environment variables as needed.
