@@ -18,7 +18,7 @@ class PumpConfig(BaseModel):
 class DeviceBase(BaseModel):
     name: str = Field(..., max_length=128)
     type: DeviceType
-    mqtt_topic: str = Field(..., max_length=256)
+    http_endpoint: str = Field(..., max_length=256)
     location_description: Optional[str] = Field(None, max_length=256)
 
     model_config = ConfigDict(from_attributes=True)
@@ -106,14 +106,6 @@ class HealthCheck(BaseModel):
     timestamp: datetime
     environment: str
 
-class MQTTHealthCheck(BaseModel):
-    status: str
-    broker: str
-    port: int
-    client_id: str
-    timestamp: datetime
-    topics: List[str]
-    last_test: Optional[str]
 
 class DatabaseHealthCheck(BaseModel):
     status: str
@@ -123,7 +115,6 @@ class DatabaseHealthCheck(BaseModel):
 
 class FullHealthCheck(BaseModel):
     system: HealthCheck
-    mqtt: MQTTHealthCheck
     database: DatabaseHealthCheck
     timestamp: datetime
 

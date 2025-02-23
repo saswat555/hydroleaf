@@ -9,11 +9,11 @@ from app import models
 from app.services.llm import dosing_manager
 from app.schemas import DeviceType
 
-# Test data – note that we will update the mqtt_topic to be unique in the fixtures
+# Updated test data: now using "http_endpoint" 
 TEST_DOSING_DEVICE = {
     "name": "Test Dosing Unit",
     "type": DeviceType.DOSING_UNIT,
-    "mqtt_topic": "krishiverse/devices/test_dosing",  # unique suffix will be appended
+    "http_endpoint": "krishiverse/devices/test_dosing",  # unique suffix will be appended
     "location_description": "Test Location",
     "pump_configurations": [
         {
@@ -32,7 +32,7 @@ TEST_DOSING_DEVICE = {
 TEST_SENSOR_DEVICE = {
     "name": "Test pH/TDS Sensor",
     "type": DeviceType.PH_TDS_SENSOR,
-    "mqtt_topic": "krishiverse/devices/test_sensor",  # unique suffix will be appended
+    "http_endpoint": "krishiverse/devices/test_sensor",  # unique suffix will be appended
     "location_description": "Test Location",
     "sensor_parameters": {
         "ph_calibration": "7.0",
@@ -40,21 +40,19 @@ TEST_SENSOR_DEVICE = {
     }
 }
 
-
 @pytest.fixture
 def test_dosing_device_fixture() -> dict:
     # Append a unique suffix to avoid UNIQUE constraint errors.
-    unique_topic = f"krishiverse/devices/test_dosing_{int(datetime.now(timezone.utc).timestamp()*1000)}"
+    unique_endpoint = f"krishiverse/devices/test_dosing_{int(datetime.now(timezone.utc).timestamp()*1000)}"
     device = TEST_DOSING_DEVICE.copy()
-    device["mqtt_topic"] = unique_topic
+    device["http_endpoint"] = unique_endpoint
     return device
-
 
 @pytest.fixture
 def test_sensor_device_fixture() -> dict:
-    unique_topic = f"krishiverse/devices/test_sensor_{int(datetime.now(timezone.utc).timestamp()*1000)}"
+    unique_endpoint = f"krishiverse/devices/test_sensor_{int(datetime.now(timezone.utc).timestamp()*1000)}"
     device = TEST_SENSOR_DEVICE.copy()
-    device["mqtt_topic"] = unique_topic
+    device["http_endpoint"] = unique_endpoint
     return device
 
 
@@ -139,8 +137,7 @@ class TestDosing:
 
             # Get profiles using the correct endpoint.
             profiles_resp = await ac.get(f"/api/v1/config/dosing-profiles/{device_id}")
-            # Depending on your logic, if no profile exists, a 404 may be returned.
-            # Here we expect at least one profile (the one we just created).
+            # Expect at least one profile (the one we just created).
             assert profiles_resp.status_code == 200, f"Profiles retrieval failed: {profiles_resp.text}"
             profiles = profiles_resp.json()
             assert isinstance(profiles, list)
@@ -214,7 +211,7 @@ class TestDosing:
             device_id = device_data.get("id")
             assert device_id is not None, f"Device creation failed: {device_resp.text}"
             # Executing dosing on a device without dose_ml (if not provided) should fail.
-            exec_resp = await ac.post(f"/api/v1/dosing/execute/{device_id}")
+            exec_resp = await ac.post(f"/api/v1/dosing/execute/{device_id}", json={})
             assert exec_resp.status_code == 500
             assert "Dosing action must include pump number and dose amount" in exec_resp.json()["detail"]
 
@@ -226,7 +223,7 @@ class TestDosing:
             device_id = device_data.get("id")
             assert device_id is not None, f"Device creation failed: {device_resp.text}"
             # Start dosing operation (even if execution fails, cancellation should work).
-            await ac.post(f"/api/v1/dosing/execute/{device_id}")
+            await ac.post(f"/api/v1/dosing/execute/{device_id}", json={})
             cancel_resp = await ac.post(f"/api/v1/dosing/cancel/{device_id}")
             assert cancel_resp.status_code == 200
             assert cancel_resp.json()["message"] == "Dosing operation cancelled"
@@ -242,8 +239,8 @@ class TestDosing:
 
         # Prepare a dosing device with dose_ml included.
         dosing_device = test_dosing_device_fixture.copy()
-        unique_topic = f"krishiverse/devices/test_llm_{int(datetime.now(timezone.utc).timestamp()*1000)}"
-        dosing_device["mqtt_topic"] = unique_topic
+        unique_endpoint = f"krishiverse/devices/test_llm_{int(datetime.now(timezone.utc).timestamp()*1000)}"
+        dosing_device["http_endpoint"] = unique_endpoint
         dosing_device["pump_configurations"][0]["dose_ml"] = 50.0
 
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
@@ -252,10 +249,11 @@ class TestDosing:
             device_data = device_resp.json()
             device_id = device_data["id"]
 
-            # Register the device in the dosing manager.
+            # Register the device in the dosing manager (now including the http_endpoint).
             dosing_manager.register_device(
                 device_id,
-                {f"pump{idx+1}": config for idx, config in enumerate(device_data["pump_configurations"])}
+                {f"pump{idx+1}": config for idx, config in enumerate(device_data["pump_configurations"])},
+                device_data["http_endpoint"]
             )
 
             # Prepare sensor data and plant profile.
@@ -277,6 +275,6 @@ class TestDosing:
             assert "actions" in result, "Dosing plan missing 'actions' key"
             assert isinstance(result["actions"], list), "'actions' should be a list"
             assert "next_check_hours" in result, "Dosing plan missing 'next_check_hours'"
-            # Print the LLM dosing plan for manual verification.
             print("LLM dosing plan:", result)
+
 

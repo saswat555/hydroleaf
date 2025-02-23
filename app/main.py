@@ -9,12 +9,9 @@ from typing import Dict, List, Optional, Any
 import logging
 import os
 import time
-import json
 from sqlalchemy import text
-from sqlalchemy.exc import SQLAlchemyError
 
 from app.routers import devices, dosing, config
-from app.services.mqtt import MQTTPublisher
 from app.services.device_discovery import DeviceDiscoveryService
 from app.core.database import (
     init_db, 
@@ -39,16 +36,6 @@ class HealthResponse(BaseModel):
     timestamp: datetime
     environment: str
     uptime: float
-
-class MQTTHealthResponse(BaseModel):
-    status: str
-    broker: str
-    port: int
-    client_id: str
-    timestamp: datetime
-    topics: List[str] = []
-    last_test: Optional[str] = None
-    connected_since: Optional[datetime] = None
 
 class TableInfo(BaseModel):
     existing: List[str]
@@ -75,7 +62,6 @@ class DatabaseHealthResponse(BaseModel):
 
 class SystemHealthResponse(BaseModel):
     system: Dict[str, Any]
-    mqtt: Dict[str, Any]
     database: Dict[str, Any]
     timestamp: datetime
     api_version: str
@@ -95,19 +81,8 @@ async def lifespan(app: FastAPI):
     logger.info("Starting Krishiverse API")
     try:
         await init_db()
-        mqtt_client = MQTTPublisher()
-        device_discovery = DeviceDiscoveryService()
-        
-        app.state.start_time = time.time()
-        app.state.mqtt_client = mqtt_client
-        app.state.device_discovery = device_discovery
-        
         yield
-        
         logger.info("Shutting down Krishiverse API")
-        if hasattr(app.state, 'mqtt_client'):
-            app.state.mqtt_client.cleanup()
-            
     except Exception as e:
         logger.error(f"Error during application lifecycle: {e}")
         raise
@@ -179,28 +154,6 @@ async def health_check():
             detail="System health check failed"
         )
 
-@app.get("/api/v1/health/mqtt", response_model=MQTTHealthResponse)
-async def mqtt_health_check():
-    """MQTT health check endpoint"""
-    try:
-        mqtt_client = app.state.mqtt_client
-        return {
-            "status": "connected" if mqtt_client.connected else "disconnected",
-            "broker": mqtt_client.broker,
-            "port": mqtt_client.port,
-            "client_id": mqtt_client.client_id,
-            "timestamp": datetime.utcnow(),
-            "topics": list(mqtt_client.subscribed_topics.keys()) if hasattr(mqtt_client, 'subscribed_topics') else [],
-            "last_test": "success" if mqtt_client.connected else "not_tested",
-            "connected_since": getattr(mqtt_client, 'connected_since', None)
-        }
-    except Exception as e:
-        logger.error(f"MQTT health check failed: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"MQTT health check failed: {str(e)}"
-        )
-
 @app.get("/api/v1/health/database", response_model=DatabaseHealthResponse)
 async def database_health_check():
     """Database health check endpoint"""
@@ -253,12 +206,10 @@ async def system_health_check():
     """Complete system health check"""
     try:
         system = await health_check()
-        mqtt = await mqtt_health_check()
         database = await database_health_check()
         
         return {
             "system": system,
-            "mqtt": mqtt,
             "database": database,
             "timestamp": datetime.utcnow(),
             "api_version": API_VERSION,
@@ -268,7 +219,6 @@ async def system_health_check():
         logger.error(f"System health check failed: {e}")
         return {
             "system": {"status": "error", "error": str(e)},
-            "mqtt": {"status": "unknown"},
             "database": {"status": "unknown"},
             "timestamp": datetime.utcnow(),
             "api_version": API_VERSION,
