@@ -15,7 +15,6 @@ idna==3.10
 iniconfig==2.0.0
 ollama==0.4.7
 packaging==24.2
-paho-mqtt==2.1.0
 pluggy==1.5.0
 pydantic==2.10.6
 pydantic_core==2.27.2

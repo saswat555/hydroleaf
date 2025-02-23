@@ -10,12 +10,9 @@ from app.core.database import get_db
 from app.schemas import DosingProfileCreate, DosingProfileResponse, DeviceType
 from app.models import Device, DosingProfile
 from app.services.device_discovery import discover_devices
-from app.services.mqtt import MQTTPublisher
 
 router = APIRouter()
 
-# Get MQTT status
-mqtt_client = MQTTPublisher()
 
 @router.get("/system-info", summary="Get system information")
 async def get_system_info(db: AsyncSession = Depends(get_db)):
@@ -30,7 +27,6 @@ async def get_system_info(db: AsyncSession = Depends(get_db)):
     
     return {
         "version": "1.0.0",
-        "mqtt_status": "connected" if mqtt_client.connected else "disconnected",
         "device_count": {
             "dosing": dosing_count or 0,
             "sensors": sensor_count or 0
@@ -132,7 +128,6 @@ async def get_system_info(db: AsyncSession = Depends(get_db)):
     
     return {
         "version": "1.0.0",
-        "mqtt_status": "connected" if mqtt_client.connected else "disconnected",
         "device_count": {
             "dosing": dosing_count or 0,
             "sensors": sensor_count or 0

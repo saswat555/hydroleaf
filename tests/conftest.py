@@ -7,7 +7,6 @@ from sqlalchemy.orm import sessionmaker
 from app.core.database import init_db, Base, get_db
 from app.main import app
 from datetime import datetime, timezone
-from app.services.mqtt import MQTTPublisher
 
 # Set test environment variables BEFORE app imports occur
 os.environ["TESTING"] = "1"
@@ -31,7 +30,6 @@ TestingSessionLocal = sessionmaker(
 # Ensure that the test database is initialized (run once per session)
 @pytest_asyncio.fixture(scope="session", autouse=True)
 async def setup_test_db():
-    # Drop and create all tables for a clean slate
     async with test_engine.begin() as conn:
         await conn.run_sync(Base.metadata.drop_all)
         await conn.run_sync(Base.metadata.create_all)
@@ -58,48 +56,13 @@ async def override_get_db_fixture(test_session: AsyncSession):
     yield
     app.dependency_overrides.clear()
 
-# A simple MQTT publisher mock for testing device discovery
-class MockMQTTPublisher:
-    def __init__(self):
-        self.connected = True
-        self.published_messages = []
-        self.subscribed_topics = {}
-        self.client = self
-
-    def publish(self, topic: str, payload: dict, qos: int = 1):
-        if isinstance(payload, dict) and 'timestamp' not in payload:
-            payload['timestamp'] = datetime.now(timezone.utc).isoformat()
-        self.published_messages.append({
-            "topic": topic,
-            "payload": payload,
-            "qos": qos
-        })
-        return [0, 1]
-
-    def subscribe(self, topic: str, callback=None):
-        self.subscribed_topics[topic] = callback
-        return [0, 1]
-
-    def cleanup(self):
-        pass
-
-    def loop_stop(self):
-        pass
-
-    def disconnect(self):
-        pass
-
-@pytest.fixture
-def mqtt_mock():
-    return MockMQTTPublisher()
-
 # Test data fixtures
 @pytest.fixture
 def test_dosing_device():
     return {
         "name": "Test Dosing Unit",
         "type": "dosing_unit",
-        "mqtt_topic": "krishiverse/devices/test_dosing",
+        "http_endpoint": f"krishiverse/devices/test_dosing_{int(datetime.now(timezone.utc).timestamp()*1000)}",
         "location_description": "Test Location",
         "pump_configurations": [
             {
@@ -120,12 +83,10 @@ def test_sensor_device():
     return {
         "name": "Test pH/TDS Sensor",
         "type": "ph_tds_sensor",
-        "mqtt_topic": "krishiverse/devices/test_sensor",
+        "http_endpoint": f"krishiverse/devices/test_sensor_{int(datetime.now(timezone.utc).timestamp()*1000)}",
         "location_description": "Test Location",
         "sensor_parameters": {
             "ph_calibration": "7.0",
             "tds_calibration": "500"
         }
     }
-    
-# (Optionally, add additional fixtures as needed)

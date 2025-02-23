@@ -1,66 +1,64 @@
-# app/services/ph_tds.py
-
-import json
 import logging
+import httpx
 from typing import Dict
-from app.services.mqtt import MQTTPublisher
 
 logger = logging.getLogger(__name__)
 
 class PHTDSReader:
     def __init__(self):
-        self.mqtt_client = MQTTPublisher()
-        self.latest_readings = {}
+        # Under development: this device will eventually provide live readings via HTTP.
+        # For now, we use HTTP to fetch dummy sensor data.
+        pass
 
-    async def setup_subscription(self, device_id: str):
-        """Subscribe to the device's MQTT topic"""
-        topic = f"krishiverse/devices/{device_id}/readings"
+    async def get_readings(self, device_ip: str) -> Dict:
+        """
+        Get the latest sensor readings from the PH/TDS device via HTTP.
+        Expected response JSON from the device:
+            {
+                "ph": <float>,
+                "tds": <float>,
+                "volume": <float>  # water volume in litres
+            }
+        If the HTTP call fails, return default dummy values.
+        """
+        url = f"http://{device_ip}/readings"
+        try:
+            async with httpx.AsyncClient(timeout=3.0) as client:
+                response = await client.get(url)
+                if response.status_code == 200:
+                    data = response.json()
+                    logger.info(f"Received sensor readings from {device_ip}: {data}")
+                    return data
+                else:
+                    logger.error(f"Error: Received status code {response.status_code} from {url}")
+        except Exception as e:
+            logger.error(f"Error fetching readings from {device_ip}: {e}")
         
-        def on_message(client, userdata, message):
-            try:
-                payload = json.loads(message.payload.decode())
-                self.latest_readings[device_id] = {
-                    "ph": payload.get("ph"),
-                    "tds": payload.get("tds"),
-                    "timestamp": payload.get("timestamp")
-                }
-                logger.info(f"Received readings from device {device_id}: {payload}")
-            except json.JSONDecodeError as e:
-                logger.error(f"Error decoding MQTT message: {e}")
-            except Exception as e:
-                logger.error(f"Error processing MQTT message: {e}")
+        # Return default dummy values as fallback.
+        return {"ph": 7.0, "tds": 150, "volume": 1000.0}
 
-        self.mqtt_client.client.subscribe(topic)
-        self.mqtt_client.client.message_callback_add(topic, on_message)
-
-    async def get_readings(self, device_id: str) -> Dict:
+    async def request_reading(self, device_ip: str) -> None:
         """
-        Get the latest readings for a specific device
-        Returns a dictionary with ph and tds values
+        Request an immediate sensor reading from the device via HTTP.
+        Sends an HTTP POST request to the device's /command endpoint with a 'read' command.
         """
-        if device_id not in self.latest_readings:
-            await self.setup_subscription(device_id)
-            return {"ph": 7.0, "tds": 150}  # Default values while waiting for first reading
-        
-        return {
-            "ph": self.latest_readings[device_id]["ph"],
-            "tds": self.latest_readings[device_id]["tds"]
-        }
-
-    async def request_reading(self, device_id: str):
-        """
-        Request an immediate reading from the device
-        """
-        topic = f"krishiverse/devices/{device_id}/command"
-        message = {
-            "command": "read",
-            "timestamp": None  # Will be added by the MQTT publisher
-        }
-        self.mqtt_client.publish(topic, message)
+        url = f"http://{device_ip}/command"
+        payload = {"command": "read"}
+        try:
+            async with httpx.AsyncClient(timeout=3.0) as client:
+                response = await client.post(url, json=payload)
+                if response.status_code == 200:
+                    logger.info(f"Successfully requested reading from {device_ip}")
+                else:
+                    logger.error(f"Failed to request reading from {device_ip}: {response.status_code} - {response.text}")
+        except Exception as e:
+            logger.error(f"Error requesting reading from {device_ip}: {e}")
 
 # Create a singleton instance
 ph_tds_reader = PHTDSReader()
 
-# Function to be used by other services
-async def get_ph_tds_readings(device_id: str) -> Dict:
-    return await ph_tds_reader.get_readings(device_id)
+async def get_ph_tds_readings(device_ip: str) -> Dict:
+    """
+    Function to retrieve sensor readings from a PH/TDS device given its IP address.
+    """
+    return await ph_tds_reader.get_readings(device_ip)

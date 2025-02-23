@@ -1,14 +1,19 @@
-# app/routers/dosing.py
-
-from fastapi import APIRouter, HTTPException, Depends # type: ignore
+from fastapi import APIRouter, HTTPException, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.future import select
 from typing import List
 from datetime import datetime, UTC
+from pydantic import BaseModel
+
 from app.core.database import get_db
-from app.schemas import DosingOperation, DosingProfileResponse, DosingProfileCreate
-from app.services.dose_manager import execute_dosing_operation, cancel_dosing_operation
+from app.schemas import (
+    DosingOperation,
+    DosingProfileResponse,
+    DosingProfileCreate
+)
 from app.models import Device, DosingProfile
-from sqlalchemy import select
+from app.services.dose_manager import execute_dosing_operation, cancel_dosing_operation
+
 router = APIRouter()
 
 @router.post("/execute/{device_id}", response_model=DosingOperation)
@@ -16,17 +21,18 @@ async def execute_dosing(
     device_id: int,
     db: AsyncSession = Depends(get_db)
 ):
-    """Execute dosing operation for a device"""
-    # Get device and its active profile
+    """
+    Execute a dosing operation for a device using its HTTP endpoint.
+    """
     device = await db.get(Device, device_id)
     if not device:
         raise HTTPException(status_code=404, detail="Device not found")
-    
     if device.type != "dosing_unit":
         raise HTTPException(status_code=400, detail="Device is not a dosing unit")
     
     try:
-        result = await execute_dosing_operation(device_id, device.pump_configurations)
+        # Use the device's HTTP endpoint and pump configurations to execute the dosing operation
+        result = await execute_dosing_operation(device_id, device.http_endpoint, device.pump_configurations)
         return result
     except Exception as exc:
         raise HTTPException(
@@ -39,7 +45,9 @@ async def cancel_dosing(
     device_id: int,
     db: AsyncSession = Depends(get_db)
 ):
-    """Cancel active dosing operation"""
+    """
+    Cancel an active dosing operation for a device.
+    """
     device = await db.get(Device, device_id)
     if not device:
         raise HTTPException(status_code=404, detail="Device not found")
@@ -58,9 +66,10 @@ async def get_dosing_history(
     device_id: int,
     session: AsyncSession = Depends(get_db)
 ):
-    """Get dosing history for a device"""
+    """
+    Retrieve the dosing history for a device.
+    """
     try:
-        # First verify device exists
         result = await session.execute(
             select(Device).where(Device.id == device_id)
         )
@@ -68,11 +77,12 @@ async def get_dosing_history(
         if not device:
             raise HTTPException(status_code=404, detail="Device not found")
 
-        # Get dosing history
+        # Import the DosingOperation model from app.models to query the history
+        from app.models import DosingOperation as ModelDosingOperation
         result = await session.execute(
-            select(models.DosingOperation)
-            .where(models.DosingOperation.device_id == device_id)
-            .order_by(models.DosingOperation.timestamp.desc())
+            select(ModelDosingOperation)
+            .where(ModelDosingOperation.device_id == device_id)
+            .order_by(ModelDosingOperation.timestamp.desc())
         )
         operations = result.scalars().all()
         return operations
@@ -89,14 +99,15 @@ async def create_dosing_profile(
     profile: DosingProfileCreate,
     db: AsyncSession = Depends(get_db)
 ):
-    # Verify device exists
+    """
+    Create a new dosing profile for a dosing device.
+    """
     result = await db.execute(
         select(Device).where(Device.id == profile.device_id)
     )
     device = result.scalar_one_or_none()
     if not device:
         raise HTTPException(status_code=404, detail="Device not found")
-
     if device.type != "dosing_unit":
         raise HTTPException(
             status_code=400,
@@ -114,3 +125,34 @@ async def create_dosing_profile(
     await db.commit()
     await db.refresh(new_profile)
     return new_profile
+
+# New endpoint to handle the LLM dosing flow
+class LlmDosingRequest(BaseModel):
+    sensor_data: dict
+    plant_profile: dict
+
+@router.post("/llm-request")
+async def llm_dosing_request(
+    device_id: int,
+    request: LlmDosingRequest,
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Process a dosing request using sensor data and plant profile to generate a dosing plan via LLM.
+    """
+    # Optionally verify the device exists in the database
+    device = await db.get(Device, device_id)
+    if not device:
+        raise HTTPException(status_code=404, detail="Device not found")
+    
+    # Import the LLM processing function
+    from app.services.llm import process_dosing_request
+    
+    try:
+        result = await process_dosing_request(device_id, request.sensor_data, request.plant_profile)
+        return result
+    except Exception as exc:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error processing LLM dosing request: {exc}"
+        )

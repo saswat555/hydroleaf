@@ -13,7 +13,7 @@ class Device(Base):
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String(128), nullable=False)
     type = Column(SQLAlchemyEnum(DeviceType), nullable=False)
-    mqtt_topic = Column(String(256), nullable=False, unique=True)
+    http_endpoint = Column(String(256), nullable=False, unique=True)
     location_description = Column(String(256))
     is_active = Column(Boolean, default=True)
     last_seen = Column(DateTime(timezone=True), nullable=True)

@@ -1,23 +1,20 @@
-# app/services/dose_manager.py
-
 import logging
 from datetime import datetime
-from app.services.mqtt import MQTTPublisher
+import httpx
 
 logger = logging.getLogger(__name__)
 
 class DoseManager:
     def __init__(self):
-        self.mqtt_client = MQTTPublisher()
+        pass
 
-    async def execute_dosing(self, device_id: str, dosing_actions: list) -> dict:
+    async def execute_dosing(self, device_id: str, http_endpoint: str, dosing_actions: list) -> dict:
         """
-        Execute a dosing command for a device.
+        Execute a dosing command for a device via HTTP.
         
-        For compatibility with the previous API, we accept a device_id and a list
-        of dosing_actions. However, since your ESP32 firmware is fixed, we expect
-        a single dosing action. We extract the pump number and amount from the first
-        element of dosing_actions and ignore any extra actions.
+        For compatibility with the previous API, we accept a device_id and a list of dosing_actions.
+        Since the device firmware supports a single dosing action per command, we extract the pump number and dose 
+        from the first element of dosing_actions and ignore any extra actions.
         
         The simplified payload format is:
             {
@@ -25,7 +22,8 @@ class DoseManager:
                 "amount": <dose_ml>,         // from action["dose_ml"] or action["amount"]
                 "timestamp": "<ISO timestamp>"
             }
-        This message is published on the fixed topic "krishiverse/pump".
+        
+        This payload is sent as an HTTP POST request to the dosing device’s /pump endpoint.
         """
         if not dosing_actions:
             raise ValueError("No dosing action provided")
@@ -40,12 +38,13 @@ class DoseManager:
             "amount": amount,
             "timestamp": datetime.utcnow().isoformat()
         }
-        topic = "krishiverse/pump"
-        published = self.mqtt_client.publish(topic, payload)
-        if not published:
-            raise Exception("Failed to publish dosing command")
-        logger.info(f"Published dosing command to {topic}: {payload}")
-        # Return a response similar to the original structure
+        url = f"http://{http_endpoint}/pump"
+        async with httpx.AsyncClient() as client:
+            response = await client.post(url, json=payload)
+            if response.status_code != 200:
+                raise Exception(f"Failed to send dosing command: {response.text}")
+        
+        logger.info(f"Sent dosing command to {url}: {payload}")
         return {
             "status": "command_sent",
             "device_id": device_id,
@@ -55,17 +54,17 @@ class DoseManager:
     async def cancel_dosing(self, device_id: str) -> dict:
         """
         Cancel active dosing operation for a device.
-        Since the ESP32 firmware does not support cancellation,
+        Since the device firmware does not support cancellation,
         this function simply logs the attempt.
         """
-        logger.info(f"Cancellation requested for device {device_id}, but cancellation is not supported by the device firmware.")
+        logger.info(f"Cancellation requested for device {device_id}, but cancellation is not supported.")
         return {"status": "cancel_not_supported", "device_id": device_id}
 
 # Create singleton instance
 dose_manager = DoseManager()
 
-async def execute_dosing_operation(device_id: str, dosing_actions: list) -> dict:
-    return await dose_manager.execute_dosing(device_id, dosing_actions)
+async def execute_dosing_operation(device_id: str, http_endpoint: str, dosing_actions: list) -> dict:
+    return await dose_manager.execute_dosing(device_id, http_endpoint, dosing_actions)
 
 async def cancel_dosing_operation(device_id: str) -> dict:
     return await dose_manager.cancel_dosing(device_id)

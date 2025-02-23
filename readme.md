@@ -72,10 +72,7 @@ python -m pytest -o log_cli=true -o log_cli_level=INFO
 
 ### Starting the Server
 
-If no actual MQTT broker is available, you can skip its connection:
-```bash
-SKIP_MQTT=1 uvicorn app.main:app --host 0.0.0.0 --port 8000 --log-level info
-```
+
 
 ## VSCode Configuration
 
@@ -132,9 +129,9 @@ krishiverse/
   ```bash
   python -m pytest -o log_cli=true -o log_cli_level=INFO
   ```
-- **Start the server (skip MQTT if not available):**
+- **Start the server:**
   ```bash
-  SKIP_MQTT=1 uvicorn app.main:app --host 0.0.0.0 --port 8000 --log-level info
+uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
   ```
 
 ## Run Backend 

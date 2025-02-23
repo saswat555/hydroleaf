@@ -30,13 +30,12 @@ class DosingDevice:
         """
         self.device_id = device_id
         self.pumps_config = pumps_config
-        self.mqtt_topic = f"krishiverse/devices/{device_id}/dosing"
 
 class DosingManager:
     def __init__(self):
         self.devices: Dict[str, DosingDevice] = {}
 
-    def register_device(self, device_id: str, pumps_config: Dict):
+    def register_device(self, device_id: str, pumps_config: Dict, http_endpoint: str):
         """Register a new dosing device with its pump configuration"""
         self.devices[device_id] = DosingDevice(device_id, pumps_config)
         logger.info(f"Registered dosing device {device_id} with config: {pumps_config}")
@@ -168,10 +167,6 @@ def validate_llm_response(response: Dict):
             raise ValueError("dose_ml must be a positive number")
 
 async def execute_dosing_plan(device_id: str, dosing_plan: Dict):
-    """
-    Execute a validated dosing plan through MQTT
-    """
-    device = dosing_manager.get_device(device_id)
     
     # Prepare dosing message
     message = {
@@ -181,10 +176,6 @@ async def execute_dosing_plan(device_id: str, dosing_plan: Dict):
         "next_check_hours": dosing_plan.get("next_check_hours", 24)
     }
     
-    # Publish to device's MQTT topic
-    from app.services.mqtt import MQTTPublisher
-    mqtt_client = MQTTPublisher()
-    mqtt_client.publish(device.mqtt_topic, message)
     
     logger.info(f"Dosing plan sent to device {device_id}: {message}")
     return message
