@@ -19,8 +19,7 @@ class DeviceDiscoveryService:
         if hasattr(self, "initialized") and self.initialized:
             return
 
-        # Configuration: list of device IPs to probe, provided via environment variable.
-        # Example: DEVICE_IPS="192.168.1.10,192.168.1.11,192.168.1.12"
+        # Configuration: list of device IPs to probe (optional, if still needed).
         self.device_ips: List[str] = [
             ip.strip() for ip in os.getenv("DEVICE_IPS", "").split(",") if ip.strip()
         ]
@@ -28,23 +27,19 @@ class DeviceDiscoveryService:
         self.request_timeout: float = float(os.getenv("DEVICE_REQUEST_TIMEOUT", "3.0"))
         self.initialized = True
 
-    async def scan_network(self) -> Dict[str, List[Dict]]:
+    async def check_device(self, ip: str) -> Dict[str, Optional[Dict]]:
         """
-        Actively scan for devices on the LAN by sending an HTTP GET request
-        to the /discovery endpoint on each IP address specified in DEVICE_IPS.
-        Returns a dictionary with a list of devices that responded.
+        Check if a device is connected at the given IP by sending a GET request
+        to its /discovery endpoint. Returns a dictionary with key "device" that
+        holds the device info if found, or None if not connected.
         """
-        devices: List[Dict] = []
         async with httpx.AsyncClient(timeout=self.request_timeout) as client:
-            # Create tasks for concurrent HTTP GET requests.
-            tasks = [
-                self._get_device_info(client, ip) for ip in self.device_ips
-            ]
-            results = await asyncio.gather(*tasks, return_exceptions=True)
-            for result in results:
-                if isinstance(result, dict):
-                    devices.append(result)
-        return {"devices": devices}
+            result = await self._get_device_info(client, ip)
+            if result:
+                logger.info(f"Device at {ip} is connected: {result}")
+            else:
+                logger.info(f"No device found at {ip}")
+            return {"device": result}
 
     async def _get_device_info(self, client: httpx.AsyncClient, ip: str) -> Optional[Dict]:
         url = f"http://{ip}/discovery"
@@ -67,9 +62,11 @@ def get_device_discovery_service() -> DeviceDiscoveryService:
     """
     return DeviceDiscoveryService()
 
+# (Optional) Retain the scan_network method if needed for multi-IP scanning.
 async def discover_devices() -> Dict[str, List[Dict]]:
     """
     Discover all devices on the LAN using the DeviceDiscoveryService.
+    (This method may be deprecated if you only want per-IP validation.)
     """
     discovery_service = DeviceDiscoveryService()
     return await discovery_service.scan_network()

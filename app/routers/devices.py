@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, HTTPException, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from typing import List
@@ -20,12 +20,29 @@ from app.services.device_discovery import (
 
 router = APIRouter()
 
-@router.get("/discover", summary="Discover available devices")
-async def discover_network_devices(
+@router.get("/discover", summary="Check if a device is connected")
+async def check_device_connection(
+    ip: str = Query(..., description="IP address of the device to validate"),
     discovery_service: DeviceDiscoveryService = Depends(get_device_discovery_service)
 ):
-    """Discover devices on the network using HTTP-based discovery."""
-    return await discovery_service.scan_network()
+    """
+    Validate connectivity of a device at a specific IP address.
+    """
+    result = await discovery_service.check_device(ip)
+    device_info = result.get("device")
+    if device_info is None:
+        raise HTTPException(status_code=404, detail="No device found at the provided IP")
+    
+    # Map device_id to id and use it for name as well (if no name is provided)
+    formatted_device = {
+        "id": device_info.get("device_id"),
+        "name": device_info.get("device_id"),  # You can adjust this mapping if the device sends a name.
+        "type": device_info.get("type"),
+        "status": device_info.get("status"),
+        "version": device_info.get("version"),
+        "ip": device_info.get("ip")
+    }
+    return formatted_device
 
 @router.post("/dosing", response_model=DeviceResponse)
 async def create_dosing_device(
