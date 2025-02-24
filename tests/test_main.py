@@ -8,6 +8,7 @@ from app.main import app
 from app import models
 from app.services.llm import dosing_manager
 from app.schemas import DeviceType
+from app.services.device_discovery import DeviceDiscoveryService
 
 # Updated test data: now using "http_endpoint" 
 TEST_DOSING_DEVICE = {
@@ -85,6 +86,33 @@ class TestDevices:
         data = response.json()
         assert isinstance(data, list)
         assert len(data) >= 2
+
+    @pytest.mark.asyncio
+    async def test_check_device_not_found(self):
+        """
+        Test the new discovery endpoint when no device is found at the provided IP.
+        """
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
+            response = await ac.get("/api/v1/devices/discover", params={"ip": "192.0.2.1"})
+        # Expect a 404 if no device is responding at that IP.
+        assert response.status_code == 404
+        assert "No device found" in response.json()["detail"]
+
+    @pytest.mark.asyncio
+    async def test_check_device_found(self, monkeypatch):
+        """
+        Test the new discovery endpoint when a device is found.
+        We simulate a successful device response by monkeypatching _get_device_info.
+        """
+        async def dummy_get_device_info(self, client, ip):
+            return {"ip": ip, "device_id": "dummy_device", "status": "online"}
+        monkeypatch.setattr(DeviceDiscoveryService, "_get_device_info", dummy_get_device_info)
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
+            response = await ac.get("/api/v1/devices/discover", params={"ip": "192.168.1.100"})
+        assert response.status_code == 200
+        data = response.json()
+        assert data["device"]["ip"] == "192.168.1.100"
+        assert data["device"]["status"] == "online"
 
 
 class TestDosing:
@@ -276,5 +304,3 @@ class TestDosing:
             assert isinstance(result["actions"], list), "'actions' should be a list"
             assert "next_check_hours" in result, "Dosing plan missing 'next_check_hours'"
             print("LLM dosing plan:", result)
-
-
