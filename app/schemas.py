@@ -121,3 +121,27 @@ class FullHealthCheck(BaseModel):
 class SimpleDosingCommand(BaseModel):
     pump: int = Field(..., ge=1, le=4, description="Pump number (1-4)")
     amount: float = Field(..., gt=0, description="Dose in milliliters")
+
+
+
+
+class PlantBase(BaseModel):
+    name: str = Field(..., max_length=100)
+    type: str = Field(..., max_length=100)
+    growth_stage: str = Field(..., max_length=50)
+    seeding_date: datetime
+    region: str = Field(..., max_length=100)
+
+
+class PlantCreate(PlantBase):
+    """Schema for creating a new plant profile."""
+
+
+class PlantResponse(PlantBase):
+    """Schema for returning plant details."""
+    id: int
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
+        from_attributes = True

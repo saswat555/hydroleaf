@@ -76,3 +76,15 @@ class DosingOperation(Base):
     timestamp = Column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
 
     device = relationship("Device", back_populates="dosing_operations")
+
+class Plant(Base):
+    __tablename__ = "plants"
+
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String(100), nullable=False)
+    type = Column(String(100), nullable=False)
+    growth_stage = Column(String(50), nullable=False)
+    seeding_date = Column(DateTime(timezone=True), nullable=False)
+    region = Column(String(100), nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)

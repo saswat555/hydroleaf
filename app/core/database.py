@@ -35,8 +35,8 @@ async def init_db() -> bool:
     """Initialize database"""
     try:
         async with engine.begin() as conn:
-            await conn.run_sync(Base.metadata.drop_all)
-            await conn.run_sync(Base.metadata.create_all)
+            # await conn.run_sync(Base.metadata.drop_all)
+            # await conn.run_sync(Base.metadata.create_all)
             
             # Verify tables were created
             result = await conn.execute(

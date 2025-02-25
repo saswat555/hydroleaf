@@ -11,7 +11,7 @@ import os
 import time
 from sqlalchemy import text
 
-from app.routers import devices, dosing, config
+from app.routers import devices, dosing, config, plants
 from app.services.device_discovery import DeviceDiscoveryService
 from app.core.database import (
     init_db, 
@@ -255,6 +255,7 @@ async def general_exception_handler(request: Request, exc: Exception):
 app.include_router(devices.router, prefix="/api/v1/devices", tags=["devices"])
 app.include_router(dosing.router, prefix="/api/v1/dosing", tags=["dosing"])
 app.include_router(config.router, prefix="/api/v1/config", tags=["config"])
+app.include_router(plants.router, prefix="/api/v1/plants", tags=["plants"]) 
 
 if __name__ == "__main__":
     import uvicorn
