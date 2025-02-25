@@ -7,8 +7,8 @@ from typing import List
 from sqlalchemy import select, func  
 # Update these imports to use the correct paths
 from app.core.database import get_db
-from app.schemas import DosingProfileCreate, DosingProfileResponse, DeviceType
-from app.models import Device, DosingProfile
+from app.schemas import DosingProfileCreate, DosingProfileResponse, DeviceType, PlantCreate, PlantResponse
+from app.models import Device, DosingOperation, DosingProfile, Plant, SensorReading
 from app.services.device_discovery import discover_devices
 
 router = APIRouter()

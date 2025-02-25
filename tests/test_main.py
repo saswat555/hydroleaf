@@ -1,5 +1,6 @@
 # tests/test_main.py
 
+import httpx
 import pytest
 from httpx import AsyncClient, ASGITransport
 from datetime import datetime, timezone
@@ -10,6 +11,7 @@ from app.services.llm import dosing_manager
 from app.schemas import DeviceType
 from app.services.device_discovery import DeviceDiscoveryService
 
+PUMP_IP = "192.168.54.198" 
 # Updated test data: now using "http_endpoint" 
 TEST_DOSING_DEVICE = {
     "name": "Test Dosing Unit",
@@ -20,7 +22,7 @@ TEST_DOSING_DEVICE = {
         {
             "pump_number": 1,
             "chemical_name": "Nutrient A",
-            "chemical_description": "Primary nutrients"
+            "chemical_description": "8 macro"
         },
         {
             "pump_number": 2,
@@ -108,11 +110,11 @@ class TestDevices:
             return {"ip": ip, "device_id": "dummy_device", "status": "online"}
         monkeypatch.setattr(DeviceDiscoveryService, "_get_device_info", dummy_get_device_info)
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
-            response = await ac.get("/api/v1/devices/discover", params={"ip": "192.168.1.100"})
+            response = await ac.get("/api/v1/devices/discover", params={"ip": "192.168.54.198"})
         assert response.status_code == 200
         data = response.json()
-        assert data["device"]["ip"] == "192.168.1.100"
-        assert data["device"]["status"] == "online"
+        assert data["ip"] == "192.168.54.198"
+        assert data["status"] == "online"
 
 
 class TestDosing:
@@ -256,51 +258,179 @@ class TestDosing:
             assert cancel_resp.status_code == 200
             assert cancel_resp.json()["message"] == "Dosing operation cancelled"
 
+    # @pytest.mark.asyncio
+    # async def test_llm_dosing_flow_actual(self, test_dosing_device_fixture: dict):
+    #     """
+    #     Test the full LLM-based dosing flow with an actual LLM call.
+    #     Note: This test requires your LLM service (Ollama) to be available.
+    #     """
+    #     # Clear any previous device registrations.
+    #     dosing_manager.devices.clear()
+
+    #     # Prepare a dosing device with dose_ml included.
+    #     dosing_device = test_dosing_device_fixture.copy()
+    #     unique_endpoint = f"krishiverse/devices/test_llm_{int(datetime.now(timezone.utc).timestamp()*1000)}"
+    #     dosing_device["http_endpoint"] = unique_endpoint
+    #     dosing_device["pump_configurations"][0]["dose_ml"] = 50.0
+
+    #     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
+    #         device_resp = await ac.post("/api/v1/devices/dosing", json=dosing_device)
+    #         assert device_resp.status_code == 200, f"Device creation failed: {device_resp.text}"
+    #         device_data = device_resp.json()
+    #         device_id = device_data["id"]
+
+    #         # Register the device in the dosing manager (now including the http_endpoint).
+    #         dosing_manager.register_device(
+    #             device_id,
+    #             {f"pump{idx+1}": config for idx, config in enumerate(device_data["pump_configurations"])},
+    #             device_data["http_endpoint"]
+    #         )
+
+    #         # Prepare sensor data and plant profile.
+    #         sensor_data = {"ph": 6.8, "tds": 450}
+    #         plant_profile = {
+    #             "plant_name": "Cucumber",
+    #             "plant_type": "Vegetable",
+    #             "current_age": 30,
+    #             "seeding_age": 10,
+    #             "weather_locale": "Local"
+    #         }
+
+    #         llm_resp = await ac.post(
+    #             f"/api/v1/dosing/llm-request?device_id={device_id}",
+    #             json={"sensor_data": sensor_data, "plant_profile": plant_profile}
+    #         )
+    #         assert llm_resp.status_code == 200, f"LLM dosing flow failed: {llm_resp.text}"
+    #         result = llm_resp.json()
+    #         assert "actions" in result, "Dosing plan missing 'actions' key"
+    #         assert isinstance(result["actions"], list), "'actions' should be a list"
+    #         assert "next_check_hours" in result, "Dosing plan missing 'next_check_hours'"
+    #         print("LLM dosing plan:", result)
+
+
+
+
+
     @pytest.mark.asyncio
-    async def test_llm_dosing_flow_actual(self, test_dosing_device_fixture: dict):
-        """
-        Test the full LLM-based dosing flow with an actual LLM call.
-        Note: This test requires your LLM service (Ollama) to be available.
-        """
-        # Clear any previous device registrations.
+    async def test_llm_dosing_with_real_pumps(self, test_dosing_device_fixture: dict):
+        """Test full dosing process with LLM feedback and real pump activation."""
+
         dosing_manager.devices.clear()
 
         # Prepare a dosing device with dose_ml included.
         dosing_device = test_dosing_device_fixture.copy()
         unique_endpoint = f"krishiverse/devices/test_llm_{int(datetime.now(timezone.utc).timestamp()*1000)}"
         dosing_device["http_endpoint"] = unique_endpoint
-        dosing_device["pump_configurations"][0]["dose_ml"] = 50.0
+        dosing_device["pump_configurations"][0]["dose_ml"] = 10
+
+        # Step 1: Define sensor data and plant profile
+        sensor_data = {"ph": 6.8, "tds": 450}
+        plant_profile = {
+            "plant_name": "Cucumber",
+            "plant_type": "Vegetable",
+            "current_age": 30,
+            "seeding_age": 10,
+            "weather_locale": "Local"
+        }
 
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
+            # Step 2: Register the dosing device
             device_resp = await ac.post("/api/v1/devices/dosing", json=dosing_device)
             assert device_resp.status_code == 200, f"Device creation failed: {device_resp.text}"
+            
             device_data = device_resp.json()
             device_id = device_data["id"]
 
-            # Register the device in the dosing manager (now including the http_endpoint).
+            # Manually register device in dosing manager to ensure LLM request succeeds
             dosing_manager.register_device(
                 device_id,
                 {f"pump{idx+1}": config for idx, config in enumerate(device_data["pump_configurations"])},
                 device_data["http_endpoint"]
             )
 
-            # Prepare sensor data and plant profile.
-            sensor_data = {"ph": 6.8, "tds": 450}
-            plant_profile = {
-                "plant_name": "Cucumber",
-                "plant_type": "Vegetable",
-                "current_age": 30,
-                "seeding_age": 10,
-                "weather_locale": "Local"
-            }
-
+            # Step 3: Send request to LLM via correct endpoint
             llm_resp = await ac.post(
                 f"/api/v1/dosing/llm-request?device_id={device_id}",
                 json={"sensor_data": sensor_data, "plant_profile": plant_profile}
             )
-            assert llm_resp.status_code == 200, f"LLM dosing flow failed: {llm_resp.text}"
+
+            assert llm_resp.status_code == 200, f"LLM request failed: {llm_resp.text}"
             result = llm_resp.json()
+
+            # Step 4: Ensure LLM response contains actions
             assert "actions" in result, "Dosing plan missing 'actions' key"
             assert isinstance(result["actions"], list), "'actions' should be a list"
             assert "next_check_hours" in result, "Dosing plan missing 'next_check_hours'"
-            print("LLM dosing plan:", result)
+
+            # Step 5: Activate pumps based on LLM response using a REAL HTTP client
+            async with httpx.AsyncClient() as real_client:
+                for action in result["actions"]:
+                    pump_number = action["pump_number"]
+                    amount = action["dose_ml"]
+
+                    # Debugging log for pump request
+                    print(f"Sending request to pump: Pump {pump_number}, Amount: {amount}")
+
+                    pump_response = await real_client.post(
+                        "http://192.168.3.198/pump",
+                        json={"pump": pump_number, "amount": amount}
+                    )
+
+                    # Debugging log for pump response
+                    print(f"Pump API Response: {pump_response.status_code} - {pump_response.text}")
+
+                    assert pump_response.status_code == 200, f"Pump {pump_number} activation failed: {pump_response.text}"
+                    pump_data = pump_response.json()
+                    assert pump_data.get("message") == "Pump started", f"Unexpected response: {pump_data}"
+
+        print("✅ LLM dosing flow completed successfully:", result)
+
+
+    # @pytest.mark.asyncio
+    # async def test_dosing_pump_1_ph_up(self):
+    #     """Test Pump 1 for pH Up adjustment."""
+    #     url = f"http://{PUMP_IP}/pump"
+    #     payload = {"pump": 1, "amount": 5}
+
+    #     async with httpx.AsyncClient() as client:
+    #         response = await client.post(url, json=payload)
+
+    #     assert response.status_code == 200, f"Pump 1 (pH Up) activation failed: {response.text}"
+    #     data = response.json()
+    #     assert data.get("message") == "Pump started", f"Unexpected response: {data}"
+    # @pytest.mark.asyncio
+    # async def test_dosing_pump_2_ph_down(self):
+    #     """Test Pump 2 for pH Down adjustment."""
+    #     url = f"http://{PUMP_IP}/pump"
+    #     payload = {"pump": 2, "amount": 5}
+
+    #     async with httpx.AsyncClient() as client:
+    #         response = await client.post(url, json=payload)
+
+    #     assert response.status_code == 200, f"Pump 2 (pH Down) activation failed: {response.text}"
+    #     data = response.json()
+    #     assert data.get("message") == "Pump started", f"Unexpected response: {data}"
+    # @pytest.mark.asyncio
+    # async def test_dosing_pump_3_sol1(self):
+    #     """Test Pump 3 for Solution 1."""
+    #     url = f"http://{PUMP_IP}/pump"
+    #     payload = {"pump": 3, "amount": 5}
+
+    #     async with httpx.AsyncClient() as client:
+    #         response = await client.post(url, json=payload)
+
+    #     assert response.status_code == 200, f"Pump 3 (Sol1) activation failed: {response.text}"
+    #     data = response.json()
+    #     assert data.get("message") == "Pump started", f"Unexpected response: {data}"
+    # @pytest.mark.asyncio
+    # async def test_dosing_pump_4_sol2(self):
+    #     """Test Pump 4 for Solution 2."""
+    #     url = f"http://{PUMP_IP}/pump"
+    #     payload = {"pump": 4, "amount": 5}
+
+    #     async with httpx.AsyncClient() as client:
+    #         response = await client.post(url, json=payload)
+
+    #     assert response.status_code == 200, f"Pump 4 (Sol2) activation failed: {response.text}"
+    #     data = response.json()
+    #     assert data.get("message") == "Pump started", f"Unexpected response: {data}"

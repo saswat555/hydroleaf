@@ -1,4 +1,5 @@
 from fastapi import APIRouter, HTTPException, Depends
+from fastapi.logger import logger
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from typing import List
@@ -140,19 +141,21 @@ async def llm_dosing_request(
     """
     Process a dosing request using sensor data and plant profile to generate a dosing plan via LLM.
     """
-    # Optionally verify the device exists in the database
-    device = await db.get(Device, device_id)
-    if not device:
-        raise HTTPException(status_code=404, detail="Device not found")
-    
-    # Import the LLM processing function
-    from app.services.llm import process_dosing_request
-    
     try:
-        result = await process_dosing_request(device_id, request.sensor_data, request.plant_profile)
-        return result
+        # Verify device exists
+        device = await db.get(Device, device_id)
+        if not device:
+            raise HTTPException(status_code=404, detail="Device not found")
+
+        # Process the dosing request
+        from app.services.llm import process_dosing_request
+        result,raw = await process_dosing_request(device_id, request.sensor_data, request.plant_profile, db)
+
+        return result,raw
+
+    except HTTPException as he:
+        raise he  # Allow already handled errors to propagate correctly
+
     except Exception as exc:
-        raise HTTPException(
-            status_code=500,
-            detail=f"Error processing LLM dosing request: {exc}"
-        )
+        logger.exception(f"Unexpected error in /llm-request: {exc}")
+        raise HTTPException(status_code=500, detail="Internal Server Error")
