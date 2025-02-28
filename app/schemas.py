@@ -131,6 +131,7 @@ class PlantBase(BaseModel):
     growth_stage: str = Field(..., max_length=50)
     seeding_date: datetime
     region: str = Field(..., max_length=100)
+    location: str = Field(..., max_length=100)
 
 
 class PlantCreate(PlantBase):

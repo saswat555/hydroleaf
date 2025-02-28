@@ -1,4 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException
+from fastapi.logger import logger
+from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List
@@ -10,7 +12,7 @@ from app.services.plant_service import (
     create_plant,
     delete_plant
 )
-from app.models import Plant
+from app.models import Device, Plant
 
 router = APIRouter()
 
