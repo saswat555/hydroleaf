@@ -3,7 +3,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from fastapi import HTTPException
 from app.models import Plant
-
 logger = logging.getLogger(__name__)
 
 async def get_all_plants(db: AsyncSession):
