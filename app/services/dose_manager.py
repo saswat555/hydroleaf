@@ -1,6 +1,10 @@
 import logging
 from datetime import datetime
+from typing import Dict
 import httpx
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+from app.models import Device
 
 logger = logging.getLogger(__name__)
 
@@ -68,3 +72,40 @@ async def execute_dosing_operation(device_id: str, http_endpoint: str, dosing_ac
 
 async def cancel_dosing_operation(device_id: str) -> dict:
     return await dose_manager.cancel_dosing(device_id)
+
+
+class DosingDevice:
+    def __init__(self, device_id: str, pumps_config: Dict):
+        """
+        Initialize a dosing device with its pump configuration
+        
+        pumps_config format:
+        {
+            "pump1": {
+                "chemical_name": "Nutrient A",
+                "chemical_description": "Primary nutrients NPK"
+            },
+            ...
+        }
+        """
+        self.device_id = device_id
+        self.pumps_config = pumps_config
+
+class DosingManager:
+    def __init__(self):
+        self.devices: Dict[str, DosingDevice] = {}
+
+    def register_device(self, device_id: str, pumps_config: Dict, http_endpoint: str):
+        """Register a new dosing device with its pump configuration"""
+        self.devices[device_id] = DosingDevice(device_id, pumps_config)
+        logger.info(f"Registered dosing device {device_id} with config: {pumps_config}")
+
+    async def get_device(self, device_id: int, db: AsyncSession):
+        """Retrieve the device from the database or raise an error."""
+        result = await db.execute(select(Device).where(Device.id == device_id))
+        device = result.scalar_one_or_none()
+
+        if not device:
+            raise ValueError(f"Dosing device {device_id} not registered in the database")
+
+        return device  # Return the actual device instance from DB

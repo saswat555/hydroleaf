@@ -159,3 +159,38 @@ async def llm_dosing_request(
     except Exception as exc:
         logger.exception(f"Unexpected error in /llm-request: {exc}")
         raise HTTPException(status_code=500, detail="Internal Server Error")
+
+class llmPlaningRequest(BaseModel):
+    sensor_data: dict
+    plant_profile: dict
+    query: str
+
+@router.post("/llm-plan")
+async def llm_plan(
+    device_id: int,
+    request: llmPlaningRequest,
+    db: AsyncSession= Depends(get_db)
+): 
+    """
+    PROCESS A DOSING PLAN ACCORDING TO GIVEN REGION CLIMATE
+    """
+
+    try:
+        # Verify device exists
+        device = await db.get(Device, device_id)
+        if not device:
+            raise HTTPException(status_code=404, detail="Device not found")
+
+        # Process the dosing request
+        from app.services.llm import process_sensor_plan
+        result= await process_sensor_plan(device_id, request.sensor_data, request.plant_profile, request.query, db)
+
+        return result
+
+    except HTTPException as he:
+        raise he  # Allow already handled errors to propagate correctly
+
+    except Exception as exc:
+        logger.exception(f"Unexpected error in /llm-request: {exc}")
+        raise HTTPException(status_code=500, detail="Internal Server Error")
+

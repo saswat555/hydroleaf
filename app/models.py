@@ -86,5 +86,6 @@ class Plant(Base):
     growth_stage = Column(String(50), nullable=False)
     seeding_date = Column(DateTime(timezone=True), nullable=False)
     region = Column(String(100), nullable=False)
+    location = Column(String(100), nullable = False)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
