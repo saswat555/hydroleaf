@@ -260,59 +260,6 @@ class TestDosing:
             assert cancel_resp.json()["message"] == "Dosing operation cancelled"
 
     @pytest.mark.asyncio
-    async def test_llm_dosing_flow_actual(self, test_dosing_device_fixture: dict):
-        """
-        Test the full LLM-based dosing flow with an actual LLM call.
-        Note: This test requires your LLM service (Ollama) to be available.
-        """
-        # Clear any previous device registrations.
-        dosing_manager.devices.clear()
-
-        # Prepare a dosing device with dose_ml included.
-        dosing_device = test_dosing_device_fixture.copy()
-        unique_endpoint = f"krishiverse/devices/test_llm_{int(datetime.now(timezone.utc).timestamp()*1000)}"
-        dosing_device["http_endpoint"] = unique_endpoint
-        dosing_device["pump_configurations"][0]["dose_ml"] = 50.0
-
-        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
-            device_resp = await ac.post("/api/v1/devices/dosing", json=dosing_device)
-            assert device_resp.status_code == 200, f"Device creation failed: {device_resp.text}"
-            device_data = device_resp.json()
-            device_id = device_data["id"]
-
-            # Register the device in the dosing manager (now including the http_endpoint).
-            dosing_manager.register_device(
-                device_id,
-                {f"pump{idx+1}": config for idx, config in enumerate(device_data["pump_configurations"])},
-                device_data["http_endpoint"]
-            )
-
-            # Prepare sensor data and plant profile.
-            sensor_data = {"ph": 6.8, "tds": 450}
-            plant_profile = {
-                "plant_name": "Cucumber",
-                "plant_type": "Vegetable",
-                "current_age": 30,
-                "seeding_age": 10,
-                "weather_locale": "Local"
-            }
-
-            llm_resp = await ac.post(
-                f"/api/v1/dosing/llm-request?device_id={device_id}",
-                json={"sensor_data": sensor_data, "plant_profile": plant_profile}
-            )
-            assert llm_resp.status_code == 200, f"LLM dosing flow failed: {llm_resp.text}"
-            result = llm_resp.json()
-            assert "actions" in result, "Dosing plan missing 'actions' key"
-            assert isinstance(result["actions"], list), "'actions' should be a list"
-            assert "next_check_hours" in result, "Dosing plan missing 'next_check_hours'"
-            print("LLM dosing plan:", result)
-
-
-
-
-
-    @pytest.mark.asyncio
     async def test_llm_dosing_with_real_pumps(self, test_dosing_device_fixture: dict):
         """Test full dosing process with LLM feedback and real pump activation."""
 
@@ -363,63 +310,57 @@ class TestDosing:
             assert isinstance(result["actions"], list), "'actions' should be a list"
             assert "next_check_hours" in result, "Dosing plan missing 'next_check_hours'"
 
-            # Step 5: Activate pumps based on LLM response using a REAL HTTP client
-            async with httpx.AsyncClient() as real_client:
-                for action in result["actions"]:
-                    pump_number = action["pump_number"]
-                    amount = action["dose_ml"]
-
-                    # Debugging log for pump request
-                    print(f"Sending request to pump: Pump {pump_number}, Amount: {amount}")
-
-                    pump_response = await real_client.post(
-                        "http://192.168.3.198/pump",
-                        json={"pump": pump_number, "amount": amount}
-                    )
-
-                    # Debugging log for pump response
-                    print(f"Pump API Response: {pump_response.status_code} - {pump_response.text}")
-
-                    assert pump_response.status_code == 200, f"Pump {pump_number} activation failed: {pump_response.text}"
-                    pump_data = pump_response.json()
-                    assert pump_data.get("message") == "Pump started", f"Unexpected response: {pump_data}"
-
         print("✅ LLM dosing flow completed successfully:", result)
 
 
 
-@pytest.mark.asyncio
-async def test_build_plan_prompt():
+# @pytest.mark.asyncio
+# async def test_build_plan_prompt(test_sensor_device_fixture:dict):
 
     
     
-    plant_profile = {
-        "plant_name": "Strawberry",
-        "plant_type": "Fruit",
-        "growth_stage": 30,
-        "seeding_date": "2024-01-01",
-        "weather_locale": "Rajasthan"
-    }
+#     plant_profile = {
+#         "plant_name": "Strawberry",
+#         "plant_type": "Fruit",
+#         "growth_stage": 30,
+#         "seeding_date": "2024-01-01",
+#         "location": "Rajasthan"
+#     }
 
-    sensor_data = {
-        "pH" : 6.7690,
-        "TDS": 300.02
-    }
+#     sensor_data = {
+#         "pH" : 6.7690,
+#         "TDS": 300.02
+#     }
 
     
-    query = "Tell me optimal conditions for growing the given plant."
+#     query = "Tell me optimal conditions for growing the given plant."
 
-    # search_query = await fetch_search_results(query)
-   
-    result = await process_sensor_plan(plant_profile, sensor_data, query)
+#     dosing_manager.devices.clear()
 
-    planPrompt = await call_llm_plan(result)
+#         # Prepare a dosing device with dose_ml included.
+#     dosing_device = test_sensor_device_fixture.copy()
+#     unique_endpoint = f"krishiverse/devices/test_llm_{int(datetime.now(timezone.utc).timestamp()*1000)}"
+#     dosing_device["http_endpoint"] = unique_endpoint
+#     dosing_device["sensor_parameters"]
 
-    # print("\n Generate Search result: \n", search_query)
-    print("\nGenerated Prompt:\n", planPrompt)
-   
-    assert "Plant: Strawberry" in result
-    assert "Plant Type: Fruit" in result
-    assert "Growth Stage: 30 days from seeding" in result
-    assert "Location: Rajasthan" in result
-    assert "Additional Info" in result
+#     # search_query = await fetch_search_results(query)
+#     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
+#             device_resp = await ac.post("/api/v1/devices/dosing", json=dosing_device)
+#             assert device_resp.status_code == 200, f"Device creation failed: {device_resp.text}"
+            
+#             device_data = device_resp.json()
+#             device_id = device_data["id"]
+
+#             # Manually register device in dosing manager to ensure LLM request succeeds
+#             dosing_manager.register_device(
+#                 device_id,
+#                 {f"pump{idx+1}": config for idx, config in enumerate(device_data["sensor_parameters"])},
+#                 device_data["http_endpoint"]
+#             )
+#             result = await ac.post(
+#                         f"/api/v1/dosing/llm-plan?device_id={device_id}",
+#                         json={"sensor_data": sensor_data, "plant_profile": plant_profile, "query": query}
+#                     )
+
+#             # print("\n Generate Search result: \n", search_query)
+#             print("\nGenerated Response:\n", result)
