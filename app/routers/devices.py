@@ -17,6 +17,7 @@ from app.services.device_discovery import (
     DeviceDiscoveryService,
     get_device_discovery_service,
 )
+from app.services.llm import getSensorData
 
 router = APIRouter()
 
@@ -110,3 +111,18 @@ async def get_device(device_id: int, db: AsyncSession = Depends(get_db)):
     if not device:
         raise HTTPException(status_code=404, detail="Device not found")
     return device
+
+@router.get("/sensoreading/{device_id}")
+async def getSensorReadings(device_id: int, db: AsyncSession = Depends(get_db)):
+    """
+    Get details of a specific device and fetch its sensor readings.
+    """
+    result = await db.execute(select(Device).where(Device.id == device_id))
+    device = result.scalar_one_or_none()
+
+    if not device:
+        raise HTTPException(status_code=404, detail="Device not found")
+    
+    sensor_data = await getSensorData(device)
+    
+    return sensor_data
