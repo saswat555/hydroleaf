@@ -93,7 +93,7 @@ async def build_dosing_prompt(device: Device, sensor_data: dict, plant_profile: 
         f"Plant Type: {plant_profile['plant_type']} "
         f"Growth Stage: {plant_profile['growth_stage']} days from seeding "
         f"(seeded at {plant_profile['seeding_date']} days)\n"
-        f"Location: {plant_profile.get('weather_locale', 'Unknown')}"
+        f"Location: {plant_profile.get('location', 'Unknown')}"
     )
 
     prompt = f"""
@@ -442,9 +442,9 @@ async def process_sensor_plan(
         # Call LLM with the generated prompt
         sensor_plan = await call_llm_plan(promptPlan = prompt)
 
-        # beautify_response = parse_json_response(sensor_plan)
+        beautify_response = parse_json_response(sensor_plan)
 
-        return sensor_plan
+        return beautify_response
 
     except ValueError as ve:
         logger.error(f"ValueError in dosing request: {ve}")

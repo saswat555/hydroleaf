@@ -14,7 +14,6 @@ async def get_all_plants(db: AsyncSession):
         result = await db.execute(select(Plant))
         plants = result.scalars().all()
 
-        # ✅ Return an empty list instead of an error if no plants exist
         if not plants:
             logger.info("No plants found, returning an empty list.")
             return []
