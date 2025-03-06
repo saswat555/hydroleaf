@@ -13,7 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 import httpx  # Import httpx for async HTTP requests
 from app.models import Device
-from app.services.dose_manager import DosingManager
+from app.services.dose_manager import DoseManager
 from .serper import fetch_search_results
 from bs4 import BeautifulSoup
 
@@ -25,7 +25,7 @@ MODEL_NAME = "deepseek-r1:1.5b"
 SESSION_MAX_DURATION = 1800  # 30 minutes in seconds
 
 # Create singleton instance
-dosing_manager = DosingManager()
+dosing_manager = DoseManager()
 
 def enhance_query(user_query: str, plant_profile: dict) -> str:
 

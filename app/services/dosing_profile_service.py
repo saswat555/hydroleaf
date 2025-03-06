@@ -1,43 +1,42 @@
+# dosing_profile_service.py
 import json
 import logging
+from datetime import datetime
+from typing import Dict
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from fastapi import HTTPException
 from app.models import Device, DosingProfile
-from app.services.ph_tds import get_ph_tds_readings
+from app.services.device_controller import DeviceController
+from app.services.ph_tds import get_ph_tds_readings  # Ensure this returns averaged values
 from app.services.llm import call_llm_async, build_dosing_prompt
-from app.services.device_discovery import discover_devices
 
 logger = logging.getLogger(__name__)
 
 async def set_dosing_profile_service(profile_data: dict, db: AsyncSession) -> dict:
     """
-    Set the dosing profile for a dosing device.
-    
-    If the dosing device specified by profile_data["device_id"] does not exist in the database,
-    attempt to discover it via the updated HTTP discovery service and add it.
-    
-    Then, using a monitoring device to fetch sensor readings (PH/TDS), build an LLM prompt,
-    call the LLM for dosing recommendations, and save a new dosing profile.
+    Set the dosing profile for a unified dosing/monitoring device.
+    This function uses the unified device for both sensor reading and dosing.
     """
     device_id = profile_data.get("device_id")
     if not device_id:
         raise HTTPException(status_code=400, detail="Device ID is required in profile data")
     
-    # Try to retrieve the dosing device from the database.
+    # Retrieve the unified device from the database.
     result = await db.execute(select(Device).where(Device.id == device_id))
     dosing_device = result.scalars().first()
     
-    # If the dosing device is not found, attempt to discover devices via HTTP.
     if not dosing_device:
-        discovered = await discover_devices()
-        devices_list = discovered.get("devices", [])
-        if devices_list:
-            # For simplicity, pick the first discovered device.
-            discovered_device = devices_list[0]
+        # If the device is not found, attempt discovery via the unified controller.
+        device_ip = profile_data.get("device_ip")
+        if not device_ip:
+            raise HTTPException(status_code=404, detail="Unified device not found and device_ip not provided")
+        controller = DeviceController(device_ip=device_ip)
+        discovered_device = await controller.discover()
+        if discovered_device:
             new_device = Device(
-                name=discovered_device.get("name", "Discovered Dosing Device"),
-                type="dosing_unit",  # Use appropriate enum if available
+                name=discovered_device.get("name", "Discovered Unified Device"),
+                type="dosing_unit",  # Using the same type for unified devices
                 http_endpoint=discovered_device.get("http_endpoint"),
                 location_description=discovered_device.get("location_description", ""),
                 pump_configurations=[],  # Can be updated later if needed
@@ -50,24 +49,14 @@ async def set_dosing_profile_service(profile_data: dict, db: AsyncSession) -> di
                 dosing_device = new_device
             except Exception as exc:
                 await db.rollback()
-                raise HTTPException(
-                    status_code=500,
-                    detail=f"Error adding discovered device: {exc}"
-                ) from exc
+                raise HTTPException(status_code=500, detail=f"Error adding discovered device: {exc}") from exc
         else:
-            raise HTTPException(status_code=404, detail="Dosing device not found and could not be discovered")
+            raise HTTPException(status_code=404, detail="Unified dosing device not found and could not be discovered")
     
-    # Retrieve the monitoring device (assumed to be of type "monitoring") to fetch sensor readings.
-    result = await db.execute(select(Device).where(Device.type == "monitoring"))
-    monitoring_device = result.scalars().first()
-    if not monitoring_device:
-        raise HTTPException(status_code=500, detail="No monitoring device configured")
-    
-    # Use the monitoring device's location as the sensor IP.
-    sensor_ip = monitoring_device.location
-
+    # For the unified device, use its HTTP endpoint to get sensor readings.
+    sensor_ip = dosing_device.http_endpoint
     try:
-        readings = get_ph_tds_readings(sensor_ip)
+        readings = await get_ph_tds_readings(sensor_ip)
     except Exception as exc:
         raise HTTPException(
             status_code=500,
@@ -77,12 +66,12 @@ async def set_dosing_profile_service(profile_data: dict, db: AsyncSession) -> di
     ph = readings.get("ph")
     tds = readings.get("tds")
 
-    # Build a comprehensive prompt using sensor data and profile data.
-    prompt = build_dosing_prompt({"ph": ph, "tds": tds}, profile_data)
+    # Build a comprehensive dosing prompt using the unified device details.
+    # (Now using the unified device instance, averaged sensor values, and profile_data.)
+    prompt = await build_dosing_prompt(dosing_device, {"ph": ph, "tds": tds}, profile_data)
     try:
-        llm_response = await call_llm_async(prompt)
+        llm_response, raw_llm = await call_llm_async(prompt)
         logger.info(f"LLM response: {llm_response}")
-
         if isinstance(llm_response, str):
             result_json = json.loads(llm_response)
         elif isinstance(llm_response, list):
@@ -99,15 +88,18 @@ async def set_dosing_profile_service(profile_data: dict, db: AsyncSession) -> di
             detail=f"Error calling LLM: {exc}"
         ) from exc
 
-    # Create a new dosing profile using the discovered or existing dosing device.
+    # Create a new dosing profile using the unified device.
     new_profile = DosingProfile(
         device_id=dosing_device.id,
-        chemical_name=profile_data.get("chemical_name"),
-        chemical_description=profile_data.get("chemical_description"),
         plant_name=profile_data.get("plant_name"),
-        weather_locale=profile_data.get("weather_locale"),
-        seeding_age=profile_data.get("seeding_age"),
-        current_age=profile_data.get("current_age")
+        plant_type=profile_data.get("plant_type"),
+        growth_stage=profile_data.get("growth_stage"),
+        seeding_date=profile_data.get("seeding_date"),
+        target_ph_min=profile_data.get("target_ph_min"),
+        target_ph_max=profile_data.get("target_ph_max"),
+        target_tds_min=profile_data.get("target_tds_min"),
+        target_tds_max=profile_data.get("target_tds_max"),
+        dosing_schedule=profile_data.get("dosing_schedule")
     )
     db.add(new_profile)
     try:

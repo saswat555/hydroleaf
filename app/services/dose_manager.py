@@ -1,10 +1,8 @@
+# dose_manager.py
 import logging
 from datetime import datetime
-from typing import Dict
-import httpx
-from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
-from app.models import Device
+from fastapi import HTTPException
+from app.services.device_controller import DeviceController
 
 logger = logging.getLogger(__name__)
 
@@ -12,22 +10,10 @@ class DoseManager:
     def __init__(self):
         pass
 
-    async def execute_dosing(self, device_id: str, http_endpoint: str, dosing_actions: list) -> dict:
+    async def execute_dosing(self, device_id: str, http_endpoint: str, dosing_actions: list, combined: bool = False) -> dict:
         """
-        Execute a dosing command for a device via HTTP.
-        
-        For compatibility with the previous API, we accept a device_id and a list of dosing_actions.
-        Since the device firmware supports a single dosing action per command, we extract the pump number and dose 
-        from the first element of dosing_actions and ignore any extra actions.
-        
-        The simplified payload format is:
-            {
-                "pump": <pump number>,       // from action["pump_number"] or action["pump"]
-                "amount": <dose_ml>,         // from action["dose_ml"] or action["amount"]
-                "timestamp": "<ISO timestamp>"
-            }
-        
-        This payload is sent as an HTTP POST request to the dosing device’s /pump endpoint.
+        Execute a dosing command using the unified device controller.
+        If combined=True, the controller will use the /dose_monitor endpoint.
         """
         if not dosing_actions:
             raise ValueError("No dosing action provided")
@@ -37,18 +23,14 @@ class DoseManager:
         if pump is None or amount is None:
             raise ValueError("Dosing action must include pump number and dose amount")
         
-        payload = {
-            "pump": pump,
-            "amount": amount,
-            "timestamp": datetime.utcnow().isoformat()
-        }
-        url = f"http://{http_endpoint}/pump"
-        async with httpx.AsyncClient() as client:
-            response = await client.post(url, json=payload)
-            if response.status_code != 200:
-                raise Exception(f"Failed to send dosing command: {response.text}")
+        # Create a new controller instance pointing to the device's HTTP endpoint
+        controller = DeviceController(device_ip=http_endpoint)
+        try:
+            response = await controller.execute_dosing(pump, amount, combined=combined)
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=str(e))
         
-        logger.info(f"Sent dosing command to {url}: {payload}")
+        logger.info(f"Sent dosing command to device {device_id}: {response}")
         return {
             "status": "command_sent",
             "device_id": device_id,
@@ -56,56 +38,15 @@ class DoseManager:
         }
 
     async def cancel_dosing(self, device_id: str) -> dict:
-        """
-        Cancel active dosing operation for a device.
-        Since the device firmware does not support cancellation,
-        this function simply logs the attempt.
-        """
+        # Cancellation is not supported; log and return a fixed response.
         logger.info(f"Cancellation requested for device {device_id}, but cancellation is not supported.")
         return {"status": "cancel_not_supported", "device_id": device_id}
 
 # Create singleton instance
 dose_manager = DoseManager()
 
-async def execute_dosing_operation(device_id: str, http_endpoint: str, dosing_actions: list) -> dict:
-    return await dose_manager.execute_dosing(device_id, http_endpoint, dosing_actions)
+async def execute_dosing_operation(device_id: str, http_endpoint: str, dosing_actions: list, combined: bool = False) -> dict:
+    return await dose_manager.execute_dosing(device_id, http_endpoint, dosing_actions, combined)
 
 async def cancel_dosing_operation(device_id: str) -> dict:
     return await dose_manager.cancel_dosing(device_id)
-
-
-class DosingDevice:
-    def __init__(self, device_id: str, pumps_config: Dict):
-        """
-        Initialize a dosing device with its pump configuration
-        
-        pumps_config format:
-        {
-            "pump1": {
-                "chemical_name": "Nutrient A",
-                "chemical_description": "Primary nutrients NPK"
-            },
-            ...
-        }
-        """
-        self.device_id = device_id
-        self.pumps_config = pumps_config
-
-class DosingManager:
-    def __init__(self):
-        self.devices: Dict[str, DosingDevice] = {}
-
-    def register_device(self, device_id: str, pumps_config: Dict, http_endpoint: str):
-        """Register a new dosing device with its pump configuration"""
-        self.devices[device_id] = DosingDevice(device_id, pumps_config)
-        logger.info(f"Registered dosing device {device_id} with config: {pumps_config}")
-
-    async def get_device(self, device_id: int, db: AsyncSession):
-        """Retrieve the device from the database or raise an error."""
-        result = await db.execute(select(Device).where(Device.id == device_id))
-        device = result.scalar_one_or_none()
-
-        if not device:
-            raise ValueError(f"Dosing device {device_id} not registered in the database")
-
-        return device  # Return the actual device instance from DB
