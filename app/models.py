@@ -89,3 +89,34 @@ class Plant(Base):
     location = Column(String(100), nullable = False)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
+    
+    
+class SupplyChainAnalysis(Base):
+    __tablename__ = "supply_chain_analysis"
+
+    id = Column(Integer, primary_key=True, index=True)
+    origin = Column(String(100), nullable=False)
+    destination = Column(String(100), nullable=False)
+    produce_type = Column(String(50), nullable=False)
+    weight_kg = Column(Float, nullable=False)
+    transport_mode = Column(String(50), default="railway")
+
+    distance_km = Column(Float, nullable=False)
+    cost_per_kg = Column(Float, nullable=False)
+    total_cost = Column(Float, nullable=False)
+    estimated_time_hours = Column(Float, nullable=False)
+
+    market_price_per_kg = Column(Float, nullable=False)
+    net_profit_per_kg = Column(Float, nullable=False)
+    final_recommendation = Column(String(200), nullable=False)
+
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
+
+class ConversationLog(Base):
+    __tablename__ = "conversation_logs"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    analysis_id = Column(Integer, ForeignKey("supply_chain_analysis.id"), nullable=True)
+    conversation = Column(JSON, nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)

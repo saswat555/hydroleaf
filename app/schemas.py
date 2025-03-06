@@ -3,6 +3,8 @@ from typing import Optional, List, Dict
 from datetime import datetime
 from enum import Enum
 
+# -------------------- Device Related Schemas -------------------- #
+
 class DeviceType(str, Enum):
     DOSING_UNIT = "dosing_unit"
     PH_TDS_SENSOR = "ph_tds_sensor"
@@ -54,7 +56,8 @@ class DeviceResponse(DeviceBase):
 
     model_config = ConfigDict(from_attributes=True)
 
-# New model for an action inside a dosing operation.
+# -------------------- Dosing Related Schemas -------------------- #
+
 class DosingAction(BaseModel):
     pump_number: int
     chemical_name: str
@@ -99,13 +102,14 @@ class SensorReading(BaseModel):
     timestamp: datetime
 
     model_config = ConfigDict(from_attributes=True)
-    
+
+# -------------------- Health Related Schemas -------------------- #
+
 class HealthCheck(BaseModel):
     status: str
     version: str
     timestamp: datetime
     environment: str
-
 
 class DatabaseHealthCheck(BaseModel):
     status: str
@@ -122,8 +126,7 @@ class SimpleDosingCommand(BaseModel):
     pump: int = Field(..., ge=1, le=4, description="Pump number (1-4)")
     amount: float = Field(..., gt=0, description="Dose in milliliters")
 
-
-
+# -------------------- Plant Related Schemas -------------------- #
 
 class PlantBase(BaseModel):
     name: str = Field(..., max_length=100)
@@ -133,10 +136,8 @@ class PlantBase(BaseModel):
     region: str = Field(..., max_length=100)
     location: str = Field(..., max_length=100)
 
-
 class PlantCreate(PlantBase):
     """Schema for creating a new plant profile."""
-
 
 class PlantResponse(PlantBase):
     """Schema for returning plant details."""
@@ -146,3 +147,35 @@ class PlantResponse(PlantBase):
 
     class Config:
         from_attributes = True
+
+# -------------------- Supply Chain Related Schemas -------------------- #
+
+class TransportRequest(BaseModel):
+    origin: str
+    destination: str
+    produce_type: str
+    weight_kg: float
+    transport_mode: str = "railway"
+
+class TransportCost(BaseModel):
+    distance_km: float
+    cost_per_kg: float
+    total_cost: float
+    estimated_time_hours: float
+
+class SupplyChainAnalysisResponse(BaseModel):
+    origin: str
+    destination: str
+    produce_type: str
+    weight_kg: float
+    transport_mode: str
+    distance_km: float
+    cost_per_kg: float
+    total_cost: float
+    estimated_time_hours: float
+    market_price_per_kg: float
+    net_profit_per_kg: float
+    final_recommendation: str
+    created_at: Optional[datetime] = None
+
+    model_config = ConfigDict(from_attributes=True)
