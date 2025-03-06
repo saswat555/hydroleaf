@@ -10,9 +10,10 @@ import logging
 import os
 import time
 from sqlalchemy import text
+import asyncio
 
 from app.routers import devices, dosing, config, plants
-from app.services.device_discovery import DeviceDiscoveryService
+from app.services.device_controller import DeviceController
 from app.core.database import (
     init_db, 
     AsyncSessionLocal, 

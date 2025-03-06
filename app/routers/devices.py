@@ -13,31 +13,28 @@ from app.schemas import (
 )
 from app.models import Device
 from app.core.database import get_db
-from app.services.device_discovery import (
-    DeviceDiscoveryService,
-    get_device_discovery_service,
-)
+# UPDATED: Removed old DeviceDiscoveryService imports and use DeviceController instead.
+from app.services.device_controller import DeviceController
 from app.services.llm import getSensorData
 
 router = APIRouter()
 
 @router.get("/discover", summary="Check if a device is connected")
 async def check_device_connection(
-    ip: str = Query(..., description="IP address of the device to validate"),
-    discovery_service: DeviceDiscoveryService = Depends(get_device_discovery_service)
+    ip: str = Query(..., description="IP address of the device to validate")
 ):
     """
-    Validate connectivity of a device at a specific IP address.
+    Validate connectivity of a device at a specific IP address using the unified device controller.
     """
-    result = await discovery_service.check_device(ip)
-    device_info = result.get("device")
+    controller = DeviceController(device_ip=ip)
+    device_info = await controller.discover()
     if device_info is None:
         raise HTTPException(status_code=404, detail="No device found at the provided IP")
     
-    # Map device_id to id and use it for name as well (if no name is provided)
+    # Map device_info keys to a formatted response.
     formatted_device = {
         "id": device_info.get("device_id"),
-        "name": device_info.get("device_id"),  # You can adjust this mapping if the device sends a name.
+        "name": device_info.get("device_id"),  # Adjust this if the device sends a proper name.
         "type": device_info.get("type"),
         "status": device_info.get("status"),
         "version": device_info.get("version"),
