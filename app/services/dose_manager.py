@@ -37,10 +37,13 @@ class DoseManager:
             "actions": dosing_actions
         }
 
-    async def cancel_dosing(self, device_id: str) -> dict:
-        # Cancellation is not supported; log and return a fixed response.
-        logger.info(f"Cancellation requested for device {device_id}, but cancellation is not supported.")
-        return {"status": "cancel_not_supported", "device_id": device_id}
+        async def cancel_dosing(self, device_id: str, http_endpoint: str) -> dict:
+        # Create a controller instance for the device.
+            controller = DeviceController(device_ip=http_endpoint)
+            response = await controller.cancel_dosing()
+            logger.info(f"Cancellation response for device {device_id}: {response}")
+            return {"status": "dosing_cancelled", "device_id": device_id, "response": response}
+
 
 # Create singleton instance
 dose_manager = DoseManager()
@@ -48,5 +51,6 @@ dose_manager = DoseManager()
 async def execute_dosing_operation(device_id: str, http_endpoint: str, dosing_actions: list, combined: bool = False) -> dict:
     return await dose_manager.execute_dosing(device_id, http_endpoint, dosing_actions, combined)
 
-async def cancel_dosing_operation(device_id: str) -> dict:
-    return await dose_manager.cancel_dosing(device_id)
+async def cancel_dosing_operation(device_id: int, http_endpoint: str) -> dict:
+    return await dose_manager.cancel_dosing(str(device_id), http_endpoint)
+

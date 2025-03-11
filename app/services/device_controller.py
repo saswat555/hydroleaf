@@ -82,3 +82,21 @@ class DeviceController:
         except Exception as e:
             logger.error(f"Error fetching sensor readings: {e}")
             raise HTTPException(status_code=500, detail=str(e))
+    async def cancel_dosing(self) -> Dict:
+        """
+        Cancel dosing by sending a stop command to the device.
+        Uses the /pump_calibration endpoint with {"command": "stop"}.
+        """
+        url = f"http://{self.device_ip}/pump_calibration"
+        payload = {"command": "stop"}
+        try:
+            async with httpx.AsyncClient(timeout=self.request_timeout) as client:
+                response = await client.post(url, json=payload)
+                if response.status_code == 200:
+                    logger.info(f"Cancellation command sent to {url}: {payload}")
+                    return response.json()
+                else:
+                    raise HTTPException(status_code=response.status_code, detail=f"Cancellation failed: {response.text}")
+        except Exception as e:
+            logger.error(f"Error sending cancellation command: {e}")
+            raise HTTPException(status_code=500, detail=str(e))

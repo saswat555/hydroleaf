@@ -179,3 +179,15 @@ class SupplyChainAnalysisResponse(BaseModel):
     created_at: Optional[datetime] = None
 
     model_config = ConfigDict(from_attributes=True)
+
+class CloudAuthenticationRequest(BaseModel):
+    device_id: str
+    cloud_key: str
+
+class CloudAuthenticationResponse(BaseModel):
+    token: str
+    message: str
+
+class DosingCancellationRequest(BaseModel):
+    device_id: str
+    event: str
