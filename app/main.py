@@ -11,8 +11,7 @@ import os
 import time
 from sqlalchemy import text
 import asyncio
-
-from app.routers import devices, dosing, config, plants, supply_chain
+from app.routers import devices, dosing, config, plants, supply_chain, cloud
 from app.core.database import (
     init_db, 
     AsyncSessionLocal, 
@@ -257,6 +256,7 @@ app.include_router(dosing.router, prefix="/api/v1/dosing", tags=["dosing"])
 app.include_router(config.router, prefix="/api/v1/config", tags=["config"])
 app.include_router(plants.router, prefix="/api/v1/plants", tags=["plants"]) 
 app.include_router(supply_chain.router, prefix="/api/v1/supply_chain", tags=["supply_chain"])
+app.include_router(cloud.router, prefix="/api/v1", tags=["cloud"])
 
 if __name__ == "__main__":
     import uvicorn

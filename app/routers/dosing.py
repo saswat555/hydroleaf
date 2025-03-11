@@ -54,13 +54,11 @@ async def cancel_dosing(
         raise HTTPException(status_code=404, detail="Device not found")
     
     try:
-        await cancel_dosing_operation(device_id)
-        return {"message": "Dosing operation cancelled"}
+        result = await cancel_dosing_operation(device_id, device.http_endpoint)
+        return result
     except Exception as exc:
-        raise HTTPException(
-            status_code=500,
-            detail=f"Error cancelling dosing operation: {exc}"
-        )
+        raise HTTPException(status_code=500, detail=f"Error cancelling dosing operation: {exc}")
+
 
 @router.get("/history/{device_id}", response_model=List[DosingOperation])
 async def get_dosing_history(
