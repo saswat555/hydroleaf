@@ -5,7 +5,7 @@ from sqlalchemy.future import select
 from typing import List
 from datetime import datetime, UTC
 from pydantic import BaseModel
-
+from app.schemas import DeviceType 
 from app.core.database import get_db
 from app.schemas import (
     DosingOperation,
@@ -14,7 +14,6 @@ from app.schemas import (
 )
 from app.models import Device, DosingProfile
 from app.services.dose_manager import execute_dosing_operation, cancel_dosing_operation
-
 router = APIRouter()
 
 @router.post("/execute/{device_id}", response_model=DosingOperation)
@@ -28,7 +27,7 @@ async def execute_dosing(
     device = await db.get(Device, device_id)
     if not device:
         raise HTTPException(status_code=404, detail="Device not found")
-    if device.type != "dosing_unit":
+    if device.type != DeviceType.DOSING_UNIT:
         raise HTTPException(status_code=400, detail="Device is not a dosing unit")
     
     try:
