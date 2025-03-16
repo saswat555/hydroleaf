@@ -14,9 +14,9 @@ DEPLOYMENT_MODE = os.getenv("DEPLOYMENT_MODE", "LAN").upper()  # Valid values: "
 if TESTING:
     DATABASE_URL = os.getenv("DATABASE_URL", "sqlite+aiosqlite:///./test.db")
 else:
-    DATABASE_URL = os.getenv("DATABASE_URL", "sqlite+aiosqlite:///./krishiverse.db")
+    DATABASE_URL = os.getenv("DATABASE_URL", "sqlite+aiosqlite:///./Hydroleaf.db")
 
 
 # API Configuration
 API_V1_STR = "/api/v1"
-PROJECT_NAME = "Krishiverse"
+PROJECT_NAME = "Hydroleaf"

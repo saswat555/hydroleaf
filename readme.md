@@ -1,7 +1,7 @@
 
-# Krishiverse
+# Hydroleaf
 
-Krishiverse is an IoT platform for managing dosing devices and monitoring sensors with local deep learning integration. The system allows you to add dosing pumps and monitoring devices, retrieve sensor data (e.g. pH and TDS), and use a local LLM (Ollama) to determine optimal dosing amounts.
+Hydroleaf is an IoT platform for managing dosing devices and monitoring sensors with local deep learning integration. The system allows you to add dosing pumps and monitoring devices, retrieve sensor data (e.g. pH and TDS), and use a local LLM (Ollama) to determine optimal dosing amounts.
 
 ## Features
 
@@ -97,7 +97,7 @@ Ensure that your virtual environment is activated in VSCode:
 ## Project Structure
 
 ```
-krishiverse/
+Hydroleaf/
 ├── app/
 │   ├── __init__.py
 │   ├── main.py

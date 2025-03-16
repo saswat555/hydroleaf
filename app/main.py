@@ -78,18 +78,18 @@ API_VERSION = "1.0.0"
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Application lifespan manager"""
-    logger.info("Starting Krishiverse API")
+    logger.info("Starting Hydroleaf API")
     try:
         await init_db()
         yield
-        logger.info("Shutting down Krishiverse API")
+        logger.info("Shutting down Hydroleaf API")
     except Exception as e:
         logger.error(f"Error during application lifecycle: {e}")
         raise
 
 # Create FastAPI application
 app = FastAPI(
-    title="Krishiverse API",
+    title="Hydroleaf API",
     description="API for managing IoT devices and automated dosing in hydroponic systems",
     version=API_VERSION,
     lifespan=lifespan,
