@@ -3,57 +3,76 @@ import json
 import logging
 import re
 from datetime import datetime
-from typing import Dict, Any, Tuple
-
 from fastapi import HTTPException
+from typing import Dict, List, Union, Any, Tuple
 import httpx
+from bs4 import BeautifulSoup
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from langchain_ollama import ChatOllama
-
-from app.models import SupplyChainAnalysis  # ConversationLog is imported inside functions
-from app.services.serper import fetch_search_results
+from app.models import SupplyChainAnalysis, ConversationLog
+from .serper import fetch_search_results
 
 logger = logging.getLogger(__name__)
 
-# Model names for Ollama
+# Ollama endpoint and model names
+OLLAMA_URL = "http://localhost:11434/api/generate"
 MODEL_1_5B = "deepseek-r1:1.5b"
 MODEL_7B = "deepseek-r1:7b"
 
-# Initialize separate ChatOllama clients for each model
-ollama_client_1_5b = ChatOllama(base_url="http://localhost:11434", model=MODEL_1_5B)
-ollama_client_7b = ChatOllama(base_url="http://localhost:11434", model=MODEL_7B)
 
-async def call_llm(prompt: str, model_name: str = MODEL_1_5B) -> Dict[str, Any]:
+def enhance_query(user_query: str, plant_profile: dict) -> str:
+    location = str(plant_profile.get("location", "Unknown"))
+    plant_name = plant_profile.get("plant_name", "Unknown Plant")
+    plant_type = plant_profile.get("plant_type", "Unknown Type")
+    growth_stage = plant_profile.get("growth_stage", "Unknown Stage")
+    seeding_date = plant_profile.get("seeding_date", "Unknown Date")
+    additional_context = (
+        f"What are the best practices in {location} for growing {plant_name} ({plant_type})? "
+        f"Include information about optimal soil type, moisture levels, temperature range, "
+        f"weather conditions, and safety concerns. Also, consider its growth stage "
+        f"({growth_stage} days from seeding, seeded on {seeding_date})."
+    )
+    if location.lower() not in user_query.lower():
+        return f"{user_query}. {additional_context}"
+    return user_query
+
+
+def parse_json_response(json_str: str) -> Union[List[str], dict]:
     """
-    Generic function to call the LLM using the appropriate ChatOllama client.
-    Ensures the output is valid JSON.
+    Attempts to parse the provided string as JSON.
+    On failure, splits the string into cleaned lines.
     """
-    logger.info(f"Calling LLM {model_name} with prompt:\n{prompt}")
-    client = ollama_client_1_5b if model_name == MODEL_1_5B else ollama_client_7b
     try:
-        response = await asyncio.to_thread(
-            client.chat,
-            messages=[{"role": "user", "content": prompt}]
-        )
-        raw_content = response.get("message", {}).get("content", "").strip()
-        logger.info(f"Raw LLM response: {raw_content}")
-        # Remove any <think> blocks and enforce double quotes
-        content = re.sub(r'<think>.*?</think>', '', raw_content, flags=re.DOTALL).strip()
-        content = content.replace("'", '"')
-        try:
-            parsed_response = json.loads(content)
-        except json.JSONDecodeError:
-            logger.error(f"Invalid JSON from LLM: {raw_content}")
-            raise HTTPException(status_code=500, detail="Invalid LLM response format")
-        return parsed_response
-    except Exception as e:
-        logger.error(f"LLM call failed: {e}")
-        raise HTTPException(status_code=500, detail="Error processing LLM response")
+        data = json.loads(json_str)
+    except json.JSONDecodeError:
+        data = json_str
+    if isinstance(data, str):
+        paragraphs = data.split("\n")
+        result = []
+        for para in paragraphs:
+            if "**" in para:
+                bullets = para.split("**")
+                for bullet in bullets:
+                    if bullet.strip():
+                        result.append(f"- {bullet.strip()}")
+            elif para.strip():
+                result.append(para.strip())
+        return result
+    return data
+
+
+def parse_ollama_response(raw_response: str) -> str:
+    """
+    Removes any <think> block from the raw response.
+    Returns the cleaned text that is expected to be valid JSON.
+    """
+    cleaned = re.sub(r"<think>.*?</think>", "", raw_response, flags=re.DOTALL).strip()
+    return cleaned
+
 
 async def fetch_and_average_value(query: str) -> float:
     """
-    Uses the Serper API to search for the given query.
-    Extracts numerical values from the top three organic results and returns their average.
+    Fetches numerical values from a search query and returns their average.
     """
     logger.info(f"Fetching search results for query: {query}")
     results = await fetch_search_results(query)
@@ -71,23 +90,65 @@ async def fetch_and_average_value(query: str) -> float:
         avg_value = sum(values) / len(values)
         logger.info(f"Average value for query '{query}': {avg_value}")
         return avg_value
-    else:
-        logger.error(f"No numerical values found for query: {query}")
-        raise HTTPException(status_code=500, detail=f"Unable to determine value for query: {query}")
+    logger.warning(f"No numerical values found for query: {query}. Returning 0.0")
+    return 0.0
 
-async def analyze_transport_optimization(transport_request: Dict[str, Any], db_session) -> Tuple[Dict, Dict]:
+
+async def call_llm(prompt: str, model_name: str = MODEL_1_5B) -> Dict:
     """
-    Analyze the transport optimization for a supply chain request.
-    Uses Serper searches to fill unknown parameters and calls the LLM to optimize the transport plan.
-    The conversation (user request, prompt, LLM response) is stored in the database.
+    Calls the local Ollama API via HTTP.
+    Strips out any <think> block from the response and parses the JSON.
     """
-    origin = transport_request.get("origin")
-    destination = transport_request.get("destination")
-    produce_type = transport_request.get("produce_type")
-    weight_kg = transport_request.get("weight_kg")
+    logger.info(f"Calling Ollama with model {model_name}, prompt:\n{prompt}")
+    request_body = {"model": model_name, "prompt": prompt, "stream": False}
+    try:
+        async with httpx.AsyncClient(timeout=300) as client:
+            resp = await client.post(OLLAMA_URL, json=request_body)
+            resp.raise_for_status()
+            data = resp.json()
+            raw_completion = data.get("response", "").strip()
+            logger.info(f"Ollama raw response: {raw_completion}")
+            print("LLM raw response:", raw_completion)  # Print raw response
+            # Clean the response by removing any <think> block and normalizing quotes
+            cleaned_content = parse_ollama_response(raw_completion).replace("'", '"').strip()
+            print("Cleaned LLM response for supply chain:", cleaned_content)  # Print cleaned response
+            # Extract the first JSON object using regex
+            import re  # if not already imported
+            match = re.search(r"(\{.*\})", cleaned_content, flags=re.DOTALL)
+            if match:
+                cleaned_content = match.group(1)
+                print("Extracted JSON block for supply chain:", cleaned_content)  # Print extracted JSON block
+            else:
+                logger.error("No JSON block found in cleaned supply chain response.")
+                raise HTTPException(status_code=500, detail="Invalid JSON from local Ollama")
+            try:
+                parsed_response = json.loads(cleaned_content)
+            except json.JSONDecodeError as e:
+                logger.error(f"Invalid JSON after processing (supply chain): {cleaned_content}")
+                raise HTTPException(status_code=500, detail="Invalid JSON format from local Ollama") from e
+            return parsed_response
+
+    except httpx.HTTPStatusError as http_err:
+        logger.error(f"Ollama HTTP error: {http_err}")
+        raise HTTPException(status_code=500, detail="Ollama API HTTP error") from http_err
+    except Exception as e:
+        logger.error(f"Ollama call failed: {e}")
+        raise HTTPException(status_code=500, detail="Error processing Ollama response") from e
+
+
+async def analyze_transport_optimization(transport_request: Dict[str, Any]) -> Tuple[Dict, Dict]:
+    """
+    Analyzes supply chain transportation options using the LLM.
+    Gathers key numeric estimates from a search then builds a prompt.
+    Returns a tuple (analysis_record, optimization_result) where the latter is the parsed LLM output.
+    """
+    origin = transport_request.get("origin", "Unknown")
+    destination = transport_request.get("destination", "Unknown")
+    produce_type = transport_request.get("produce_type", "Unknown Product")
+    weight_kg = transport_request.get("weight_kg", 0)
     transport_mode = transport_request.get("transport_mode", "railway")
 
-    # Use Serper to fetch unknown numerical values:
+    # Build queries for estimation.
     distance_query = f"average distance in km from {origin} to {destination} by {transport_mode}"
     cost_query = f"average cost per kg to transport {produce_type} from {origin} to {destination} by {transport_mode}"
     time_query = f"average travel time in hours from {origin} to {destination} by {transport_mode}"
@@ -103,7 +164,6 @@ async def analyze_transport_optimization(transport_request: Dict[str, Any], db_s
     total_cost = cost_per_kg * weight_kg
     net_profit_per_kg = market_price_per_kg - cost_per_kg
 
-    # Build an LLM prompt to optimize the transport plan
     prompt = f"""
 You are a supply chain optimization expert. Evaluate the following transport parameters for {produce_type}:
 - Origin: {origin}
@@ -122,81 +182,62 @@ Output in JSON format:
   "final_recommendation": "<optimized transport plan>",
   "reasoning": "<detailed explanation>"
 }}
-"""
-    optimization_result = await call_llm(prompt, MODEL_7B)
+""".strip()
+
+    optimization_result = await call_llm(prompt, model_name=MODEL_7B)
 
     analysis_record = {
-         "origin": origin,
-         "destination": destination,
-         "produce_type": produce_type,
-         "weight_kg": weight_kg,
-         "transport_mode": transport_mode,
-         "distance_km": distance_km,
-         "cost_per_kg": cost_per_kg,
-         "total_cost": total_cost,
-         "estimated_time_hours": estimated_time_hours,
-         "market_price_per_kg": market_price_per_kg,
-         "net_profit_per_kg": net_profit_per_kg,
-         "final_recommendation": optimization_result.get("final_recommendation", "No recommendation provided")
+        "origin": origin,
+        "destination": destination,
+        "produce_type": produce_type,
+        "weight_kg": weight_kg,
+        "transport_mode": transport_mode,
+        "distance_km": distance_km,
+        "cost_per_kg": cost_per_kg,
+        "total_cost": total_cost,
+        "estimated_time_hours": estimated_time_hours,
+        "market_price_per_kg": market_price_per_kg,
+        "net_profit_per_kg": net_profit_per_kg,
+        "final_recommendation": json.dumps(optimization_result.get("final_recommendation", "No recommendation provided"))
+
     }
-
-    # Store the analysis record in the database
-    await store_supply_chain_analysis(db_session, analysis_record)
-
-    # Store the conversation log
-    conversation = {
-         "user_request": transport_request,
-         "llm_prompt": prompt,
-         "llm_response": optimization_result
-    }
-    await store_conversation(db_session, conversation)
-
     return analysis_record, optimization_result
 
-async def store_supply_chain_analysis(db_session, analysis_record: Dict[str, Any]):
+
+async def store_supply_chain_analysis(db_session: AsyncSession, analysis_record: Dict[str, Any]):
     """
-    Store the supply chain analysis result in the database.
+    Stores the supply chain analysis record.
     """
-    from app.models import SupplyChainAnalysis  # Import here to avoid circular dependencies
-    record = SupplyChainAnalysis(
-         origin=analysis_record["origin"],
-         destination=analysis_record["destination"],
-         produce_type=analysis_record["produce_type"],
-         weight_kg=analysis_record["weight_kg"],
-         transport_mode=analysis_record["transport_mode"],
-         distance_km=analysis_record["distance_km"],
-         cost_per_kg=analysis_record["cost_per_kg"],
-         total_cost=analysis_record["total_cost"],
-         estimated_time_hours=analysis_record["estimated_time_hours"],
-         market_price_per_kg=analysis_record["market_price_per_kg"],
-         net_profit_per_kg=analysis_record["net_profit_per_kg"],
-         final_recommendation=analysis_record["final_recommendation"]
-    )
+    record = SupplyChainAnalysis(**analysis_record)
     db_session.add(record)
     await db_session.commit()
     await db_session.refresh(record)
     logger.info(f"Supply chain analysis record stored with ID: {record.id}")
 
-async def store_conversation(db_session, conversation: Dict[str, Any]):
+
+async def store_conversation(db_session: AsyncSession, user_request: Dict[str, Any],
+                             prompt: str, llm_response: Dict[str, Any]):
     """
-    Store the conversation log in the database.
+    Stores the LLM conversation for debugging or future improvements.
     """
-    from app.models import ConversationLog  # Import the new conversation log model
-    log = ConversationLog(
-         conversation=conversation
-    )
+    log = ConversationLog(conversation={
+        "user_request": user_request,
+        "llm_prompt": prompt,
+        "llm_response": llm_response
+    })
     db_session.add(log)
     await db_session.commit()
     await db_session.refresh(log)
     logger.info(f"Conversation log stored with ID: {log.id}")
 
-# Optional trigger function to run the transport analysis.
-async def trigger_transport_analysis(transport_request: Dict[str, Any], db_session) -> Dict[str, Any]:
+
+async def trigger_transport_analysis(transport_request: Dict[str, Any], db_session: AsyncSession) -> Dict[str, Any]:
     """
-    Trigger the transport optimization analysis and return the results.
+    Entry point to trigger supply chain analysis.
+    It calls the analysis function, stores the results and conversation, and returns a summary.
     """
-    analysis_record, optimization_result = await analyze_transport_optimization(transport_request, db_session)
-    return {
-         "analysis": analysis_record,
-         "optimization": optimization_result
-    }
+    analysis_record, optimization_result = await analyze_transport_optimization(transport_request)
+    await store_supply_chain_analysis(db_session, analysis_record)
+    await store_conversation(db_session, transport_request, 
+                             f"Prompt: {analysis_record}", optimization_result)
+    return {"analysis": analysis_record, "optimization": optimization_result}

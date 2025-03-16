@@ -3,7 +3,7 @@
 from sqlalchemy import Column, Integer, String, Float, DateTime, Boolean, ForeignKey, JSON, Enum as SQLAlchemyEnum
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
-from datetime import datetime, UTC
+from datetime import datetime, timezone
 from app.core.database import Base
 from app.schemas import DeviceType
 
@@ -11,6 +11,8 @@ class Device(Base):
     __tablename__ = "devices"
 
     id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+    mac_id = Column(String(64), unique=True, nullable=False)
     name = Column(String(128), nullable=False)
     type = Column(SQLAlchemyEnum(DeviceType), nullable=False)
     http_endpoint = Column(String(256), nullable=False, unique=True)
@@ -61,8 +63,7 @@ class SensorReading(Base):
     device_id = Column(Integer, ForeignKey("devices.id", ondelete="CASCADE"))
     reading_type = Column(String(50), nullable=False)
     value = Column(Float, nullable=False)
-    timestamp = Column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
-
+    timestamp = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
     device = relationship("Device", back_populates="sensor_readings")
 
 class DosingOperation(Base):
@@ -73,8 +74,7 @@ class DosingOperation(Base):
     operation_id = Column(String(100), unique=True, nullable=False)
     actions = Column(JSON, nullable=False)
     status = Column(String(50), nullable=False)
-    timestamp = Column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
-
+    timestamp = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)) 
     device = relationship("Device", back_populates="dosing_operations")
 
 class Plant(Base):
@@ -119,4 +119,13 @@ class ConversationLog(Base):
     id = Column(Integer, primary_key=True, index=True)
     analysis_id = Column(Integer, ForeignKey("supply_chain_analysis.id"), nullable=True)
     conversation = Column(JSON, nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+class User(Base):
+    __tablename__ = "users"
+
+    id = Column(Integer, primary_key=True, index=True)
+    email = Column(String(128), unique=True, nullable=False)
+    hashed_password = Column(String(256), nullable=False)
+    role = Column(String(50), nullable=False, default="user")  # Options: "user", "superadmin"
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)

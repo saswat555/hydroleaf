@@ -18,6 +18,7 @@ class PumpConfig(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 class DeviceBase(BaseModel):
+    mac_id: str = Field(..., max_length=64)
     name: str = Field(..., max_length=128)
     type: DeviceType
     http_endpoint: str = Field(..., max_length=256)
