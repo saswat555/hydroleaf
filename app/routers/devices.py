@@ -2,16 +2,16 @@ from fastapi import APIRouter, HTTPException, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from typing import List
-from datetime import datetime, UTC
-
+import logging
+from app.dependencies import get_current_user  
+logger = logging.getLogger(__name__)
 from app.schemas import (
     DosingDeviceCreate,
     SensorDeviceCreate,
     DeviceResponse,
     DeviceType,
-    DosingOperation
 )
-from app.models import Device
+from app.models import Device, User
 from app.core.database import get_db
 # UPDATED: Removed old DeviceDiscoveryService imports and use DeviceController instead.
 from app.services.device_controller import DeviceController
@@ -28,9 +28,14 @@ async def check_device_connection(
     """
     controller = DeviceController(device_ip=ip)
     device_info = await controller.discover()
-    if device_info is None:
+
+    # 🔍 Debugging: Log the response from discover()
+    logger.info(f"Device discovery response for {ip}: {device_info}")
+
+    # 🔥 Fix: Ensure empty responses trigger a 404
+    if not device_info or not isinstance(device_info, dict) or "device_id" not in device_info:
         raise HTTPException(status_code=404, detail="No device found at the provided IP")
-    
+
     # Map device_info keys to a formatted response.
     formatted_device = {
         "id": device_info.get("device_id"),
@@ -42,31 +47,63 @@ async def check_device_connection(
     }
     return formatted_device
 
+# app/routers/devices.py
 @router.post("/dosing", response_model=DeviceResponse)
 async def create_dosing_device(
     device: DosingDeviceCreate,
-    session: AsyncSession = Depends(get_db)
+    session: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
 ):
-    """Create a new dosing device with an HTTP endpoint."""
+    """
+    Create a new dosing device with an HTTP endpoint.
+    The endpoint calls the device’s discovery method.
+    """
     try:
+        # Normalize the endpoint: if it doesn't start with http, prepend a base URL.
+        endpoint = device.http_endpoint
+        if not endpoint.startswith("http"):
+            endpoint = f"http://localhost/{endpoint}"
+        
+        # Use the normalized endpoint for discovery.
+        controller = DeviceController(device_ip=endpoint)
+        discovered_device = await controller.discover()
+        if not discovered_device:
+            raise HTTPException(
+                status_code=500, 
+                detail="Could not discover any device at the given endpoint"
+            )
+        # Check if the device is already registered.
+        existing = await session.execute(
+            select(Device).where(Device.mac_id == device.mac_id)
+        )
+        if existing.scalar_one_or_none():
+            raise HTTPException(status_code=400, detail="Device already registered")
+
+        # Use the discovered device's name if available.
         new_device = Device(
-            name=device.name,
+            name=discovered_device.get("name", device.name),
+            user_id=current_user.id,
+            mac_id=device.mac_id,
             type=DeviceType.DOSING_UNIT,
-            http_endpoint=device.http_endpoint,
-            location_description=device.location_description,
-            pump_configurations=[pump.model_dump() for pump in device.pump_configurations],
+            http_endpoint=endpoint,
+            location_description=device.location_description or "",
+            pump_configurations=[p.model_dump() for p in device.pump_configurations],
             is_active=True
         )
+
         session.add(new_device)
         await session.commit()
         await session.refresh(new_device)
+
         return new_device
+
     except Exception as e:
         await session.rollback()
         raise HTTPException(
             status_code=500,
             detail=f"Error creating dosing device: {str(e)}"
         )
+
 
 @router.post("/sensor", response_model=DeviceResponse)
 async def create_sensor_device(
@@ -76,6 +113,7 @@ async def create_sensor_device(
     """Register a new sensor device with an HTTP endpoint."""
     try:
         new_device = Device(
+            mac_id=device.mac_id,  # Ensure mac_id is set!
             name=device.name,
             type=device.type,
             http_endpoint=device.http_endpoint,

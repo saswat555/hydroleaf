@@ -1,8 +1,10 @@
 # dose_manager.py
 import logging
 from datetime import datetime
+from app.models import Device
 from fastapi import HTTPException
 from app.services.device_controller import DeviceController
+from sqlalchemy.ext.asyncio import AsyncSession
 
 logger = logging.getLogger(__name__)
 
@@ -10,7 +12,7 @@ class DoseManager:
     def __init__(self):
         pass
 
-    async def execute_dosing(self, device_id: str, http_endpoint: str, dosing_actions: list, combined: bool = False) -> dict:
+    async def execute_dosing(self, device_id: int, http_endpoint: str, dosing_actions: list, combined: bool = False) -> dict:
         """
         Execute a dosing command using the unified device controller.
         If combined=True, the controller will use the /dose_monitor endpoint.
@@ -37,12 +39,17 @@ class DoseManager:
             "actions": dosing_actions
         }
 
-        async def cancel_dosing(self, device_id: str, http_endpoint: str) -> dict:
-        # Create a controller instance for the device.
-            controller = DeviceController(device_ip=http_endpoint)
-            response = await controller.cancel_dosing()
-            logger.info(f"Cancellation response for device {device_id}: {response}")
-            return {"status": "dosing_cancelled", "device_id": device_id, "response": response}
+    async def cancel_dosing(self, device_id: str, http_endpoint: str) -> dict:
+    # Create a controller instance for the device.
+        controller = DeviceController(device_ip=http_endpoint)
+        response = await controller.cancel_dosing()
+        logger.info(f"Cancellation response for device {device_id}: {response}")
+        return {"status": "dosing_cancelled", "device_id": device_id, "response": response}
+    async def get_device(self, device_id: int, db: AsyncSession):
+        device = await db.get(Device, device_id)
+        if not device:
+            raise HTTPException(status_code=404, detail="Device not found")
+        return device
 
 
 # Create singleton instance
@@ -52,5 +59,4 @@ async def execute_dosing_operation(device_id: str, http_endpoint: str, dosing_ac
     return await dose_manager.execute_dosing(device_id, http_endpoint, dosing_actions, combined)
 
 async def cancel_dosing_operation(device_id: int, http_endpoint: str) -> dict:
-    return await dose_manager.cancel_dosing(str(device_id), http_endpoint)
-
+    return await dose_manager.cancel_dosing(device_id, http_endpoint)

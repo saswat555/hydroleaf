@@ -1,10 +1,11 @@
 from fastapi import FastAPI, HTTPException, status, Request
+import uvicorn
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.logger import logger as fastapi_logger
 from pydantic import BaseModel
 from contextlib import asynccontextmanager
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Dict, List, Optional, Any
 import logging
 import os
@@ -12,15 +13,15 @@ import time
 from sqlalchemy import text
 import asyncio
 from app.routers import devices, dosing, config, plants, supply_chain, cloud
+from app.routers.heartbeat import router as heartbeat_router
+from app.routers.admin import router as admin_router
 from app.core.database import (
     init_db, 
-    AsyncSessionLocal, 
-    DATABASE_URL,
     check_db_connection,
     get_table_stats,
     get_migration_status
 )
-
+from app.simulated_esp import simulated_esp_app 
 # Configure logging
 logging.basicConfig(
     level=logging.INFO,
@@ -105,6 +106,7 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+app.mount("/simulated_esp", simulated_esp_app)
 
 @app.middleware("http")
 async def log_requests(request: Request, call_next):
@@ -142,7 +144,7 @@ async def health_check():
         return {
             "status": "healthy",
             "version": API_VERSION,
-            "timestamp": datetime.utcnow(),
+            "timestamp": datetime.now(timezone.utc),
             "environment": os.getenv("ENVIRONMENT", "development"),
             "uptime": uptime
         }
@@ -161,7 +163,7 @@ async def database_health_check():
         migration_info = await get_migration_status()
         table_stats = await get_table_stats()
         
-        current_time = datetime.utcnow()
+        current_time = datetime.now(timezone.utc)
         
         return {
             "status": "healthy" if db_info["status"] == "connected" else "unhealthy",
@@ -185,8 +187,8 @@ async def database_health_check():
         return {
             "status": "error",
             "type": "sqlite",
-            "timestamp": datetime.utcnow(),
-            "last_check": datetime.utcnow(),
+            "timestamp": datetime.now(timezone.utc),
+            "last_check": datetime.now(timezone.utc),
             "error": str(e),
             "migrations": {
                 "status": "error",
@@ -210,7 +212,7 @@ async def system_health_check():
         return {
             "system": system,
             "database": database,
-            "timestamp": datetime.utcnow(),
+            "timestamp": datetime.now(timezone.utc),
             "api_version": API_VERSION,
             "environment": os.getenv("ENVIRONMENT", "development")
         }
@@ -219,7 +221,7 @@ async def system_health_check():
         return {
             "system": {"status": "error", "error": str(e)},
             "database": {"status": "unknown"},
-            "timestamp": datetime.utcnow(),
+            "timestamp": datetime.now(timezone.utc),
             "api_version": API_VERSION,
             "environment": os.getenv("ENVIRONMENT", "development")
         }
@@ -232,7 +234,7 @@ async def http_exception_handler(request: Request, exc: HTTPException):
         status_code=exc.status_code,
         content={
             "detail": exc.detail,
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
             "path": request.url.path
         }
     )
@@ -245,7 +247,7 @@ async def general_exception_handler(request: Request, exc: Exception):
         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
         content={
             "detail": "Internal server error",
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
             "path": request.url.path
         }
     )
@@ -257,9 +259,9 @@ app.include_router(config.router, prefix="/api/v1/config", tags=["config"])
 app.include_router(plants.router, prefix="/api/v1/plants", tags=["plants"]) 
 app.include_router(supply_chain.router, prefix="/api/v1/supply_chain", tags=["supply_chain"])
 app.include_router(cloud.router, prefix="/api/v1", tags=["cloud"])
-
+app.include_router(heartbeat_router)
+app.include_router(admin_router)
 if __name__ == "__main__":
-    import uvicorn
     uvicorn.run(
         "main:app",
         host="0.0.0.0",
