@@ -22,3 +22,4 @@ env/
 *.egg-info/
 dist/
 build/
+.env
