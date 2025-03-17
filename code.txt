@@ -66,7 +66,7 @@ class SensorReading(Base):
     value = Column(Float, nullable=False)
     timestamp = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
     device = relationship("Device", back_populates="sensor_readings")
-
+    location = Column(String(100), nullable=True)
 class DosingOperation(Base):
     __tablename__ = "dosing_operations"
 
@@ -1120,7 +1120,7 @@ async def create_dosing_profile(
     device = result.scalar_one_or_none()
     if not device:
         raise HTTPException(status_code=404, detail="Device not found")
-    if device.type != "dosing_unit":
+    if device.type != DeviceType.DOSING_UNIT:
         raise HTTPException(
             status_code=400,
             detail="Dosing profiles can only be created for dosing units"
@@ -1682,24 +1682,25 @@ class DoseManager:
         """
         if not dosing_actions:
             raise ValueError("No dosing action provided")
-        action = dosing_actions[0]
-        pump = action.get("pump_number") or action.get("pump")
-        amount = action.get("dose_ml") or action.get("amount")
-        if pump is None or amount is None:
-            raise ValueError("Dosing action must include pump number and dose amount")
-        
-        # Create a new controller instance pointing to the device's HTTP endpoint
         controller = DeviceController(device_ip=http_endpoint)
-        try:
-            response = await controller.execute_dosing(pump, amount, combined=combined)
-        except Exception as e:
-            raise HTTPException(status_code=500, detail=str(e))
+        responses = []
+        for action in dosing_actions:
+            pump = action.get("pump_number") or action.get("pump")
+            amount = action.get("dose_ml") or action.get("amount")
+            if pump is None or amount is None:
+                raise ValueError("Dosing action must include pump number and dose amount")
+            try:
+                resp = await controller.execute_dosing(pump, amount, combined=combined)
+                responses.append(resp)
+            except Exception as e:
+                raise HTTPException(status_code=500, detail=str(e))
         
-        logger.info(f"Sent dosing command to device {device_id}: {response}")
+        logger.info(f"Sent dosing commands to device {device_id}: {responses}")
         return {
             "status": "command_sent",
             "device_id": device_id,
-            "actions": dosing_actions
+            "actions": dosing_actions,
+            "responses": responses
         }
 
     async def cancel_dosing(self, device_id: str, http_endpoint: str) -> dict:
@@ -2485,7 +2486,7 @@ from datetime import datetime
 from typing import Dict, Optional
 import httpx
 from fastapi import HTTPException
-
+import re
 logger = logging.getLogger(__name__)
 
 class DeviceController:
@@ -2504,7 +2505,12 @@ class DeviceController:
         """
         Discover device info via the /discovery endpoint.
         """
-        url = f"http://{self.device_ip}/discovery"
+        if not re.match(r'^https?://', self.device_ip):
+            url = f"http://{self.device_ip}/discovery"
+        else:
+            url = f"{self.device_ip}/discovery"
+            
+
         try:
             async with httpx.AsyncClient(timeout=self.request_timeout) as client:
                 response = await client.get(url)
@@ -2531,7 +2537,10 @@ class DeviceController:
             "amount": amount,
             "timestamp": datetime.utcnow().isoformat()
         }
-        url = f"http://{self.device_ip}{endpoint}"
+        if not re.match(r'^https?://', self.device_ip):
+            url = f"http://{self.device_ip}/discovery"
+        else:
+            url = f"{self.device_ip}/discovery"
         try:
             async with httpx.AsyncClient(timeout=self.request_timeout) as client:
                 response = await client.post(url, json=payload)

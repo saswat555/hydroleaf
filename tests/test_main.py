@@ -20,7 +20,8 @@ def recreate_database():
         async with engine.begin() as conn:
             await conn.run_sync(Base.metadata.drop_all)
             await conn.run_sync(Base.metadata.create_all)
-    asyncio.get_event_loop().run_until_complete(_recreate())
+    asyncio.run(_recreate())
+
 
 # --- Override authentication ---
 dummy_user = type("DummyUser", (), {
@@ -68,7 +69,7 @@ def async_client():
     transport = ASGITransport(app)
     client = AsyncClient(transport=transport, base_url="http://test", follow_redirects=True)
     yield client
-    asyncio.get_event_loop().run_until_complete(client.aclose())
+    asyncio.run(client.aclose())
 
 # --- Helper to patch successful discovery for dosing devices ---
 def patch_successful_discovery(monkeypatch, device_fixture):
