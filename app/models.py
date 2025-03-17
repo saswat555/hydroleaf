@@ -65,7 +65,7 @@ class SensorReading(Base):
     value = Column(Float, nullable=False)
     timestamp = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
     device = relationship("Device", back_populates="sensor_readings")
-
+    location = Column(String(100), nullable=True)
 class DosingOperation(Base):
     __tablename__ = "dosing_operations"
 

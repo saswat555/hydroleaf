@@ -106,7 +106,7 @@ async def create_dosing_profile(
     device = result.scalar_one_or_none()
     if not device:
         raise HTTPException(status_code=404, detail="Device not found")
-    if device.type != "dosing_unit":
+    if device.type != DeviceType.DOSING_UNIT:
         raise HTTPException(
             status_code=400,
             detail="Dosing profiles can only be created for dosing units"

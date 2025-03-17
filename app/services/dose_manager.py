@@ -19,24 +19,25 @@ class DoseManager:
         """
         if not dosing_actions:
             raise ValueError("No dosing action provided")
-        action = dosing_actions[0]
-        pump = action.get("pump_number") or action.get("pump")
-        amount = action.get("dose_ml") or action.get("amount")
-        if pump is None or amount is None:
-            raise ValueError("Dosing action must include pump number and dose amount")
-        
-        # Create a new controller instance pointing to the device's HTTP endpoint
         controller = DeviceController(device_ip=http_endpoint)
-        try:
-            response = await controller.execute_dosing(pump, amount, combined=combined)
-        except Exception as e:
-            raise HTTPException(status_code=500, detail=str(e))
+        responses = []
+        for action in dosing_actions:
+            pump = action.get("pump_number") or action.get("pump")
+            amount = action.get("dose_ml") or action.get("amount")
+            if pump is None or amount is None:
+                raise ValueError("Dosing action must include pump number and dose amount")
+            try:
+                resp = await controller.execute_dosing(pump, amount, combined=combined)
+                responses.append(resp)
+            except Exception as e:
+                raise HTTPException(status_code=500, detail=str(e))
         
-        logger.info(f"Sent dosing command to device {device_id}: {response}")
+        logger.info(f"Sent dosing commands to device {device_id}: {responses}")
         return {
             "status": "command_sent",
             "device_id": device_id,
-            "actions": dosing_actions
+            "actions": dosing_actions,
+            "responses": responses
         }
 
     async def cancel_dosing(self, device_id: str, http_endpoint: str) -> dict:

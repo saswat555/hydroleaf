@@ -5,7 +5,7 @@ from datetime import datetime
 from typing import Dict, Optional
 import httpx
 from fastapi import HTTPException
-
+import re
 logger = logging.getLogger(__name__)
 
 class DeviceController:
@@ -24,7 +24,12 @@ class DeviceController:
         """
         Discover device info via the /discovery endpoint.
         """
-        url = f"http://{self.device_ip}/discovery"
+        if not re.match(r'^https?://', self.device_ip):
+            url = f"http://{self.device_ip}/discovery"
+        else:
+            url = f"{self.device_ip}/discovery"
+            
+
         try:
             async with httpx.AsyncClient(timeout=self.request_timeout) as client:
                 response = await client.get(url)
@@ -51,7 +56,10 @@ class DeviceController:
             "amount": amount,
             "timestamp": datetime.utcnow().isoformat()
         }
-        url = f"http://{self.device_ip}{endpoint}"
+        if not re.match(r'^https?://', self.device_ip):
+            url = f"http://{self.device_ip}/discovery"
+        else:
+            url = f"{self.device_ip}/discovery"
         try:
             async with httpx.AsyncClient(timeout=self.request_timeout) as client:
                 response = await client.post(url, json=payload)
