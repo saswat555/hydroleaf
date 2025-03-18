@@ -12,6 +12,7 @@ class Device(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+    farm_id = Column(Integer, ForeignKey("farms.id"), nullable=True)
     mac_id = Column(String(64), unique=True, nullable=False)
     name = Column(String(128), nullable=False)
     type = Column(SQLAlchemyEnum(DeviceType), nullable=False)
@@ -21,7 +22,7 @@ class Device(Base):
     last_seen = Column(DateTime(timezone=True), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
-    
+    farm = relationship("Farm", back_populates="devices")
     # JSON fields
     pump_configurations = Column(JSON, nullable=True)
     sensor_parameters = Column(JSON, nullable=True)
@@ -123,9 +124,23 @@ class ConversationLog(Base):
 
 class User(Base):
     __tablename__ = "users"
-
     id = Column(Integer, primary_key=True, index=True)
     email = Column(String(128), unique=True, nullable=False)
     hashed_password = Column(String(256), nullable=False)
-    role = Column(String(50), nullable=False, default="user")  # Options: "user", "superadmin"
+    role = Column(String(50), nullable=False, default="user")
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    farms = relationship("Farm", back_populates="user", cascade="all, delete-orphan")
+    
+class Farm(Base):
+    __tablename__ = "farms"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    name = Column(String(128), nullable=False)
+    location = Column(String(256), nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
+
+    # Relationships
+    devices = relationship("Device", back_populates="farm", cascade="all, delete-orphan")
+    user = relationship("User", back_populates="farms")

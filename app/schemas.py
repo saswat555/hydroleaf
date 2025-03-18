@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field, ConfigDict, field_validator
+from pydantic import BaseModel, Field, ConfigDict, field_validator, EmailStr
 from typing import Optional, List, Dict
 from datetime import datetime
 from enum import Enum
@@ -23,7 +23,7 @@ class DeviceBase(BaseModel):
     type: DeviceType
     http_endpoint: str = Field(..., max_length=256)
     location_description: Optional[str] = Field(None, max_length=256)
-
+    farm_id: Optional[int] = None
     model_config = ConfigDict(from_attributes=True)
 
 class DosingDeviceCreate(DeviceBase):
@@ -192,3 +192,71 @@ class CloudAuthenticationResponse(BaseModel):
 class DosingCancellationRequest(BaseModel):
     device_id: str
     event: str
+
+# -------------------- User Related Schemas -------------------- #
+
+class UserResponse(BaseModel):
+    id: int
+    email: EmailStr
+    role: str
+    created_at: datetime
+
+    class Config:
+        orm_mode = True
+
+class UserUpdate(BaseModel):
+    email: Optional[EmailStr] = None
+    # Production-level user updates include profile fields.
+    first_name: Optional[str] = Field(None, max_length=50)
+    last_name: Optional[str] = Field(None, max_length=50)
+    phone: Optional[str] = Field(None, max_length=20)
+    address: Optional[str] = Field(None, max_length=256)
+    city: Optional[str] = Field(None, max_length=100)
+    state: Optional[str] = Field(None, max_length=100)
+    country: Optional[str] = Field(None, max_length=100)
+    postal_code: Optional[str] = Field(None, max_length=20)
+
+class UserProfile(BaseModel):
+    id: int
+    email: EmailStr
+    role: str
+    first_name: str = Field(..., max_length=50)
+    last_name: str = Field(..., max_length=50)
+    phone: Optional[str] = Field(..., max_length=20)
+    address: Optional[str] = Field(..., max_length=256)
+    city: Optional[str] = Field(..., max_length=100)
+    state: Optional[str] = Field(..., max_length=100)
+    country: Optional[str] = Field(..., max_length=100)
+    postal_code: Optional[str] = Field(..., max_length=20)
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
+        orm_mode = True
+class UserCreate(BaseModel):
+    email: EmailStr
+    password: str
+    first_name: Optional[str] = Field(None, max_length=50)
+    last_name: Optional[str] = Field(None, max_length=50)
+    phone: Optional[str] = Field(None, max_length=20)
+    address: Optional[str] = Field(None, max_length=256)
+    city: Optional[str] = Field(None, max_length=100)
+    state: Optional[str] = Field(None, max_length=100)
+    country: Optional[str] = Field(None, max_length=100)
+    postal_code: Optional[str] = Field(None, max_length=20)
+    name: str = Field(..., max_length=128),
+    location: Optional[str] = Field(None, max_length=256)
+class FarmBase(BaseModel):
+    name: str = Field(..., max_length=128)
+    location: Optional[str] = Field(None, max_length=256)
+
+class FarmCreate(FarmBase):
+    pass
+
+class FarmResponse(FarmBase):
+    id: int
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
+        orm_mode = True

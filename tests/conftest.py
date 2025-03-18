@@ -1,20 +1,48 @@
-# conftest.py
 import os
 import pytest
 import asyncio
 from datetime import datetime, timezone
 from httpx import AsyncClient, ASGITransport
+from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
+from sqlalchemy.orm import sessionmaker
 
 from app.main import app
-from app.core.database import Base, engine
+from app.core.database import Base, get_db
 from app.dependencies import get_current_user
 from app.schemas import DeviceType
 
-# --- Recreate the Database Schema ---
+# Define a separate test database
+TEST_DATABASE_URL = "sqlite+aiosqlite:///./test.db"
+
+# Create an async engine for the test database
+test_engine = create_async_engine(
+    TEST_DATABASE_URL,
+    echo=False,
+    future=True,
+    connect_args={"check_same_thread": False}
+)
+
+# Create a new session factory for the test database
+TestSessionLocal = sessionmaker(
+    bind=test_engine,
+    class_=AsyncSession,
+    expire_on_commit=False,
+    autocommit=False,
+    autoflush=False,
+)
+
+# Override the get_db dependency to use the test database
+async def override_get_db():
+    async with TestSessionLocal() as session:
+        yield session
+
+app.dependency_overrides[get_db] = override_get_db
+
+# --- Recreate the Database Schema for Tests ---
 @pytest.fixture(scope="session", autouse=True)
-def recreate_database():
+def recreate_test_database():
     async def _recreate():
-        async with engine.begin() as conn:
+        async with test_engine.begin() as conn:
             await conn.run_sync(Base.metadata.drop_all)
             await conn.run_sync(Base.metadata.create_all)
     asyncio.get_event_loop().run_until_complete(_recreate())

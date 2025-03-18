@@ -33,3 +33,14 @@ async def get_current_user(token: str = Depends(oauth2_scheme), db=Depends(get_d
             detail="Could not validate credentials"
         )
 
+
+async def get_current_admin(user: User = Depends(get_current_user)):
+    """
+    Dependency that verifies the current user is an admin.
+    """
+    if user.role != "superadmin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Admin privileges required"
+        )
+    return user

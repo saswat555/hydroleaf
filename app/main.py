@@ -12,9 +12,10 @@ import os
 import time
 from sqlalchemy import text
 import asyncio
-from app.routers import devices, dosing, config, plants, supply_chain, cloud
+from app.routers import devices, dosing, config, farms, plants, supply_chain, cloud, users, admin
 from app.routers.heartbeat import router as heartbeat_router
-from app.routers.admin import router as admin_router
+from app.routers import admin_users
+
 from app.core.database import (
     init_db, 
     check_db_connection,
@@ -253,6 +254,7 @@ async def general_exception_handler(request: Request, exc: Exception):
     )
 
 # Include routers
+app.include_router(admin_users.router)
 app.include_router(devices.router, prefix="/api/v1/devices", tags=["devices"])
 app.include_router(dosing.router, prefix="/api/v1/dosing", tags=["dosing"])
 app.include_router(config.router, prefix="/api/v1/config", tags=["config"])
@@ -260,7 +262,9 @@ app.include_router(plants.router, prefix="/api/v1/plants", tags=["plants"])
 app.include_router(supply_chain.router, prefix="/api/v1/supply_chain", tags=["supply_chain"])
 app.include_router(cloud.router, prefix="/api/v1", tags=["cloud"])
 app.include_router(heartbeat_router)
-app.include_router(admin_router)
+app.include_router(farms.router)
+app.include_router(admin.router)
+app.include_router(users.router)
 if __name__ == "__main__":
     uvicorn.run(
         "main:app",

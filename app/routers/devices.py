@@ -1,4 +1,5 @@
 from fastapi import APIRouter, HTTPException, Depends, Query
+import httpx
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from typing import List
@@ -88,7 +89,8 @@ async def create_dosing_device(
             http_endpoint=endpoint,
             location_description=device.location_description or "",
             pump_configurations=[p.model_dump() for p in device.pump_configurations],
-            is_active=True
+            is_active=True,
+            farm_id=device.farm_id
         )
 
         session.add(new_device)
@@ -119,7 +121,8 @@ async def create_sensor_device(
             http_endpoint=device.http_endpoint,
             location_description=device.location_description,
             sensor_parameters=device.sensor_parameters,
-            is_active=True
+            is_active=True,
+            farm_id=device.farm_id
         )
         session.add(new_device)
         await session.commit()
@@ -161,3 +164,29 @@ async def getSensorReadings(device_id: int, db: AsyncSession = Depends(get_db)):
     sensor_data = await getSensorData(device)
     
     return sensor_data
+
+@router.get("/discover-all", summary="Automatically discover all connected devices")
+async def discover_all_devices(db: AsyncSession = Depends(get_db)):
+    """
+    Retrieve all registered devices and send a GET request to each device's /discovery endpoint.
+    Returns a list of devices that responded successfully.
+    """
+    result = await db.execute(select(Device))
+    devices = result.scalars().all()
+    discovered_devices = []
+    
+    async with httpx.AsyncClient(timeout=5) as client:
+        for device in devices:
+            try:
+                # Use the device's http_endpoint appended with "/discovery"
+                url = device.http_endpoint.rstrip("/") + "/discovery"
+                response = await client.get(url)
+                if response.status_code == 200:
+                    data = response.json()
+                    data["ip"] = device.http_endpoint  # Optionally include the endpoint
+                    discovered_devices.append(data)
+            except Exception as e:
+                # Log error and skip device if request fails
+                logger.error(f"Error discovering device {device.id} at {device.http_endpoint}: {e}")
+                continue
+    return discovered_devices
