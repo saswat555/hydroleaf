@@ -182,7 +182,7 @@ async def direct_ollama_call(prompt: str, model_name: str) -> str:
         request_body = {
             "model": model_name,
             "prompt": prompt,
-            "stream": False
+            "stream": True
         }
         async with httpx.AsyncClient(timeout=LLM_REQUEST_TIMEOUT) as client:
             response = await client.post(OLLAMA_URL, json=request_body)
@@ -408,4 +408,4 @@ async def generate_final_decision(transport_analysis: Dict, market_price: Dict) 
 
     Provide a JSON output with the final decision and reasoning.
     """
-    return await call_llm(prompt, MODEL_7B)
+    return await call_llm(prompt, MODEL_7B) 

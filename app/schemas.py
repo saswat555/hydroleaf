@@ -244,8 +244,10 @@ class UserCreate(BaseModel):
     state: Optional[str] = Field(None, max_length=100)
     country: Optional[str] = Field(None, max_length=100)
     postal_code: Optional[str] = Field(None, max_length=20)
-    name: str = Field(..., max_length=128),
+    name: str = Field(..., max_length=128),  # ← extra comma makes this a tuple!
     location: Optional[str] = Field(None, max_length=256)
+
+
 class FarmBase(BaseModel):
     name: str = Field(..., max_length=128)
     location: Optional[str] = Field(None, max_length=256)

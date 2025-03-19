@@ -15,7 +15,7 @@ import asyncio
 from app.routers import devices, dosing, config, farms, plants, supply_chain, cloud, users, admin
 from app.routers.heartbeat import router as heartbeat_router
 from app.routers import admin_users
-
+from app.routers import auth
 from app.core.database import (
     init_db, 
     check_db_connection,
@@ -265,6 +265,8 @@ app.include_router(heartbeat_router)
 app.include_router(farms.router)
 app.include_router(admin.router)
 app.include_router(users.router)
+app.include_router(auth.router, prefix="/api/v1/auth", tags=["auth"])
+
 if __name__ == "__main__":
     uvicorn.run(
         "main:app",
