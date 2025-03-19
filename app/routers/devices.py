@@ -80,7 +80,7 @@ async def discover_all_devices(db: AsyncSession = Depends(get_db)):
                 network = ipaddress.ip_network(subnet, strict=False)
                 ips = [str(ip) for ip in network.hosts()]
                 # If you want a fixed target for LAN mode, force total_ips to 256:
-                total_ips = 256  # Or: total_ips = len(ips) if you prefer the real count
+                total_ips = len(ips)  # Or: total_ips = len(ips) if you prefer the real count
                 logger.info(f"LAN mode: scanning {total_ips} IPs in subnet {subnet} on port {port}")
 
                 sem = asyncio.Semaphore(20)
