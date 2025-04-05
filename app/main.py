@@ -12,7 +12,7 @@ import os
 import time
 from sqlalchemy import text
 import asyncio
-from app.routers import devices, dosing, config, farms, plants, supply_chain, cloud, users, admin
+from app.routers import devices, dosing, config, farms, plants, supply_chain, cloud, users, admin, device_comm
 from app.routers.heartbeat import router as heartbeat_router
 from app.routers import admin_users
 from app.routers import auth
@@ -266,6 +266,8 @@ app.include_router(farms.router)
 app.include_router(admin.router)
 app.include_router(users.router)
 app.include_router(auth.router, prefix="/api/v1/auth", tags=["auth"])
+app.include_router(device_comm.router, prefix="", tags=["device_comm"])
+
 
 if __name__ == "__main__":
     uvicorn.run(

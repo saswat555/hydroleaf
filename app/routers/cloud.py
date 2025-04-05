@@ -10,7 +10,7 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 # For demonstration purposes, we use a fixed cloud key.
-EXPECTED_CLOUD_KEY = "my_cloud_secret"  # In production, load from environment variables
+EXPECTED_CLOUD_KEY = "5d"  # In production, load from environment variables
 
 @router.post("/authenticate", response_model=CloudAuthenticationResponse)
 async def authenticate_cloud(auth_request: CloudAuthenticationRequest):

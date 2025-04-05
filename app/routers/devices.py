@@ -224,3 +224,25 @@ async def get_sensor_readings(device_id: int, db: AsyncSession = Depends(get_db)
         raise HTTPException(status_code=404, detail="Device not found")
     sensor_data = await getSensorData(device)
     return sensor_data
+
+
+@router.get("/device/{device_id}/version", summary="Get device version")
+async def get_device_version(device_id: int, db: AsyncSession = Depends(get_db)):
+    try:
+        # Fetch the device from the database
+        result = await db.execute(select(Device).where(Device.id == device_id))
+        device = result.scalar_one_or_none()
+        
+        if not device:
+            raise HTTPException(status_code=404, detail="Device not found")
+        
+        controller = DeviceController(device_ip=device.http_endpoint)
+        device_version = await controller.get_version()
+        
+        if not device_version:
+            raise HTTPException(status_code=500, detail="Failed to retrieve device version")
+        
+        return {"device_id": device_id, "version": device_version}
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error fetching device version: {e}")
