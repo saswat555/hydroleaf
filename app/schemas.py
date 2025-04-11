@@ -10,6 +10,10 @@ class DeviceType(str, Enum):
     PH_TDS_SENSOR = "ph_tds_sensor"
     ENVIRONMENT_SENSOR = "environment_sensor"
 
+class CamRegisterRequest(BaseModel):
+    cam_id: str = Field(..., max_length=64, description="Unique ID for the camera")
+    ip: str = Field(..., max_length=64, description="IP address where the camera's stream is available")    
+
 class PumpConfig(BaseModel):
     pump_number: int = Field(..., ge=1, le=4)
     chemical_name: str = Field(..., max_length=50)
