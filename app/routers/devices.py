@@ -9,7 +9,7 @@ from fastapi import APIRouter, HTTPException, Depends, Query, Request,  WebSocke
 from fastapi.responses import JSONResponse, StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
-
+import re
 from app.core.config import DEPLOYMENT_MODE  # e.g. "LAN" or "CLOUD"
 from app.models import Device, User
 from app.dependencies import get_current_user
@@ -30,6 +30,10 @@ router = APIRouter()
 cam_registry: dict[str, str] = {}
 latest_frames = {}
 ws_connections = {}
+
+JPEG_SOI = b'\xff\xd8'
+JPEG_EOI = b'\xff\xd9'
+jpeg_regex = re.compile(rb'\xff\xd8.*?\xff\xd9', re.DOTALL)
 
 def get_local_ip() -> str:
     s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -275,45 +279,41 @@ async def stream_cam(cam_id: str):
 
 @router.post("/upload_mjpeg", summary="Receive and process MJPEG stream from ESP32 master")
 async def upload_mjpeg_stream(request: Request, cam_id: str = Query(..., description="Camera ID, e.g. 'cam_1'")):
-    """
-    This endpoint receives a continuous MJPEG stream forwarded by the ESP32 master.
-    It reads chunks from the request stream, detects JPEG frame boundaries (assumed here to be marked by the word "frame"),
-    and whenever a new JPEG frame is extracted, it stores it and dispatches it to connected WebSocket clients.
-    """
-    logger.info(f"Started receiving stream for {cam_id}")
-    # We assume a known boundary; often the MJPEG stream uses something like "--frame"
-    boundary = b"--123456789000000000000987654321"
+    logger.info(f"📡 Receiving MJPEG stream for {cam_id} (chunked)")
     buffer = b""
+
     try:
         async for chunk in request.stream():
-            logger.info(f"Received chunk of size {len(chunk)}")
+            logger.info(f" Received chunk of {len(chunk)} bytes")
             buffer += chunk
-            logger.info(f"Received chunk of buffer {len(buffer )}")
-            while boundary in buffer:
-                # Split by boundary; the first part may be incomplete so take the part in between boundaries.
-                parts = buffer.split(boundary)
-                if len(parts) < 30:
-                    break
-                frame_chunk = parts[1]
-                logger.info(f"Received chunk of frame_chunke {frame_chunk}")
-                # Optionally, you might strip header data here—this example assumes frame_chunk is the JPEG data.
-                latest_frames[cam_id] = frame_chunk
-                logger.info(f"Stream ended for {latest_frames[cam_id]}")
-                # Dispatch to all connected WebSocket clients
+
+            # Look for full JPEG frames
+            for match in jpeg_regex.finditer(buffer):
+                jpeg_data = match.group(0)
+                logger.info(f" Extracted JPEG ({len(jpeg_data)} bytes)")
+
+                # Save latest frame
+                latest_frames[cam_id] = jpeg_data
+
+                # Send to WebSocket clients
                 if cam_id in ws_connections:
                     for ws in ws_connections[cam_id]:
                         try:
-                            await ws.send_bytes(frame_chunk)
+                            await ws.send_bytes(jpeg_data)
                         except Exception as e:
-                            logger.error(f"Error sending frame to WebSocket: {e}")
-                # Remove the processed frame from the buffer; keep the last part (which might be incomplete)
-                buffer = boundary.join(parts[2:])
-        logger.info(f"Stream ended for {cam_id}")
+                            logger.error(f"❌ WebSocket send error: {e}")
+
+            # Retain only leftover data after last JPEG
+            matches = list(jpeg_regex.finditer(buffer))
+            if matches:
+                buffer = buffer[matches[-1].end():]
+
+        logger.info(f"✅ MJPEG stream for {cam_id} finished")
         return JSONResponse(content={"cam_id": cam_id, "status": "stream ended"})
+
     except Exception as e:
-        logger.error(f"Error while streaming for camera {cam_id}: {e}")
+        logger.error(f"❌ Stream error for {cam_id}: {e}")
         raise HTTPException(status_code=500, detail=str(e))
-    
 @router.get("/cam/stream_mjpeg", summary="Show MJPEG stream from ESP32")
 async def stream_mjpeg(request: Request, cam_id: str = Query(..., description="Camera ID, e.g. 'cam_1'")):
     boundary = b"--123456789000000000000987654321"
@@ -336,6 +336,8 @@ async def stream_mjpeg(request: Request, cam_id: str = Query(..., description="C
             await asyncio.sleep(0.05)
     
     return StreamingResponse(
-        stream_generator(),
-        media_type=f"multipart/x-mixed-replace; boundary={boundary}"
+    stream_generator(),
+    media_type="multipart/x-mixed-replace; boundary=--123456789000000000000987654321",
+    headers={"Cache-Control": "no-cache", "Connection": "keep-alive"}
     )
+

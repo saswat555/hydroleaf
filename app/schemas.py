@@ -13,7 +13,7 @@ class DeviceType(str, Enum):
 class CamRegisterRequest(BaseModel):
     cam_id: str = Field(..., max_length=64, description="Unique ID for the camera")
     ip: str = Field(..., max_length=64, description="IP address where the camera's stream is available")    
-
+    status:str = Field(..., max_length=64, description="Status of the camera (active/inactive)")    
 class PumpConfig(BaseModel):
     pump_number: int = Field(..., ge=1, le=4)
     chemical_name: str = Field(..., max_length=50)
