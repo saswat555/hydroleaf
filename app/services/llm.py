@@ -25,7 +25,8 @@ GPT_MODEL = os.getenv("GPT_MODEL", "GPT-4-turbo")
 MODEL_7B = os.getenv("MODEL_7B", "deepseek-r1:7b")
 LLM_REQUEST_TIMEOUT = int(os.getenv("LLM_REQUEST_TIMEOUT", "300"))
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
-RUNNING_ENV = os.getenv("USE_OLLAMA")
+USE_OLLAMA = os.getenv("USE_OLLAMA", "false").lower() == "true"
+
 
 dosing_manager = DoseManager()
 
@@ -228,6 +229,17 @@ async def direct_ollama_call(prompt: str, model_name: str) -> str:
         raise HTTPException(status_code=500, detail="Error calling LLM service") from e
 
 
+async def direct_openai_text_call(prompt: str, model_name: str) -> str:
+    client = openai.AsyncOpenAI(api_key=OPENAI_API_KEY)
+    response = await client.chat.completions.create(
+        model=model_name,
+        messages=[{"role": "user", "content": prompt}],
+        max_tokens=800,
+        temperature=0.7
+    )
+    return response.choices[0].message.content.strip()
+
+
 async def direct_openai_call(prompt: str, model_name: str) -> str:
     """
     Calls OpenAI's API to generate a response and formats it like Ollama's.
@@ -281,7 +293,7 @@ async def call_llm_async(prompt: str, model_name: str = MODEL_1_5B) -> Tuple[Dic
     """
     logger.info(f"Sending prompt to LLM:\n{prompt}")
 
-    if RUNNING_ENV == "True":
+    if USE_OLLAMA:
         raw_completion = await direct_ollama_call(prompt, model_name)
         cleaned = parse_ollama_response(raw_completion).replace("'", '"').strip()
         start = cleaned.find('{')
@@ -310,10 +322,11 @@ async def call_llm_plan(prompt: str, model_name: str = MODEL_1_5B) -> str:
     Returns the raw text (which may include a <think> block) for display.
     """
     logger.info(f"Sending plan prompt to LLM:\n{prompt}")
-    if RUNNING_ENV == "True":
+    if USE_OLLAMA:
        raw_completion = await direct_ollama_call(prompt, model_name)
     else:
-       raw_completion = await direct_openai_call(prompt, GPT_MODEL)   
+       logger.info(f" plan raw text: {GPT_MODEL}")
+       raw_completion = await direct_openai_text_call(prompt, GPT_MODEL)   
     logger.info(f"Ollama plan raw text: {raw_completion}")
     return raw_completion
 
@@ -344,10 +357,12 @@ async def execute_dosing_plan(device: Device, dosing_plan: Dict) -> Dict:
                     timeout=10
                 )
                 response_data = response.json()
-                if response.status_code == 200 and response_data.get("message") == "Pump started":
+                success_message = response_data.get("message") or response_data.get("msg")
+                if response.status_code == 200 and success_message == "Pump started":
                     logger.info(f"Pump {pump_number} activated successfully: {response_data}")
                 else:
-                    logger.error(f"Failed to activate pump {pump_number}: {response_data}")
+                      logger.error(f"Failed to activate pump {pump_number}: {response_data}")
+
             except httpx.RequestError as e:
                 logger.error(f"HTTP request to pump {pump_number} failed: {e}")
                 raise HTTPException(status_code=500, detail=f"Pump {pump_number} activation failed") from e
@@ -439,7 +454,7 @@ async def call_llm(prompt: str, model_name: str) -> Dict:
     Utility function that calls the LLM and returns the parsed JSON response.
     """
     logger.info(f"Calling LLM with model {model_name}, prompt:\n{prompt}")
-    if RUNNING_ENV == "False":
+    if USE_OLLAMA:
        raw_completion = await direct_ollama_call(prompt, model_name)
        cleaned = parse_ollama_response(raw_completion).replace("'", '"').strip()
     else:
