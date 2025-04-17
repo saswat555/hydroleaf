@@ -5,11 +5,11 @@ import asyncio
 import socket
 import httpx
 import logging
-from fastapi import APIRouter, HTTPException, Depends, Query
-from fastapi.responses import StreamingResponse
+from fastapi import APIRouter, HTTPException, Depends, Query, Request,  WebSocket
+from fastapi.responses import JSONResponse, StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
-
+import re
 from app.core.config import DEPLOYMENT_MODE  # e.g. "LAN" or "CLOUD"
 from app.models import Device, User
 from app.dependencies import get_current_user
@@ -21,10 +21,19 @@ from app.schemas import (
     SensorDeviceCreate,
     DeviceResponse,
     DeviceType,
+    CamRegisterRequest,
 )
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
+
+cam_registry: dict[str, str] = {}
+latest_frames = {}
+ws_connections = {}
+
+JPEG_SOI = b'\xff\xd8'
+JPEG_EOI = b'\xff\xd9'
+jpeg_regex = re.compile(rb'\xff\xd8.*?\xff\xd9', re.DOTALL)
 
 def get_local_ip() -> str:
     s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -224,3 +233,111 @@ async def get_sensor_readings(device_id: int, db: AsyncSession = Depends(get_db)
         raise HTTPException(status_code=404, detail="Device not found")
     sensor_data = await getSensorData(device)
     return sensor_data
+
+
+@router.get("/device/{device_id}/version", summary="Get device version")
+async def get_device_version(device_id: int, db: AsyncSession = Depends(get_db)):
+    try:
+        # Fetch the device from the database
+        result = await db.execute(select(Device).where(Device.id == device_id))
+        device = result.scalar_one_or_none()
+        
+        if not device:
+            raise HTTPException(status_code=404, detail="Device not found")
+        
+        controller = DeviceController(device_ip=device.http_endpoint)
+        device_version = await controller.get_version()
+        
+        if not device_version:
+            raise HTTPException(status_code=500, detail="Failed to retrieve device version")
+        
+        return {"device_id": device_id, "version": device_version}
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error fetching device version: {e}")
+    
+
+@router.post("/register_cam", summary="Register an ESP32-CAM")
+async def register_cam(request: CamRegisterRequest):
+    cam_registry[request.cam_id] = request.ip
+    logger.info(f"Registered cam {request.cam_id} with IP {request.ip}")
+    return {"message": "Camera registered", "cam_id": request.cam_id, "ip": request.ip}
+
+@router.get("/get_cams", summary="List all registered cameras")
+async def get_cams():
+    return cam_registry
+
+@router.get("/stream/{cam_id}", summary="Proxy MJPEG stream from an ESP32-CAM")
+async def stream_cam(cam_id: str):
+    ip = cam_registry.get(cam_id)
+    if not ip:
+        raise HTTPException(status_code=404, detail="Camera not registered")
+    return {
+        "cam_id": cam_id,
+        "stream_url": f"http://{ip}:81/stream"
+    }
+
+@router.post("/upload_mjpeg", summary="Receive and process MJPEG stream from ESP32 master")
+async def upload_mjpeg_stream(request: Request, cam_id: str = Query(..., description="Camera ID, e.g. 'cam_1'")):
+    logger.info(f"📡 Receiving MJPEG stream for {cam_id} (chunked)")
+    buffer = b""
+
+    try:
+        async for chunk in request.stream():
+            logger.info(f" Received chunk of {len(chunk)} bytes")
+            buffer += chunk
+
+            # Look for full JPEG frames
+            for match in jpeg_regex.finditer(buffer):
+                jpeg_data = match.group(0)
+                logger.info(f" Extracted JPEG ({len(jpeg_data)} bytes)")
+
+                # Save latest frame
+                latest_frames[cam_id] = jpeg_data
+
+                # Send to WebSocket clients
+                if cam_id in ws_connections:
+                    for ws in ws_connections[cam_id]:
+                        try:
+                            await ws.send_bytes(jpeg_data)
+                        except Exception as e:
+                            logger.error(f"❌ WebSocket send error: {e}")
+
+            # Retain only leftover data after last JPEG
+            matches = list(jpeg_regex.finditer(buffer))
+            if matches:
+                buffer = buffer[matches[-1].end():]
+
+        logger.info(f"✅ MJPEG stream for {cam_id} finished")
+        return JSONResponse(content={"cam_id": cam_id, "status": "stream ended"})
+
+    except Exception as e:
+        logger.error(f"❌ Stream error for {cam_id}: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+@router.get("/cam/stream_mjpeg", summary="Show MJPEG stream from ESP32")
+async def stream_mjpeg(request: Request, cam_id: str = Query(..., description="Camera ID, e.g. 'cam_1'")):
+    boundary = b"--123456789000000000000987654321"
+
+    async def stream_generator():
+        while True:
+            if await request.is_disconnected():
+                break
+            if cam_id in latest_frames:
+                frame = latest_frames[cam_id]
+                header = (
+                    f"{boundary}\r\n"
+                    f"Content-Type: image/jpeg\r\n"
+                    f"Content-Length: {len(frame)}\r\n\r\n"
+                )
+                yield header.encode("utf-8")
+                yield frame
+                yield "\r\n".encode("utf-8")
+            # adjust sleep to control frame rate
+            await asyncio.sleep(0.05)
+    
+    return StreamingResponse(
+    stream_generator(),
+    media_type="multipart/x-mixed-replace; boundary=--123456789000000000000987654321",
+    headers={"Cache-Control": "no-cache", "Connection": "keep-alive"}
+    )
+

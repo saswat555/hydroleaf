@@ -57,6 +57,21 @@ class DosingProfile(Base):
     # Relationships
     device = relationship("Device", back_populates="dosing_profiles")
 
+class Task(Base):
+    __tablename__ = "tasks"
+    id = Column(Integer, primary_key=True, index=True)
+    device_id = Column(String, index=True)
+    type = Column(String)  # e.g., 'pump', 'reset'
+    parameters = Column(JSON)
+    status = Column(String, default="pending")  
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    def to_dict(self):
+        return {
+            "type": self.type,
+            **self.parameters
+        }
+
 class SensorReading(Base):
     __tablename__ = "sensor_readings"
 

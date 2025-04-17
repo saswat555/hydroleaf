@@ -1,5 +1,6 @@
 import os
 import asyncio
+import openai
 import json
 import logging
 import re
@@ -14,13 +15,18 @@ from app.models import Device
 from app.services.dose_manager import DoseManager
 from app.services.serper import fetch_search_results
 
+
 logger = logging.getLogger(__name__)
 
 # Production-level configuration via environment variables
 OLLAMA_URL = os.getenv("OLLAMA_URL", "http://localhost:11434/api/generate")
 MODEL_1_5B = os.getenv("MODEL_1_5B", "deepseek-r1:1.5b")
+GPT_MODEL = os.getenv("GPT_MODEL", "GPT-4-turbo")
 MODEL_7B = os.getenv("MODEL_7B", "deepseek-r1:7b")
 LLM_REQUEST_TIMEOUT = int(os.getenv("LLM_REQUEST_TIMEOUT", "300"))
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+USE_OLLAMA = os.getenv("USE_OLLAMA", "false").lower() == "true"
+
 
 dosing_manager = DoseManager()
 
@@ -53,6 +59,29 @@ def parse_ollama_response(raw_response: str) -> str:
     cleaned = re.sub(r"<think>.*?</think>", "", raw_response, flags=re.DOTALL).strip()
     return cleaned
 
+def parse_openai_response(raw_response: str) -> str:
+    """Extracts and cleans OpenAI's response to match Ollama's JSON format."""
+    
+    # Remove any <think> blocks (if present)
+    cleaned = re.sub(r"<think>.*?</think>", "", raw_response, flags=re.DOTALL).strip()
+    start = cleaned.find('{')
+    end = cleaned.rfind('}')
+
+    if start == -1 or end == -1 or end <= start:
+        logger.error(f"No valid JSON block found in OpenAI response: {cleaned}")
+        raise ValueError("Invalid JSON response from OpenAI")
+
+    cleaned_json = cleaned[start:end+1]
+
+    # Attempt to parse and reformat to ensure valid JSON
+    try:
+        parsed_response = json.loads(cleaned_json)
+        return json.dumps(parsed_response)  # Ensure JSON consistency
+    except json.JSONDecodeError as e:
+        logger.error(f"Malformed JSON from OpenAI: {cleaned_json}")
+        raise ValueError("Malformed JSON from OpenAI") from e
+
+
 async def build_dosing_prompt(device: Device, sensor_data: dict, plant_profile: dict) -> str:
     """
     Creates a text prompt that asks the LLM for a JSON-based dosing plan.
@@ -69,10 +98,10 @@ async def build_dosing_prompt(device: Device, sensor_data: dict, plant_profile: 
         f"Type: {plant_profile.get('plant_type', 'Unknown')}\n"
         f"Growth Stage: {plant_profile.get('growth_stage', 'N/A')} days\n"
         f"Seeding Date: {plant_profile.get('seeding_date', 'N/A')}\n"
-        f"Region: {plant_profile.get('region', 'Unknown')}\n"
-        f"Location: {plant_profile.get('location', 'Unknown')}\n"
-        f"Target pH Range: {plant_profile.get('target_ph_min', 'N/A')} - {plant_profile.get('target_ph_max', 'N/A')}\n"
-        f"Target TDS Range: {plant_profile.get('target_tds_min', 'N/A')} - {plant_profile.get('target_tds_max', 'N/A')}"
+        f"Region: {plant_profile.get('region', 'Bangalore')}\n"
+        f"Location: {plant_profile.get('location', 'Bangalore')}\n"
+        f"Target pH Range: {plant_profile.get('target_ph_min', '3')} - {plant_profile.get('target_ph_max', '4')}\n"
+        f"Target TDS Range: {plant_profile.get('target_tds_min', '150')} - {plant_profile.get('target_tds_max', '1000')}\n"
     )
     prompt = (
         "You are an expert hydroponic system manager. Based on the following information, determine optimal nutrient dosing amounts.\n\n"
@@ -100,6 +129,7 @@ async def build_dosing_prompt(device: Device, sensor_data: dict, plant_profile: 
         "2. Plant growth stage\n"
         "3. Chemical interactions\n"
         "4. Maximum safe dosing limits\n\n"
+        "5. You **must NOT** create additional pumps beyond those listed above.\n"
         "Please provide a JSON response with exactly two keys: 'actions' (a list) and 'next_check_hours' (a number). "
         "Do not include any additional text or formatting. Limit your answer to 300 tokens."
     )
@@ -182,7 +212,7 @@ async def direct_ollama_call(prompt: str, model_name: str) -> str:
         request_body = {
             "model": model_name,
             "prompt": prompt,
-            "stream": True
+            "stream": False
         }
         async with httpx.AsyncClient(timeout=LLM_REQUEST_TIMEOUT) as client:
             response = await client.post(OLLAMA_URL, json=request_body)
@@ -198,6 +228,45 @@ async def direct_ollama_call(prompt: str, model_name: str) -> str:
         logger.error(f"Ollama call failed: {e}")
         raise HTTPException(status_code=500, detail="Error calling LLM service") from e
 
+
+async def direct_openai_text_call(prompt: str, model_name: str) -> str:
+    client = openai.AsyncOpenAI(api_key=OPENAI_API_KEY)
+    response = await client.chat.completions.create(
+        model=model_name,
+        messages=[{"role": "user", "content": prompt}],
+        max_tokens=800,
+        temperature=0.7
+    )
+    return response.choices[0].message.content.strip()
+
+
+async def direct_openai_call(prompt: str, model_name: str) -> str:
+    """
+    Calls OpenAI's API to generate a response and formats it like Ollama's.
+    """
+    if not OPENAI_API_KEY:
+        raise ValueError("OpenAI API Key is missing. Set it as an environment variable.")
+
+    logger.info(f"Making OpenAI call to model {model_name} with prompt:\n{prompt}")
+
+    try:
+        client = openai.AsyncOpenAI(api_key=OPENAI_API_KEY)
+        response = await client.chat.completions.create(
+            model=model_name,
+            messages=[{"role": "user", "content": prompt}],
+            max_tokens=300
+        )
+        logger.info(f"OpenAI response: {response}")
+        
+        raw_completion = response.choices[0].message.content.strip()
+        cleaned_response = parse_openai_response(raw_completion)
+        
+        logger.info(f"OpenAI cleaned response: {cleaned_response}")
+        return cleaned_response
+    except Exception as e:
+        logger.error(f"OpenAI call failed: {e}")
+        raise HTTPException(status_code=500, detail="Error calling OpenAI LLM") from e
+    
 def validate_llm_response(response: Dict) -> None:
     """
     Validates that the parsed JSON response has a top-level 'actions' list with the required keys.
@@ -217,19 +286,29 @@ def validate_llm_response(response: Dict) -> None:
 
 async def call_llm_async(prompt: str, model_name: str = MODEL_1_5B) -> Tuple[Dict, str]:
     """
-    Calls the local Ollama API and returns a tuple:
-      - The parsed JSON response for automated processing.
+    Calls either Ollama or OpenAI and ensures the response format is consistent.
+    Returns:
+      - The parsed JSON response.
       - The full raw completion for UI display.
     """
     logger.info(f"Sending prompt to LLM:\n{prompt}")
-    raw_completion = await direct_ollama_call(prompt, model_name)
-    cleaned = parse_ollama_response(raw_completion).replace("'", '"').strip()
-    start = cleaned.find('{')
-    end = cleaned.rfind('}')
-    if start == -1 or end == -1 or end <= start:
-        logger.error("No valid JSON block found in cleaned response.")
-        raise HTTPException(status_code=500, detail="Invalid JSON from LLM")
-    cleaned_json = cleaned[start:end+1]
+
+    if USE_OLLAMA:
+        raw_completion = await direct_ollama_call(prompt, model_name)
+        cleaned = parse_ollama_response(raw_completion).replace("'", '"').strip()
+        start = cleaned.find('{')
+        end = cleaned.rfind('}')
+        if start == -1 or end == -1 or end <= start:
+          logger.error("No valid JSON block found in cleaned response.")
+          raise HTTPException(status_code=500, detail="Invalid JSON from LLM")
+        cleaned_json = cleaned[start:end+1]   
+    else:
+        raw_completion = await direct_openai_call(prompt, GPT_MODEL)  
+        cleaned_json = parse_openai_response(raw_completion)  
+
+    logger.info(f"Raw response from LLM:\n{raw_completion}")
+
+    # Validate JSON structure
     try:
         parsed_response = json.loads(cleaned_json)
     except json.JSONDecodeError as e:
@@ -243,7 +322,11 @@ async def call_llm_plan(prompt: str, model_name: str = MODEL_1_5B) -> str:
     Returns the raw text (which may include a <think> block) for display.
     """
     logger.info(f"Sending plan prompt to LLM:\n{prompt}")
-    raw_completion = await direct_ollama_call(prompt, model_name)
+    if USE_OLLAMA:
+       raw_completion = await direct_ollama_call(prompt, model_name)
+    else:
+       logger.info(f" plan raw text: {GPT_MODEL}")
+       raw_completion = await direct_openai_text_call(prompt, GPT_MODEL)   
     logger.info(f"Ollama plan raw text: {raw_completion}")
     return raw_completion
 
@@ -259,6 +342,7 @@ async def execute_dosing_plan(device: Device, dosing_plan: Dict) -> Dict:
         "actions": dosing_plan.get("actions", []),
         "next_check_hours": dosing_plan.get("next_check_hours", 24)
     }
+    
     logger.info(f"Dosing plan for device {device.id}: {message}")
     async with httpx.AsyncClient() as client:
         for action in dosing_plan.get("actions", []):
@@ -266,16 +350,19 @@ async def execute_dosing_plan(device: Device, dosing_plan: Dict) -> Dict:
             dose_ml = action.get("dose_ml")
             endpoint = device.http_endpoint if device.http_endpoint.startswith("http") else f"http://{device.http_endpoint}"
             try:
+                logger.info(f"Pump activation started")
                 response = await client.post(
                     f"{endpoint}/pump",
                     json={"pump": pump_number, "amount": int(dose_ml)},
                     timeout=10
                 )
                 response_data = response.json()
-                if response.status_code == 200 and response_data.get("message") == "Pump started":
+                success_message = response_data.get("message") or response_data.get("msg")
+                if response.status_code == 200 and success_message == "Pump started":
                     logger.info(f"Pump {pump_number} activated successfully: {response_data}")
                 else:
-                    logger.error(f"Failed to activate pump {pump_number}: {response_data}")
+                      logger.error(f"Failed to activate pump {pump_number}: {response_data}")
+
             except httpx.RequestError as e:
                 logger.error(f"HTTP request to pump {pump_number} failed: {e}")
                 raise HTTPException(status_code=500, detail=f"Pump {pump_number} activation failed") from e
@@ -367,8 +454,12 @@ async def call_llm(prompt: str, model_name: str) -> Dict:
     Utility function that calls the LLM and returns the parsed JSON response.
     """
     logger.info(f"Calling LLM with model {model_name}, prompt:\n{prompt}")
-    raw_completion = await direct_ollama_call(prompt, model_name)
-    cleaned = parse_ollama_response(raw_completion).replace("'", '"').strip()
+    if USE_OLLAMA:
+       raw_completion = await direct_ollama_call(prompt, model_name)
+       cleaned = parse_ollama_response(raw_completion).replace("'", '"').strip()
+    else:
+       raw_completion = await direct_openai_call(prompt, GPT_MODEL)  
+       cleaned =  parse_openai_response(raw_completion).replace("'", '"').strip()  
     try:
         parsed_response = json.loads(cleaned)
     except json.JSONDecodeError:
