@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
 # Production-level configuration via environment variables
 OLLAMA_URL = os.getenv("OLLAMA_URL", "http://localhost:11434/api/generate")
 MODEL_1_5B = os.getenv("MODEL_1_5B", "deepseek-r1:1.5b")
-GPT_MODEL = os.getenv("GPT_MODEL", "GPT-4-turbo")
+GPT_MODEL = os.getenv("GPT_MODEL")
 MODEL_7B = os.getenv("MODEL_7B", "deepseek-r1:7b")
 LLM_REQUEST_TIMEOUT = int(os.getenv("LLM_REQUEST_TIMEOUT", "300"))
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
@@ -235,7 +235,7 @@ async def direct_openai_text_call(prompt: str, model_name: str) -> str:
         model=model_name,
         messages=[{"role": "user", "content": prompt}],
         max_tokens=800,
-        temperature=0.7
+        temperature=0.5
     )
     return response.choices[0].message.content.strip()
 
@@ -254,7 +254,7 @@ async def direct_openai_call(prompt: str, model_name: str) -> str:
         response = await client.chat.completions.create(
             model=model_name,
             messages=[{"role": "user", "content": prompt}],
-            max_tokens=300
+            max_tokens=600
         )
         logger.info(f"OpenAI response: {response}")
         
