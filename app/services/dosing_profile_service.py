@@ -13,6 +13,7 @@ from app.services.llm import call_llm_async, build_dosing_prompt
 
 logger = logging.getLogger(__name__)
 
+
 async def set_dosing_profile_service(profile_data: dict, db: AsyncSession) -> dict:
     """
     Set the dosing profile for a unified dosing/monitoring device.
@@ -55,6 +56,7 @@ async def set_dosing_profile_service(profile_data: dict, db: AsyncSession) -> di
     
     # For the unified device, use its HTTP endpoint to get sensor readings.
     sensor_ip = dosing_device.http_endpoint
+    logger.info(f"Fetching pH/TDS readings from device at {sensor_ip}")
     try:
         readings = await get_ph_tds_readings(sensor_ip)
     except Exception as exc:
