@@ -14,6 +14,8 @@ from app.schemas import (
 )
 from app.models import Device, DosingProfile
 from app.services.dose_manager import execute_dosing_operation, cancel_dosing_operation
+from app.services.dosing_profile_service import set_dosing_profile_service
+
 router = APIRouter()
 
 @router.post("/execute/{device_id}", response_model=DosingOperation)
@@ -191,3 +193,36 @@ async def llm_plan(
         logger.exception(f"Unexpected error in /llm-request: {exc}")
         raise HTTPException(status_code=500, detail="Internal Server Error")
 
+
+class DosingProfileServiceRequest(BaseModel):
+    device_id: int
+    device_ip: str | None = None
+    plant_name: str
+    plant_type: str
+    growth_stage: str
+    seeding_date: datetime
+    target_ph_min: float
+    target_ph_max: float
+    target_tds_min: float
+    target_tds_max: float
+    dosing_schedule: dict
+
+
+@router.post("/unified-dosing", summary="Create profile with unified sensor + LLM")
+async def unified_dosing_profile(
+    request: DosingProfileServiceRequest,
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Unified sensor + LLM dosing profile creation.
+    Uses sensor data from device and generates profile + dose via LLM.
+    """
+    try:
+        profile_data = request.model_dump()
+        result = await set_dosing_profile_service(profile_data, db)
+        return result
+    except HTTPException as he:
+        raise he
+    except Exception as e:
+        logger.exception(f"Unexpected error in /unified-dosing: {e}")
+        raise HTTPException(status_code=500, detail="Internal Server Error")
