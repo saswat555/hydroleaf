@@ -1,0 +1,3916 @@
+----- app/models.py -----
+# app/models.py
+
+from sqlalchemy import Column, Integer, String, Float, DateTime, Boolean, ForeignKey, JSON, Enum as SQLAlchemyEnum
+from sqlalchemy.orm import relationship
+from sqlalchemy.sql import func
+from datetime import datetime, timezone
+from app.core.database import Base
+from app.schemas import DeviceType
+
+class Device(Base):
+    __tablename__ = "devices"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+    farm_id = Column(Integer, ForeignKey("farms.id"), nullable=True)
+    mac_id = Column(String(64), unique=True, nullable=False)
+    name = Column(String(128), nullable=False)
+    type = Column(SQLAlchemyEnum(DeviceType), nullable=False)
+    http_endpoint = Column(String(256), nullable=False, unique=True)
+    location_description = Column(String(256))
+    is_active = Column(Boolean, default=True)
+    last_seen = Column(DateTime(timezone=True), nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
+    farm = relationship("Farm", back_populates="devices")
+    # JSON fields
+    pump_configurations = Column(JSON, nullable=True)
+    sensor_parameters = Column(JSON, nullable=True)
+    valve_configurations = Column(JSON, nullable=True)
+    # Relationships
+    dosing_profiles = relationship("DosingProfile", back_populates="device", cascade="all, delete-orphan")
+    sensor_readings = relationship("SensorReading", back_populates="device", cascade="all, delete-orphan")
+    dosing_operations = relationship("DosingOperation", back_populates="device", cascade="all, delete-orphan")
+    dosing_profiles = relationship("DosingProfile", back_populates="device", cascade="all, delete-orphan")
+class DosingProfile(Base):
+    __tablename__ = "dosing_profiles"
+
+    id = Column(Integer, primary_key=True, index=True)
+    device_id = Column(Integer, ForeignKey("devices.id", ondelete="CASCADE"))
+    plant_name = Column(String(100), nullable=False)
+    plant_type = Column(String(100), nullable=False)
+    growth_stage = Column(String(50), nullable=False)
+    seeding_date = Column(DateTime(timezone=True), nullable=False)
+    target_ph_min = Column(Float, nullable=False)
+    target_ph_max = Column(Float, nullable=False)
+    target_tds_min = Column(Float, nullable=False)
+    target_tds_max = Column(Float, nullable=False)
+    dosing_schedule = Column(JSON, nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    # Fix: Set updated_at with a default value so it is never None.
+    updated_at = Column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        onupdate=func.now(),
+        nullable=False
+    )
+
+    # Relationships
+    device = relationship("Device", back_populates="dosing_profiles")
+
+class Task(Base):
+    __tablename__ = "tasks"
+    id = Column(Integer, primary_key=True, index=True)
+    device_id = Column(String, index=True)
+    type = Column(String)  # e.g., 'pump', 'reset'
+    parameters = Column(JSON)
+    status = Column(String, default="pending")  
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    def to_dict(self):
+        return {
+            "type": self.type,
+            **self.parameters
+        }
+
+class SensorReading(Base):
+    __tablename__ = "sensor_readings"
+
+    id = Column(Integer, primary_key=True, index=True)
+    device_id = Column(Integer, ForeignKey("devices.id", ondelete="CASCADE"))
+    reading_type = Column(String(50), nullable=False)
+    value = Column(Float, nullable=False)
+    timestamp = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+    device = relationship("Device", back_populates="sensor_readings")
+    location = Column(String(100), nullable=True)
+class DosingOperation(Base):
+    __tablename__ = "dosing_operations"
+
+    id = Column(Integer, primary_key=True, index=True)
+    device_id = Column(Integer, ForeignKey("devices.id", ondelete="CASCADE"))
+    operation_id = Column(String(100), unique=True, nullable=False)
+    actions = Column(JSON, nullable=False)
+    status = Column(String(50), nullable=False)
+    timestamp = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)) 
+    device = relationship("Device", back_populates="dosing_operations")
+
+class Plant(Base):
+    __tablename__ = "plants"
+
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String(100), nullable=False)
+    type = Column(String(100), nullable=False)
+    growth_stage = Column(String(50), nullable=False)
+    seeding_date = Column(DateTime(timezone=True), nullable=False)
+    region = Column(String(100), nullable=False)
+    location = Column(String(100), nullable = False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
+    
+    
+class SupplyChainAnalysis(Base):
+    __tablename__ = "supply_chain_analysis"
+
+    id = Column(Integer, primary_key=True, index=True)
+    origin = Column(String(100), nullable=False)
+    destination = Column(String(100), nullable=False)
+    produce_type = Column(String(50), nullable=False)
+    weight_kg = Column(Float, nullable=False)
+    transport_mode = Column(String(50), default="railway")
+
+    distance_km = Column(Float, nullable=False)
+    cost_per_kg = Column(Float, nullable=False)
+    total_cost = Column(Float, nullable=False)
+    estimated_time_hours = Column(Float, nullable=False)
+
+    market_price_per_kg = Column(Float, nullable=False)
+    net_profit_per_kg = Column(Float, nullable=False)
+    final_recommendation = Column(String(200), nullable=False)
+
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
+
+class ConversationLog(Base):
+    __tablename__ = "conversation_logs"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    analysis_id = Column(Integer, ForeignKey("supply_chain_analysis.id"), nullable=True)
+    conversation = Column(JSON, nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+class User(Base):
+    __tablename__ = "users"
+    id = Column(Integer, primary_key=True, index=True)
+    email = Column(String(128), unique=True, nullable=False)
+    hashed_password = Column(String(256), nullable=False)
+    role = Column(String(50), nullable=False, default="user")
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    farms = relationship("Farm", back_populates="user", cascade="all, delete-orphan")
+    
+    
+class Farm(Base):
+    __tablename__ = "farms"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    name = Column(String(128), nullable=False)
+    location = Column(String(256), nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
+
+    # Relationships
+    devices = relationship("Device", back_populates="farm", cascade="all, delete-orphan")
+    user = relationship("User", back_populates="farms")
+
+class Camera(Base):
+    __tablename__ = "cameras"
+
+    id              = Column(String(64), primary_key=True, index=True)
+    name            = Column(String(120), nullable=False)
+    is_online       = Column(Boolean, default=False)
+    last_seen       = Column(DateTime(timezone=True), nullable=True)
+    frames_received = Column(Integer, default=0)
+    clips_count     = Column(Integer, default=0)
+    last_clip_time  = Column(DateTime(timezone=True), nullable=True)
+    storage_used    = Column(Float, default=0.0)  # MB
+    settings        = Column(JSON, nullable=True)
+
+    users = relationship("UserCamera", back_populates="camera", cascade="all, delete-orphan")
+
+class UserCamera(Base):
+    __tablename__ = "user_cameras"
+
+    id        = Column(Integer, primary_key=True, index=True)
+    user_id   = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"))
+    camera_id = Column(String(64),  ForeignKey("cameras.id", ondelete="CASCADE"))
+    nickname  = Column(String(120), nullable=True)
+
+    user   = relationship("User", back_populates="cameras")
+    camera = relationship("Camera", back_populates="users")
+
+User.cameras = relationship("UserCamera", back_populates="user", cascade="all, delete-orphan")
+
+
+----- app/__init__.py -----
+# app/__init__.py
+"""
+Hydroleaf Application Package Initialization.
+This file marks the directory as a Python package.
+"""
+
+
+----- app/simulated_esp.py -----
+# simulated_esp.py
+
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.middleware.cors import CORSMiddleware
+from datetime import datetime
+import uvicorn
+
+# Create the FastAPI app for the simulated ESP device.
+simulated_esp_app = FastAPI(title="Simulated ESP32 Device")
+
+# Allow CORS for all origins (adjust as needed).
+simulated_esp_app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+@simulated_esp_app.get("/discovery")
+async def discovery():
+    """
+    Simulate the discovery endpoint.
+    Returns basic device information.
+    """
+    return {
+        "device_id": "dummy_device",
+        "name": "Simulated ESP Device",
+        "type": "DOSING_MONITOR_UNIT",
+        "version": "2.1.0",
+        "status": "online",
+        "ip": "127.0.0.1"  # Simulated IP address
+    }
+
+@simulated_esp_app.post("/pump")
+async def pump(request: Request):
+    """
+    Simulate activating a pump.
+    Expects JSON with "pump" and "amount".
+    Returns a success message.
+    """
+    data = await request.json()
+    pump = data.get("pump")
+    amount = data.get("amount")
+    if pump is None or amount is None:
+        raise HTTPException(status_code=400, detail="Missing pump or amount")
+    return {
+        "message": "Pump started",  # Some tests check for this exact message.
+        "pump": pump,
+        "dose_ml": amount,
+        "timestamp": datetime.utcnow().isoformat()
+    }
+
+@simulated_esp_app.get("/monitor")
+async def monitor():
+    """
+    Simulate returning sensor readings.
+    """
+    return {
+        "device_id": "dummy_device",
+        "type": "DOSING_MONITOR_UNIT",
+        "version": "2.1.0",
+        "wifi_connected": True,
+        "pH": 6.8,
+        "TDS": 750
+    }
+
+@simulated_esp_app.post("/dose_monitor")
+async def dose_monitor(request: Request):
+    """
+    Simulate a combined dosing and monitoring endpoint.
+    Behaves similar to /pump but returns a different message.
+    """
+    data = await request.json()
+    pump = data.get("pump")
+    amount = data.get("amount")
+    if pump is None or amount is None:
+        raise HTTPException(status_code=400, detail="Missing pump or amount")
+    return {
+        "message": "Combined started",
+        "pump": pump,
+        "dose_ml": amount,
+        "timestamp": datetime.utcnow().isoformat()
+    }
+
+@simulated_esp_app.post("/pump_calibration")
+async def pump_calibration(request: Request):
+    """
+    Simulate pump calibration endpoint.
+    Expects a JSON with a "command" key.
+    """
+    data = await request.json()
+    command = data.get("command")
+    if command == "stop":
+        return {"message": "All pumps off"}
+    elif command == "start":
+        return {"message": "All pumps on"}
+    else:
+        raise HTTPException(status_code=400, detail="Invalid command")
+
+# Add a main section to run the app on port 8080.
+if __name__ == "__main__":
+    uvicorn.run("simulated_esp:simulated_esp_app", host="0.0.0.0", port=8080, reload=True)
+
+
+----- app/schemas.py -----
+from pydantic import BaseModel, Field, ConfigDict, field_validator, EmailStr
+from typing import Optional, List, Dict
+from datetime import datetime
+from enum import Enum
+
+# -------------------- Device Related Schemas -------------------- #
+
+class DeviceType(str, Enum):
+    DOSING_UNIT = "dosing_unit"
+    PH_TDS_SENSOR = "ph_tds_sensor"
+    ENVIRONMENT_SENSOR = "environment_sensor"
+    VALVE_CONTROLLER = "valve_controller"
+   
+class PumpConfig(BaseModel):
+    pump_number: int = Field(..., ge=1, le=4)
+    chemical_name: str = Field(..., max_length=50)
+    chemical_description: Optional[str] = Field(None, max_length=200)
+
+    model_config = ConfigDict(from_attributes=True)
+class ValveConfig(BaseModel):
+    valve_id: int = Field(..., ge=1, le=4)
+    name: Optional[str] = Field(None, max_length=50)
+    model_config = ConfigDict(from_attributes=True)
+    
+class DeviceBase(BaseModel):
+    mac_id: str = Field(..., max_length=64)
+    name: str = Field(..., max_length=128)
+    type: DeviceType
+    http_endpoint: str = Field(..., max_length=256)
+    location_description: Optional[str] = Field(None, max_length=256)
+    farm_id: Optional[int] = None
+    model_config = ConfigDict(from_attributes=True)
+    valve_configurations: Optional[List[ValveConfig]] = None
+
+class DosingDeviceCreate(DeviceBase):
+    pump_configurations: List[PumpConfig] = Field(..., min_length=1, max_length=4)
+    
+    @field_validator('type')
+    @classmethod
+    def validate_device_type(cls, v):
+        if v != DeviceType.DOSING_UNIT:
+            raise ValueError("Device type must be dosing_unit for DosingDeviceCreate")
+        return v
+
+class SensorDeviceCreate(DeviceBase):
+    sensor_parameters: Dict[str, str] = Field(...)
+    
+    @field_validator('type')
+    @classmethod
+    def validate_device_type(cls, v):
+        if v not in [DeviceType.PH_TDS_SENSOR, DeviceType.ENVIRONMENT_SENSOR]:
+            raise ValueError("Device type must be a sensor type")
+        return v
+
+class DeviceResponse(DeviceBase):
+    id: int
+    created_at: datetime
+    updated_at: datetime
+    is_active: bool
+    last_seen: Optional[datetime] = None
+    pump_configurations: Optional[List[PumpConfig]] = None
+    sensor_parameters: Optional[Dict[str, str]] = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+# -------------------- Dosing Related Schemas -------------------- #
+
+class DosingAction(BaseModel):
+    pump_number: int
+    chemical_name: str
+    dose_ml: float
+    reasoning: str
+
+class DosingProfileBase(BaseModel):
+    device_id: int
+    plant_name: str = Field(..., max_length=100)
+    plant_type: str = Field(..., max_length=100)
+    growth_stage: str = Field(..., max_length=50)
+    seeding_date: datetime
+    target_ph_min: float = Field(..., ge=0, le=14)
+    target_ph_max: float = Field(..., ge=0, le=14)
+    target_tds_min: float = Field(..., ge=0)
+    target_tds_max: float = Field(..., ge=0)
+    dosing_schedule: Dict[str, float] = Field(...)
+
+    model_config = ConfigDict(from_attributes=True)
+
+class DosingProfileCreate(DosingProfileBase):
+    pass
+
+class DosingProfileResponse(DosingProfileBase):
+    id: int
+    created_at: datetime
+    updated_at: datetime
+
+class DosingOperation(BaseModel):
+    device_id: int
+    operation_id: str
+    actions: List[DosingAction]
+    status: str
+    timestamp: datetime
+
+    model_config = ConfigDict(from_attributes=True)
+
+class SensorReading(BaseModel):
+    device_id: int
+    reading_type: str
+    value: float
+    timestamp: datetime
+
+    model_config = ConfigDict(from_attributes=True)
+
+# -------------------- Health Related Schemas -------------------- #
+
+class HealthCheck(BaseModel):
+    status: str
+    version: str
+    timestamp: datetime
+    environment: str
+
+class DatabaseHealthCheck(BaseModel):
+    status: str
+    type: str
+    timestamp: datetime
+    last_test: Optional[str]
+
+class FullHealthCheck(BaseModel):
+    system: HealthCheck
+    database: DatabaseHealthCheck
+    timestamp: datetime
+
+class SimpleDosingCommand(BaseModel):
+    pump: int = Field(..., ge=1, le=4, description="Pump number (1-4)")
+    amount: float = Field(..., gt=0, description="Dose in milliliters")
+
+# -------------------- Plant Related Schemas -------------------- #
+
+class PlantBase(BaseModel):
+    name: str = Field(..., max_length=100)
+    type: str = Field(..., max_length=100)
+    growth_stage: str = Field(..., max_length=50)
+    seeding_date: datetime
+    region: str = Field(..., max_length=100)
+    location: str = Field(..., max_length=100)
+
+class PlantCreate(PlantBase):
+    """Schema for creating a new plant profile."""
+
+class PlantResponse(PlantBase):
+    """Schema for returning plant details."""
+    id: int
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
+        from_attributes = True
+
+# -------------------- Supply Chain Related Schemas -------------------- #
+
+class TransportRequest(BaseModel):
+    origin: str
+    destination: str
+    produce_type: str
+    weight_kg: float
+    transport_mode: str = "railway"
+
+class TransportCost(BaseModel):
+    distance_km: float
+    cost_per_kg: float
+    total_cost: float
+    estimated_time_hours: float
+
+class SupplyChainAnalysisResponse(BaseModel):
+    origin: str
+    destination: str
+    produce_type: str
+    weight_kg: float
+    transport_mode: str
+    distance_km: float
+    cost_per_kg: float
+    total_cost: float
+    estimated_time_hours: float
+    market_price_per_kg: float
+    net_profit_per_kg: float
+    final_recommendation: str
+    created_at: Optional[datetime] = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+class CloudAuthenticationRequest(BaseModel):
+    device_id: str
+    cloud_key: str
+
+class CloudAuthenticationResponse(BaseModel):
+    token: str
+    message: str
+
+class DosingCancellationRequest(BaseModel):
+    device_id: str
+    event: str
+
+# -------------------- User Related Schemas -------------------- #
+
+class UserResponse(BaseModel):
+    id: int
+    email: EmailStr
+    role: str
+    created_at: datetime
+
+    class Config:
+        orm_mode = True
+
+class UserUpdate(BaseModel):
+    email: Optional[EmailStr] = None
+    # Production-level user updates include profile fields.
+    first_name: Optional[str] = Field(None, max_length=50)
+    last_name: Optional[str] = Field(None, max_length=50)
+    phone: Optional[str] = Field(None, max_length=20)
+    address: Optional[str] = Field(None, max_length=256)
+    city: Optional[str] = Field(None, max_length=100)
+    state: Optional[str] = Field(None, max_length=100)
+    country: Optional[str] = Field(None, max_length=100)
+    postal_code: Optional[str] = Field(None, max_length=20)
+
+class UserProfile(BaseModel):
+    id: int
+    email: EmailStr
+    role: str
+    first_name: str = Field(..., max_length=50)
+    last_name: str = Field(..., max_length=50)
+    phone: Optional[str] = Field(..., max_length=20)
+    address: Optional[str] = Field(..., max_length=256)
+    city: Optional[str] = Field(..., max_length=100)
+    state: Optional[str] = Field(..., max_length=100)
+    country: Optional[str] = Field(..., max_length=100)
+    postal_code: Optional[str] = Field(..., max_length=20)
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
+        orm_mode = True
+class UserCreate(BaseModel):
+    email: EmailStr
+    password: str
+    first_name: Optional[str] = Field(None, max_length=50)
+    last_name: Optional[str] = Field(None, max_length=50)
+    phone: Optional[str] = Field(None, max_length=20)
+    address: Optional[str] = Field(None, max_length=256)
+    city: Optional[str] = Field(None, max_length=100)
+    state: Optional[str] = Field(None, max_length=100)
+    country: Optional[str] = Field(None, max_length=100)
+    postal_code: Optional[str] = Field(None, max_length=20)
+    name: str = Field(..., max_length=128),  # ← extra comma makes this a tuple!
+    location: Optional[str] = Field(None, max_length=256)
+
+
+class FarmBase(BaseModel):
+    name: str = Field(..., max_length=128)
+    location: Optional[str] = Field(None, max_length=256)
+
+class FarmCreate(FarmBase):
+    pass
+
+class FarmResponse(FarmBase):
+    id: int
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
+        orm_mode = True
+
+class ValveDeviceCreate(DeviceBase):
+    valve_configurations: List[ValveConfig] = Field(..., min_length=1, max_length=4)
+
+    @field_validator('type')
+    @classmethod
+    def validate_device_type(cls, v):
+        if v != DeviceType.VALVE_CONTROLLER:
+            raise ValueError("Device type must be valve_controller for ValveDeviceCreate")
+        return v
+
+----- app/.env -----
+# .env
+ENVIRONMENT=development
+DEBUG=True
+PORT=8000
+LOG_LEVEL=info
+ALLOWED_ORIGINS=*
+DATABASE_URL=sqlite+aiosqlite:///./Hydroleaf.db
+
+# MQTT Settings
+MQTT_BROKER=0.0.0.0
+MQTT_PORT=1883
+MQTT_USERNAME=
+MQTT_PASSWORD=
+
+# Ollama Settings
+OLLAMA_HOST=http://localhost:11434
+MODEL_NAME_1_5B=deepseek-r1:1.5b
+MODEL_NAME_7B=deepseek-r1:7b
+USE_OLLAMA="false"
+
+SERPER_API_KEY=31e32e860200a40a198e1464a2d3fc3eee6da6d0
+
+
+----- app/main.py -----
+# app/main.py
+import os
+import time
+import logging
+import asyncio
+from pathlib import Path
+from datetime import datetime, timezone
+
+from fastapi import FastAPI, HTTPException, Request, status
+from fastapi.middleware.cors import CORSMiddleware
+from starlette.middleware.sessions import SessionMiddleware
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import JSONResponse
+from fastapi.templating import Jinja2Templates
+from contextlib import asynccontextmanager
+import uvicorn
+
+from app.core.config import (
+    ENVIRONMENT, OFFLINE_TIMEOUT, ALLOWED_ORIGINS,
+    SESSION_KEY, API_V1_STR
+)
+from app.core.database import init_db, AsyncSessionLocal, get_db, engine, Base
+from app.routers import (
+    devices_router, dosing_router, config_router,
+    farms_router, plants_router, supply_chain_router,
+    cloud_router, users_router, admin_users_router,
+    auth_router, device_comm_router, heartbeat_router,
+    admin_router, cameras_router
+)
+from app.routers.cameras import upload_day_frame, upload_night_frame
+from app.simulated_esp import simulated_esp_app
+from app.utils.camera_tasks import offline_watcher
+
+# Logging setup
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+)
+logger = logging.getLogger(__name__)
+
+# Application lifespan for migrations & startup
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    logger.info("Starting Hydroleaf API - ensuring database schema...")
+    # Verify Alembic config
+    if not Path("alembic.ini").is_file() or not Path("alembic").is_dir():
+        raise RuntimeError(
+            "Alembic configuration missing: please run `alembic init alembic` and set up migrations."
+        )
+
+    # 1) Run Alembic migrations
+    try:
+        await asyncio.to_thread(init_db)
+        logger.info("Alembic migrations complete")
+    except Exception as e:
+        logger.error(f"Migration step failed: {e}")
+        raise
+
+    # 2) Auto-create any missing tables
+    try:
+        async with engine.begin() as conn:
+            await conn.run_sync(Base.metadata.create_all)
+        logger.info("SQLAlchemy metadata.create_all complete")
+    except Exception as e:
+        logger.error(f"Auto-create tables failed: {e}")
+        raise
+
+    # Mark startup complete
+    app.state.start_time = time.time()
+    yield
+    logger.info("Shutting down Hydroleaf API")
+
+# Instantiate app
+app = FastAPI(
+    title="Hydroleaf API",
+    version=os.getenv("API_VERSION", "1.0.0"),
+    docs_url=f"{API_V1_STR}/docs",
+    redoc_url=None,
+    openapi_url=f"{API_V1_STR}/openapi.json",
+    lifespan=lifespan
+)
+
+# Middleware
+app.add_middleware(SessionMiddleware, secret_key=SESSION_KEY)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=ALLOWED_ORIGINS,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+app.mount("/static", StaticFiles(directory="app/static"), name="static")
+app.mount("/simulated_esp", simulated_esp_app)
+
+templates = Jinja2Templates(directory="app/templates")
+
+# --- Logging middleware (fixed) ---
+@app.middleware("http")
+async def log_requests(request: Request, call_next):
+    start = time.time()
+    try:
+        response = await call_next(request)
+        latency = time.time() - start
+        response.headers.update({
+            "X-Process-Time": f"{latency:.3f}",
+            "X-API-Version": app.version,
+        })
+        return response
+    except Exception as exc:
+        logger.error(f"Unhandled error during request: {exc}", exc_info=True)
+        raise
+
+# Health endpoints
+@app.get(f"{API_V1_STR}/health")
+async def health_check():
+    uptime = time.time() - app.state.start_time
+    return {
+        "status": "healthy",
+        "version": app.version,
+        "timestamp": datetime.now(timezone.utc),
+        "environment": ENVIRONMENT,
+        "uptime": uptime,
+    }
+
+@app.get(f"{API_V1_STR}/health/database")
+async def database_health():
+    now = datetime.now(timezone.utc)
+    try:
+        session = await get_db().__anext__()
+        await session.close()
+    except Exception as e:
+        return {"status": "error", "detail": str(e)}
+    return {"status": "ok", "timestamp": now}
+
+@app.get(f"{API_V1_STR}/health/system")
+async def system_health():
+    sys = await health_check()
+    db = await database_health()
+    return {
+        "system": sys,
+        "database": db,
+        "timestamp": datetime.now(timezone.utc),
+        "api_version": app.version,
+        "environment": ENVIRONMENT,
+    }
+
+# Camera upload endpoints (override default router paths)
+app.add_api_route(
+    "/upload/{camera_id}/day",
+    upload_day_frame,
+    methods=["POST"]
+)
+app.add_api_route(
+    "/upload/{camera_id}/night",
+    upload_night_frame,
+    methods=["POST"]
+)
+
+# Exception handlers
+@app.exception_handler(HTTPException)
+async def http_exc_handler(request: Request, exc: HTTPException):
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={
+            "detail": exc.detail,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "path": request.url.path,
+        },
+    )
+
+@app.exception_handler(Exception)
+async def exc_handler(request: Request, exc: Exception):
+    logger.error(f"Unhandled exception: {exc}", exc_info=True)
+    return JSONResponse(
+        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        content={
+            "detail": "Internal server error",
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "path": request.url.path,
+        },
+    )
+
+# Include routers
+app.include_router(admin_users_router, prefix=f"{API_V1_STR}/admin/users", tags=["admin-users"])
+app.include_router(users_router, prefix=f"{API_V1_STR}/users", tags=["users"])
+app.include_router(auth_router, prefix=f"{API_V1_STR}/auth", tags=["auth"])
+app.include_router(devices_router, prefix=f"{API_V1_STR}/devices", tags=["devices"])
+app.include_router(dosing_router, prefix=f"{API_V1_STR}/dosing", tags=["dosing"])
+app.include_router(config_router, prefix=f"{API_V1_STR}/config", tags=["config"])
+app.include_router(plants_router, prefix=f"{API_V1_STR}/plants", tags=["plants"])
+app.include_router(farms_router, prefix=f"{API_V1_STR}/farms", tags=["farms"])
+app.include_router(supply_chain_router, prefix=f"{API_V1_STR}/supply_chain", tags=["supply_chain"])
+app.include_router(cloud_router, prefix=f"{API_V1_STR}/cloud", tags=["cloud"])
+app.include_router(heartbeat_router, prefix="", tags=["heartbeat"])
+app.include_router(admin_router, prefix="/admin", tags=["admin"])
+app.include_router(device_comm_router, prefix=f"{API_V1_STR}/device_comm", tags=["device_comm"])
+app.include_router(cameras_router, prefix=f"{API_V1_STR}/cameras", tags=["cameras"])
+
+# Startup tasks
+@app.on_event("startup")
+async def startup_tasks():
+    asyncio.create_task(
+        offline_watcher(
+            db_factory=AsyncSessionLocal,
+            interval_seconds=OFFLINE_TIMEOUT / 2,
+        )
+    )
+
+# Run server
+if __name__ == "__main__":
+    uvicorn.run(
+        "app.main:app",
+        host="0.0.0.0",
+        port=int(os.getenv("PORT", 8000)),
+        log_level=os.getenv("LOG_LEVEL", "info"),
+        reload=os.getenv("DEBUG", "false").lower() == "true"
+    )
+
+
+----- app/dependencies.py -----
+# app/dependencies.py
+import os
+import jwt
+from fastapi import Depends, HTTPException, status
+from fastapi.security import OAuth2PasswordBearer
+from sqlalchemy.future import select
+from app.models import User
+from app.core.database import get_db
+
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login")
+
+async def get_current_user(token: str = Depends(oauth2_scheme), db=Depends(get_db)):
+    SECRET_KEY = os.getenv("SECRET_KEY", "your-default-secret")
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=["HS256"])
+        user_id = payload.get("user_id")
+        if user_id is None:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid authentication credentials"
+            )
+        result = await db.execute(select(User).where(User.id == user_id))
+        user = result.scalar_one_or_none()
+        if user is None:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="User not found"
+            )
+        return user
+    except jwt.PyJWTError:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Could not validate credentials"
+        )
+
+
+async def get_current_admin(user: User = Depends(get_current_user)):
+    """
+    Dependency that verifies the current user is an admin.
+    """
+    if user.role != "superadmin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Admin privileges required"
+        )
+    return user
+
+----- app/routers/auth.py -----
+# app/routers/auth.py
+from fastapi import APIRouter, HTTPException, Depends
+from fastapi.security import OAuth2PasswordRequestForm
+from app.models import User
+from app.core.database import get_db
+from sqlalchemy.future import select
+import jwt  # This is from PyJWT
+import os
+import datetime
+from passlib.context import CryptContext
+from app.schemas import UserCreate, UserResponse 
+
+router = APIRouter()
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+SECRET_KEY = os.getenv("SECRET_KEY", "your-default-secret")
+ALGORITHM = "HS256"
+
+def verify_password(plain_password, hashed_password):
+    return pwd_context.verify(plain_password, hashed_password)
+
+def get_password_hash(password):
+    return pwd_context.hash(password)
+
+@router.post("/login")
+async def login(form_data: OAuth2PasswordRequestForm = Depends(), db=Depends(get_db)):
+    # Retrieve user by email
+    result = await db.execute(select(User).where(User.email == form_data.username))
+    user = result.scalar_one_or_none()
+    if not user or not verify_password(form_data.password, user.hashed_password):
+        raise HTTPException(status_code=400, detail="Invalid credentials")
+    
+    token_data = {
+        "user_id": user.id,
+        "role": user.role,
+        "exp": datetime.datetime.utcnow() + datetime.timedelta(hours=1)
+    }
+    token = jwt.encode(token_data, SECRET_KEY, algorithm=ALGORITHM)
+    return {"access_token": token, "token_type": "bearer"}
+
+@router.post("/signup", response_model=UserResponse)
+async def signup(user_create: UserCreate, db=Depends(get_db)):
+    # Check if email exists
+    result = await db.execute(select(User).where(User.email == user_create.email))
+    if result.scalar_one_or_none():
+        raise HTTPException(status_code=400, detail="Email already registered")
+    
+    hashed_pw = get_password_hash(user_create.password)
+    user = User(email=user_create.email, hashed_password=hashed_pw, role="user")
+    db.add(user)
+    await db.commit()
+    await db.refresh(user)
+    return user
+
+
+----- app/routers/config.py -----
+# app/routers/config.py
+
+from fastapi import APIRouter, HTTPException, Depends
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.future import select
+from typing import List
+from sqlalchemy import select, func
+from app.core.database import get_db
+from app.schemas import (
+    DosingProfileCreate,
+    DosingProfileResponse,
+    DeviceType,
+    PlantCreate,
+    PlantResponse
+)
+from app.models import Device, DosingOperation, DosingProfile, Plant, SensorReading
+
+router = APIRouter()
+
+@router.get("/system-info", summary="Get system information")
+async def get_system_info(db: AsyncSession = Depends(get_db)):
+    """Get system configuration and status using unified device counts"""
+    dosing_count = await db.scalar(
+        select(func.count()).select_from(Device).where(Device.type == DeviceType.DOSING_UNIT)
+    )
+    sensor_count = await db.scalar(
+        select(func.count()).select_from(Device).where(
+            Device.type.in_([DeviceType.PH_TDS_SENSOR, DeviceType.ENVIRONMENT_SENSOR])
+        )
+    )
+    
+    return {
+        "version": "1.0.0",
+        "device_count": {
+            "dosing": dosing_count or 0,
+            "sensors": sensor_count or 0
+        }
+    }
+
+@router.post("/dosing-profile", response_model=DosingProfileResponse)
+async def create_dosing_profile(
+    profile: DosingProfileCreate,
+    db: AsyncSession = Depends(get_db)
+):
+    """Create a new dosing profile for a device"""
+    result = await db.execute(
+        select(Device).where(Device.id == profile.device_id)
+    )
+    device = result.scalar_one_or_none()
+    if not device:
+        raise HTTPException(status_code=404, detail="Device not found")
+    
+    # Ensure the device is a dosing unit (unified device)
+    if device.type != DeviceType.DOSING_UNIT:
+        raise HTTPException(
+            status_code=400,
+            detail="Dosing profiles can only be created for dosing units"
+        )
+
+    new_profile = DosingProfile(**profile.model_dump())
+    db.add(new_profile)
+    try:
+        await db.commit()
+        await db.refresh(new_profile)
+        if new_profile.updated_at is None:
+            new_profile.updated_at = new_profile.created_at
+        return new_profile
+    except Exception as exc:
+        await db.rollback()
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error creating dosing profile: {exc}"
+        )
+
+@router.get("/dosing-profiles/{device_id}", response_model=List[DosingProfileResponse])
+async def get_device_profiles(
+    device_id: int,
+    db: AsyncSession = Depends(get_db)
+):
+    """Get all dosing profiles for a device"""
+    device = await db.scalar(
+        select(Device).where(Device.id == device_id)
+    )
+    if not device:
+        raise HTTPException(status_code=404, detail="Device not found")
+
+    result = await db.execute(
+        select(DosingProfile)
+        .where(DosingProfile.device_id == device_id)
+        .order_by(DosingProfile.created_at.desc())
+    )
+    profiles = result.scalars().all()
+    return profiles
+
+@router.delete("/dosing-profiles/{profile_id}")
+async def delete_dosing_profile(
+    profile_id: int,
+    db: AsyncSession = Depends(get_db)
+):
+    """Delete a dosing profile"""
+    profile = await db.get(DosingProfile, profile_id)
+    if not profile:
+        raise HTTPException(status_code=404, detail="Profile not found")
+    
+    try:
+        await db.delete(profile)
+        await db.commit()
+        return {"message": "Profile deleted successfully"}
+    except Exception as exc:
+        await db.rollback()
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error deleting profile: {exc}"
+        )
+
+
+----- app/routers/users.py -----
+    # app/routers/users.py
+from fastapi import APIRouter, HTTPException, Depends
+from app.dependencies import get_current_user
+from app.models import User
+from app.core.database import get_db
+from app.schemas import UserResponse, UserUpdate  # reuse the already defined UserUpdate from schemas.py
+from sqlalchemy.future import select
+
+router = APIRouter(prefix="/api/v1/users", tags=["users"])
+
+@router.get("/me", response_model=UserResponse)
+async def get_my_profile(current_user: User = Depends(get_current_user)):
+    return current_user
+
+@router.put("/me", response_model=UserResponse)
+async def update_my_profile(update: UserUpdate, db=Depends(get_db), current_user: User = Depends(get_current_user)):
+    # Allow updating only permitted fields (e.g. email).
+    if update.email:
+        current_user.email = update.email
+    # Do NOT allow role change by the user.
+    db.add(current_user)
+    await db.commit()
+    await db.refresh(current_user)
+    return current_user
+
+
+----- app/routers/cloud.py -----
+# app/routers/cloud.py
+import secrets
+import logging
+from fastapi import APIRouter, HTTPException, status, Depends
+from app.schemas import CloudAuthenticationRequest, CloudAuthenticationResponse, DosingCancellationRequest
+from app.dependencies import get_current_admin
+
+logger = logging.getLogger(__name__)
+
+router = APIRouter()
+
+# For demonstration purposes, we use a fixed cloud key.
+EXPECTED_CLOUD_KEY = ""  # In production, load from environment variables
+
+@router.post("/authenticate", response_model=CloudAuthenticationResponse)
+async def authenticate_cloud(auth_request: CloudAuthenticationRequest):
+    """
+    Authenticate a device using its cloud key.
+    Returns a token if the provided key is valid.
+    """
+    if auth_request.cloud_key != EXPECTED_CLOUD_KEY:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid cloud key"
+        )
+    
+    # Generate a token (in production, use JWT or a more secure method)
+    token = secrets.token_hex(16)
+    logger.info(f"Device {auth_request.device_id} authenticated successfully. Token: {token}")
+    return CloudAuthenticationResponse(token=token, message="Authentication successful")
+
+@router.post("/dosing_cancel")
+async def dosing_cancel(request: DosingCancellationRequest):
+    """
+    Endpoint to receive a dosing cancellation callback.
+    Validates the event type and logs the cancellation.
+    """
+    if request.event != "dosing_cancelled":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid event type"
+        )
+    logger.info(f"Dosing cancelled for device {request.device_id}")
+    # Here you can add additional processing (e.g., update DB state)
+    return {"message": "Dosing cancellation received", "device_id": request.device_id}
+
+
+@router.post("/admin/generate_cloud_key", dependencies=[Depends(get_current_admin)])
+async def generate_cloud_key():
+    """
+    Admin-only endpoint to generate a new cloud key.
+    This updates the module-level EXPECTED_CLOUD_KEY.
+    """
+    new_key = secrets.token_hex(16)
+    global EXPECTED_CLOUD_KEY
+    EXPECTED_CLOUD_KEY = new_key
+    logger.info(f"New cloud key generated: {new_key}")
+    return {"cloud_key": new_key}
+
+
+@router.post("/verify_key")
+async def verify_cloud_key(auth_request: CloudAuthenticationRequest):
+    """
+    Verifies the provided cloud key without generating a token.
+    Returns a success message if the key is valid.
+    """
+    if auth_request.cloud_key == EXPECTED_CLOUD_KEY:
+        return {"status": "valid", "message": "Cloud key is valid"}
+    else:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid cloud key"
+        )
+
+
+----- app/routers/admin_users.py -----
+# app/routers/admin_users.py
+from fastapi import APIRouter, HTTPException, Depends, status
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.future import select
+from typing import List
+import datetime
+import os
+import jwt
+
+from app.models import User
+from app.core.database import get_db
+from app.dependencies import get_current_admin
+from app.schemas import UserResponse, UserUpdate
+
+router = APIRouter(prefix="/admin/users", tags=["admin", "users"])
+
+@router.get("/", response_model=List[UserResponse])
+async def list_users(
+    db: AsyncSession = Depends(get_db),
+    admin: User = Depends(get_current_admin)
+):
+    """
+    Admin-only endpoint to list all users.
+    """
+    result = await db.execute(select(User))
+    users = result.scalars().all()
+    return users
+
+@router.get("/{user_id}", response_model=UserResponse)
+async def get_user(
+    user_id: int,
+    db: AsyncSession = Depends(get_db),
+    admin: User = Depends(get_current_admin)
+):
+    """
+    Admin-only endpoint to get details of a specific user.
+    """
+    user = await db.get(User, user_id)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    return user
+
+@router.put("/{user_id}", response_model=UserResponse)
+async def update_user(
+    user_id: int,
+    user_update: UserUpdate,
+    db: AsyncSession = Depends(get_db),
+    admin: User = Depends(get_current_admin)
+):
+    """
+    Admin-only endpoint to update a user's email or role.
+    """
+    user = await db.get(User, user_id)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    if user_update.email is not None:
+        user.email = user_update.email
+    if user_update.role is not None:
+        user.role = user_update.role
+
+    db.add(user)
+    await db.commit()
+    await db.refresh(user)
+    return user
+
+@router.delete("/{user_id}")
+async def delete_user(
+    user_id: int,
+    db: AsyncSession = Depends(get_db),
+    admin: User = Depends(get_current_admin)
+):
+    """
+    Admin-only endpoint to delete a user.
+    """
+    user = await db.get(User, user_id)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    await db.delete(user)
+    await db.commit()
+    return {"detail": "User deleted successfully"}
+
+@router.post("/impersonate/{user_id}")
+async def impersonate_user(
+    user_id: int,
+    db: AsyncSession = Depends(get_db),
+    admin: User = Depends(get_current_admin)
+):
+    """
+    Admin-only endpoint to switch context and impersonate another user.
+    Returns a new JWT token for the target user.
+    """
+    user = await db.get(User, user_id)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    SECRET_KEY = os.getenv("SECRET_KEY", "your-default-secret")
+    ALGORITHM = "HS256"
+    token_data = {
+        "user_id": user.id,
+        "role": user.role,
+        "impersonated_by": admin.id,  # For audit purposes
+        "exp": datetime.datetime.utcnow() + datetime.timedelta(hours=1)
+    }
+    token = jwt.encode(token_data, SECRET_KEY, algorithm=ALGORITHM)
+    return {
+        "access_token": token,
+        "token_type": "bearer",
+        "impersonated_user": user.email
+    }
+
+
+----- app/routers/plants.py -----
+from fastapi import APIRouter, Depends, HTTPException
+from fastapi.logger import logger
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+from typing import List
+from app.schemas import DosingOperation, PlantCreate, PlantResponse, SensorReading
+from app.core.database import get_db
+from app.services.plant_service import (
+    get_all_plants,
+    get_plant_by_id,
+    create_plant,
+    delete_plant
+)
+from app.models import Plant
+
+router = APIRouter()
+
+@router.get("/plants", response_model=List[PlantResponse])
+async def fetch_all_plants(db: AsyncSession = Depends(get_db)):
+    """Retrieve all plant profiles"""
+    plants = await get_all_plants(db)
+    return plants 
+
+@router.get("/plants/{plant_id}", response_model=PlantResponse)
+async def fetch_plant(plant_id: int, db: AsyncSession = Depends(get_db)):
+    """Retrieve a plant by ID."""
+    return await get_plant_by_id(plant_id, db)
+
+@router.post("/", response_model=PlantResponse)
+async def add_plant(plant: PlantCreate, db: AsyncSession = Depends(get_db)):
+    """Create a new plant."""
+    return await create_plant(plant, db)
+
+@router.delete("/plants/{plant_id}")
+async def remove_plant(plant_id: int, db: AsyncSession = Depends(get_db)):
+    """Delete a plant by ID."""
+    return await delete_plant(plant_id, db)
+
+@router.post("/execute-dosing/{plant_id}", response_model=DosingOperation)
+async def execute_dosing(plant_id: int, db: AsyncSession = Depends(get_db)):
+    """
+    Execute a dosing operation by checking the latest sensor readings and applying the correct amount of nutrients.
+    
+    **Note:** This endpoint expects the Plant object to have dosing parameters
+    (`target_ph_min`, `target_ph_max`, `target_tds_min`, and `target_tds_max`). 
+    If these are not configured, the endpoint returns a 400 error.
+    """
+    plant = await db.get(Plant, plant_id)
+    if not plant:
+        raise HTTPException(status_code=404, detail="Plant Profile not found")
+    
+    # Ensure the plant has dosing parameters.
+    for attr in ("target_ph_min", "target_ph_max", "target_tds_min", "target_tds_max"):
+        if not hasattr(plant, attr):
+            raise HTTPException(status_code=400, detail="Plant dosing parameters not configured")
+    
+    target_ph_min = getattr(plant, "target_ph_min")
+    target_ph_max = getattr(plant, "target_ph_max")
+    target_tds_min = getattr(plant, "target_tds_min")
+    target_tds_max = getattr(plant, "target_tds_max")
+    
+    # Get latest sensor readings for the plant's location.
+    readings_result = await db.execute(
+        select(SensorReading)
+        .where(SensorReading.location == plant.location)
+        .order_by(SensorReading.timestamp.desc())
+    )
+    latest_readings = readings_result.scalars().all()
+    if not latest_readings:
+        raise HTTPException(status_code=400, detail="No sensor readings available")
+    
+    # Extract pH and TDS values.
+    ph = next((r.value for r in latest_readings if r.reading_type == "ph"), None)
+    tds = next((r.value for r in latest_readings if r.reading_type == "tds"), None)
+    if ph is None or tds is None:
+        raise HTTPException(status_code=400, detail="Missing pH or TDS readings")
+    
+    # Determine dosing actions based on the plant’s dosing parameters.
+    actions = []
+    if ph < target_ph_min:
+        actions.append({"pump": 1, "dose_ml": 10, "reasoning": "Increase pH"})
+    elif ph > target_ph_max:
+        actions.append({"pump": 2, "dose_ml": 10, "reasoning": "Decrease pH"})
+    
+    if tds < target_tds_min:
+        actions.append({"pump": 3, "dose_ml": 5, "reasoning": "Increase nutrients"})
+    elif tds > target_tds_max:
+        actions.append({"pump": 4, "dose_ml": 5, "reasoning": "Decrease nutrients"})
+    
+    return {"plant_id": plant_id, "actions": actions}
+
+
+----- app/routers/dosing.py -----
+from fastapi import APIRouter, HTTPException, Depends
+from fastapi.logger import logger
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.future import select
+from typing import List
+from datetime import datetime, UTC
+from pydantic import BaseModel
+from app.schemas import DeviceType 
+from app.core.database import get_db
+from app.schemas import (
+    DosingOperation,
+    DosingProfileResponse,
+    DosingProfileCreate
+)
+from app.models import Device, DosingProfile
+from app.services.dose_manager import execute_dosing_operation, cancel_dosing_operation
+from app.services.dosing_profile_service import set_dosing_profile_service
+
+router = APIRouter()
+
+@router.post("/execute/{device_id}", response_model=DosingOperation)
+async def execute_dosing(
+    device_id: int,
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Execute a dosing operation for a device using its HTTP endpoint.
+    """
+    device = await db.get(Device, device_id)
+    if not device:
+        raise HTTPException(status_code=404, detail="Device not found")
+    if device.type != DeviceType.DOSING_UNIT:
+        raise HTTPException(status_code=400, detail="Device is not a dosing unit")
+    
+    try:
+        # Use the device's HTTP endpoint and pump configurations to execute the dosing operation
+        result = await execute_dosing_operation(device_id, device.http_endpoint, device.pump_configurations)
+        return result
+    except Exception as exc:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error executing dosing operation: {exc}"
+        )
+
+@router.post("/cancel/{device_id}")
+async def cancel_dosing(
+    device_id: int,
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Cancel an active dosing operation for a device.
+    """
+    device = await db.get(Device, device_id)
+    if not device:
+        raise HTTPException(status_code=404, detail="Device not found")
+    
+    try:
+        result = await cancel_dosing_operation(device_id, device.http_endpoint)
+        return result
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Error cancelling dosing operation: {exc}")
+
+
+@router.get("/history/{device_id}", response_model=List[DosingOperation])
+async def get_dosing_history(
+    device_id: int,
+    session: AsyncSession = Depends(get_db)
+):
+    """
+    Retrieve the dosing history for a device.
+    """
+    try:
+        result = await session.execute(
+            select(Device).where(Device.id == device_id)
+        )
+        device = result.scalar_one_or_none()
+        if not device:
+            raise HTTPException(status_code=404, detail="Device not found")
+
+        # Import the DosingOperation model from app.models to query the history
+        from app.models import DosingOperation as ModelDosingOperation
+        result = await session.execute(
+            select(ModelDosingOperation)
+            .where(ModelDosingOperation.device_id == device_id)
+            .order_by(ModelDosingOperation.timestamp.desc())
+        )
+        operations = result.scalars().all()
+        return operations
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error fetching dosing history: {str(e)}"
+        )
+
+@router.post("/profile", response_model=DosingProfileResponse)
+async def create_dosing_profile(
+    profile: DosingProfileCreate,
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Create a new dosing profile for a dosing device.
+    """
+    result = await db.execute(
+        select(Device).where(Device.id == profile.device_id)
+    )
+    device = result.scalar_one_or_none()
+    if not device:
+        raise HTTPException(status_code=404, detail="Device not found")
+    if device.type != DeviceType.DOSING_UNIT:
+        raise HTTPException(
+            status_code=400,
+            detail="Dosing profiles can only be created for dosing units"
+        )
+
+    now = datetime.now(UTC)
+    new_profile = DosingProfile(
+        **profile.model_dump(),
+        created_at=now,
+        updated_at=now
+    )
+    
+    db.add(new_profile)
+    await db.commit()
+    await db.refresh(new_profile)
+    return new_profile
+
+# New endpoint to handle the LLM dosing flow
+class LlmDosingRequest(BaseModel):
+    sensor_data: dict
+    plant_profile: dict
+
+@router.post("/llm-request")
+async def llm_dosing_request(
+    device_id: int,
+    request: LlmDosingRequest,
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Process a dosing request using sensor data and plant profile to generate a dosing plan via LLM.
+    """
+    try:
+        # Verify device exists
+        device = await db.get(Device, device_id)
+        if not device:
+            raise HTTPException(status_code=404, detail="Device not found")
+
+        # Process the dosing request
+        from app.services.llm import process_dosing_request
+        result,raw = await process_dosing_request(device_id, request.sensor_data, request.plant_profile, db)
+
+        return result,raw
+
+    except HTTPException as he:
+        raise he  # Allow already handled errors to propagate correctly
+
+    except Exception as exc:
+        logger.exception(f"Unexpected error in /llm-request: {exc}")
+        raise HTTPException(status_code=500, detail="Internal Server Error")
+
+class llmPlaningRequest(BaseModel):
+    sensor_data: dict
+    plant_profile: dict
+    query: str
+
+@router.post("/llm-plan")
+async def llm_plan(
+    device_id: int,
+    request: llmPlaningRequest,
+    db: AsyncSession= Depends(get_db)
+): 
+    """
+    PROCESS A DOSING PLAN ACCORDING TO GIVEN REGION CLIMATE
+    """
+
+    try:
+        # Verify device exists
+        device = await db.get(Device, device_id)
+        if not device:
+            raise HTTPException(status_code=404, detail="Device not found")
+
+        # Process the dosing request
+        from app.services.llm import process_sensor_plan
+        result= await process_sensor_plan(device_id, request.sensor_data, request.plant_profile, request.query, db)
+
+        return result
+
+    except HTTPException as he:
+        raise he  # Allow already handled errors to propagate correctly
+
+    except Exception as exc:
+        logger.exception(f"Unexpected error in /llm-request: {exc}")
+        raise HTTPException(status_code=500, detail="Internal Server Error")
+
+
+class DosingProfileServiceRequest(BaseModel):
+    device_id: int
+    device_ip: str | None = None
+    plant_name: str
+    plant_type: str
+    growth_stage: str
+    seeding_date: datetime
+    target_ph_min: float
+    target_ph_max: float
+    target_tds_min: float
+    target_tds_max: float
+    dosing_schedule: dict
+
+
+@router.post("/unified-dosing", summary="Create profile with unified sensor + LLM")
+async def unified_dosing_profile(
+    request: DosingProfileServiceRequest,
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Unified sensor + LLM dosing profile creation.
+    Uses sensor data from device and generates profile + dose via LLM.
+    """
+    try:
+        profile_data = request.model_dump()
+        result = await set_dosing_profile_service(profile_data, db)
+        return result
+    except HTTPException as he:
+        raise he
+    except Exception as e:
+        logger.exception(f"Unexpected error in /unified-dosing: {e}")
+        raise HTTPException(status_code=500, detail="Internal Server Error")
+
+
+----- app/routers/__init__.py -----
+# app/routers/__init__.py
+
+from .devices       import router as devices_router
+from .dosing        import router as dosing_router
+from .config        import router as config_router
+from .plants        import router as plants_router
+from .supply_chain  import router as supply_chain_router
+from .farms         import router as farms_router
+from .cloud         import router as cloud_router
+from .auth          import router as auth_router
+from .users         import router as users_router
+from .admin_users   import router as admin_users_router
+from .device_comm   import router as device_comm_router
+from .heartbeat     import router as heartbeat_router
+from .admin         import router as admin_router
+from .cameras       import router as cameras_router
+
+__all__ = [
+    "devices_router", "dosing_router", "config_router", "plants_router",
+    "supply_chain_router", "farms_router", "cloud_router", "auth_router",
+    "users_router", "admin_users_router", "device_comm_router",
+    "heartbeat_router", "admin_router", "cameras_router",
+]
+
+
+----- app/routers/farms.py -----
+# app/routers/farms.py
+from fastapi import APIRouter, HTTPException, Depends
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.future import select
+from typing import List
+from app.core.database import get_db
+from app.models import Farm, User
+from app.schemas import FarmCreate, FarmResponse
+from app.dependencies import get_current_user
+
+router = APIRouter(prefix="/api/v1/farms", tags=["farms"])
+
+@router.post("/", response_model=FarmResponse)
+async def create_farm(farm: FarmCreate, db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
+    new_farm = Farm(user_id=current_user.id, name=farm.name, location=farm.location)
+    db.add(new_farm)
+    await db.commit()
+    await db.refresh(new_farm)
+    return new_farm
+
+@router.get("/", response_model=List[FarmResponse])
+async def list_farms(db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
+    result = await db.execute(select(Farm).where(Farm.user_id == current_user.id))
+    return result.scalars().all()
+
+@router.get("/{farm_id}", response_model=FarmResponse)
+async def get_farm(farm_id: int, db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
+    farm = await db.get(Farm, farm_id)
+    if not farm or farm.user_id != current_user.id:
+        raise HTTPException(status_code=404, detail="Farm not found")
+    return farm
+
+@router.delete("/{farm_id}")
+async def delete_farm(farm_id: int, db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
+    farm = await db.get(Farm, farm_id)
+    if not farm or farm.user_id != current_user.id:
+        raise HTTPException(status_code=404, detail="Farm not found")
+    await db.delete(farm)
+    await db.commit()
+    return {"detail": "Farm deleted successfully"}
+
+
+----- app/routers/supply_chain.py -----
+from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy.ext.asyncio import AsyncSession
+from app.schemas import TransportRequest, SupplyChainAnalysisResponse
+from app.core.database import get_db
+from app.services.supply_chain_service import trigger_transport_analysis
+
+router = APIRouter()
+
+@router.post("/", response_model=SupplyChainAnalysisResponse)
+async def analyze_supply_chain(request: TransportRequest, db: AsyncSession = Depends(get_db)):
+    """
+    Trigger the transport optimization analysis and return the results.
+    """
+    try:
+        result = await trigger_transport_analysis(request.dict(), db)
+        # result["analysis"] is the analysis record dictionary returned from our service
+        return result["analysis"]
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+----- app/routers/admin.py -----
+from fastapi import APIRouter
+import asyncio
+from app.services.device_discovery import get_connected_devices
+from app.services.ping import ping_host
+
+router = APIRouter(prefix="/admin", tags=["admin"])
+
+@router.get("/devices")
+async def list_connected_devices():
+    devices = get_connected_devices()
+    results = {}
+    # For each registered device, ping its IP and return status along with last seen time.
+    for device_id, info in devices.items():
+        ip = info["ip"]
+        reachable = await ping_host(ip)
+        results[device_id] = {
+            "ip": ip,
+            "reachable": reachable,
+            "last_seen": info["last_seen"]
+        }
+    return results
+
+
+----- app/routers/cameras.py -----
+# app/routers/cameras.py
+
+from datetime import datetime, timezone
+import mimetypes, asyncio
+from pathlib import Path
+import time
+from fastapi import APIRouter, Depends, Request, BackgroundTasks, HTTPException
+from fastapi.responses import FileResponse, StreamingResponse, JSONResponse, RedirectResponse
+from fastapi.templating import Jinja2Templates
+from requests import Session
+from sqlalchemy.ext.asyncio import AsyncSession
+from app.core.database import get_db
+from app.models import Camera, UserCamera, User
+import asyncio
+from app.utils.camera_tasks import encode_and_cleanup
+from app.core.config import DATA_ROOT, RAW_DIR, CLIPS_DIR, BOUNDARY
+import numpy as np
+import cv2
+from app.utils.image_utils import is_day, clean_frame
+
+router = APIRouter()
+
+templates = Jinja2Templates(directory="app/templates")
+
+def current_user(request: Request, db=Depends(get_db)) -> User | None:
+    uid = request.session.get("uid")
+    if not uid: return None
+    return db.query(User).get(uid)
+
+@router.get("/login")
+def login_form(request: Request):
+    return templates.TemplateResponse("login.html", {"request": request})
+
+async def _process_upload(
+    camera_id: str,
+    request: Request,
+    background_tasks: BackgroundTasks,
+    db: AsyncSession,
+    day_flag: bool
+) -> dict:
+    """
+    Shared logic for ingesting a JPEG frame:
+    - Validate content-type
+    - Decode JPEG
+    - Clean frame (day_flag determines mode)
+    - Save raw and latest files
+    - Update camera record
+    - Schedule encoding
+    """
+    # Validate Content-Type
+    content_type = request.headers.get("content-type", "")
+    if not content_type.startswith("image/"):
+        raise HTTPException(status_code=415, detail="Unsupported Media Type; expected image/jpeg")
+
+    # Read raw bytes
+    raw_bytes = await request.body()
+
+    # Decode JPEG
+    arr = np.frombuffer(raw_bytes, dtype=np.uint8)
+    frame = cv2.imdecode(arr, cv2.IMREAD_COLOR)
+    if frame is None:
+        raise HTTPException(status_code=400, detail="Invalid JPEG data")
+
+    # Clean frame according to day/night
+    try:
+        cleaned = clean_frame(frame, day_flag)
+        ok, buf = cv2.imencode(".jpg", cleaned)
+        image_bytes = buf.tobytes() if ok else raw_bytes
+    except Exception:
+        image_bytes = raw_bytes
+
+    # Prepare directories
+    base_dir = Path(DATA_ROOT) / camera_id
+    raw_dir = base_dir / RAW_DIR
+    raw_dir.mkdir(parents=True, exist_ok=True)
+    latest_file = base_dir / "latest.jpg"
+
+    # Write files
+    timestamp = int(time.time() * 1000)
+    (raw_dir / f"{timestamp}.jpg").write_bytes(image_bytes)
+    latest_file.write_bytes(image_bytes)
+
+    # Update DB record asynchronously
+    camera = await db.get(Camera, camera_id)
+    if not camera:
+        camera = Camera(id=camera_id, name=camera_id)
+        db.add(camera)
+    camera.is_online = True
+    camera.last_seen = datetime.utcnow()
+    await db.commit()
+
+    # Schedule background encoding
+        # Schedule background encoding in a fresh event loop
+    def _encode_wrapper(cam_id: str):
+        # this will spin up its own event loop to call the async function
+        asyncio.run(encode_and_cleanup(cam_id))
+
+    background_tasks.add_task(_encode_wrapper, camera_id)
+
+
+    return {"ok": True, "ts": timestamp, "mode": "day" if day_flag else "night"}
+
+@router.post("/upload/{camera_id}/day")
+async def upload_day_frame(
+    camera_id: str,
+    request: Request,
+    background_tasks: BackgroundTasks,
+    db: AsyncSession = Depends(get_db)
+) -> dict:
+    """Upload and clean a frame in daytime mode"""
+    return await _process_upload(camera_id, request, background_tasks, db, day_flag=True)
+
+@router.post("/upload/{camera_id}/night")
+async def upload_night_frame(
+    camera_id: str,
+    request: Request,
+    background_tasks: BackgroundTasks,
+    db: AsyncSession = Depends(get_db)
+) -> dict:
+    """Upload and clean a frame in nighttime mode"""
+    return await _process_upload(camera_id, request, background_tasks, db, day_flag=False)
+
+@router.get("/stream/{camera_id}")
+def mjpeg_stream(camera_id: str):
+    cam_dir = Path(DATA_ROOT)/camera_id
+    if not cam_dir.exists():
+        raise HTTPException(404, "Camera not found")
+    async def gen():
+        last = 0
+        while True:
+            img = cam_dir/"latest.jpg"
+            if img.exists():
+                m = img.stat().st_mtime_ns
+                if m != last:
+                    last = m
+                    data = img.read_bytes()
+                    yield (
+                        f"--{BOUNDARY}\r\n"
+                        f"Content-Type: image/jpeg\r\n"
+                        f"Content-Length: {len(data)}\r\n\r\n"
+                    ).encode() + data + f"\r\n--{BOUNDARY}\r\n".encode()
+            await asyncio.sleep(0.05)
+    return StreamingResponse(gen(), media_type=f"multipart/x-mixed-replace; boundary={BOUNDARY}")
+
+@router.get("/still/{camera_id}")
+def still(camera_id: str):
+    p = Path(DATA_ROOT)/camera_id/"latest.jpg"
+    if not p.exists(): raise HTTPException(404)
+    return FileResponse(p, media_type="image/jpeg")
+
+@router.get("/api/clips/{camera_id}")
+def list_clips(camera_id: str):
+    clips = sorted((Path(DATA_ROOT)/camera_id/CLIPS_DIR).glob("*.mp4"),
+                   key=lambda p: p.stat().st_mtime, reverse=True)
+    out = []
+    for c in clips:
+        ts = int(c.stem)
+        dt = datetime.fromtimestamp(ts/1000, timezone.utc).isoformat()
+        size_mb = round(c.stat().st_size/1024/1024,2)
+        # …duration via cv2 if needed…
+        out.append({"filename":c.name,"datetime":dt,"size_mb":size_mb})
+    return JSONResponse(out)
+
+@router.get("/clips/{camera_id}/{clip_name}")
+def serve_clip(camera_id: str, clip_name: str):
+    clip = Path(DATA_ROOT)/camera_id/CLIPS_DIR/clip_name
+    if not clip.exists(): raise HTTPException(404)
+    return FileResponse(clip, media_type=mimetypes.guess_type(clip_name)[0] or "video/mp4")
+
+@router.get("/api/status/{camera_id}")
+def cam_status(camera_id: str, db=Depends(get_db)):
+    cam = db.query(Camera).get(camera_id)
+    if not cam: raise HTTPException(404)
+    return {"is_online":cam.is_online, "last_seen":cam.last_seen}
+
+# … plus assign‑camera HTML form & POST handler …
+
+
+----- app/routers/heartbeat.py -----
+from fastapi import APIRouter, Request
+from app.core.config import DEPLOYMENT_MODE
+from app.services.device_discovery import update_device
+
+router = APIRouter()
+
+@router.post("/heartbeat")
+async def heartbeat(request: Request):
+    data = await request.json()
+    device_id = data.get("device_id")
+    client_ip = request.client.host  # IP address of the connecting device
+    if DEPLOYMENT_MODE == "CLOUD" and device_id:
+        update_device(device_id, client_ip)
+    return {"status": "ok"}
+
+
+----- app/routers/devices.py -----
+import json
+import os
+import ipaddress
+import asyncio
+import socket
+import httpx
+import logging
+from fastapi import APIRouter, HTTPException, Depends, Query, Request,  WebSocket
+from fastapi.responses import JSONResponse, StreamingResponse
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.future import select
+import re
+from app.core.config import DEPLOYMENT_MODE  # e.g. "LAN" or "CLOUD"
+from app.models import Device, User
+from app.dependencies import get_current_user
+from app.core.database import get_db
+from app.services.device_controller import DeviceController
+from app.services.llm import getSensorData
+from app.schemas import (
+    DosingDeviceCreate,
+    SensorDeviceCreate,
+    DeviceResponse,
+    DeviceType,
+    ValveDeviceCreate,
+)
+
+logger = logging.getLogger(__name__)
+router = APIRouter()
+
+cam_registry: dict[str, str] = {}
+latest_frames = {}
+ws_connections = {}
+
+JPEG_SOI = b'\xff\xd8'
+JPEG_EOI = b'\xff\xd9'
+jpeg_regex = re.compile(rb'\xff\xd8.*?\xff\xd9', re.DOTALL)
+
+def get_local_ip() -> str:
+    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    try:
+        s.connect(("8.8.8.8", 80))
+        ip = s.getsockname()[0]
+    except Exception:
+        ip = "127.0.0.1"
+    finally:
+        s.close()
+    return ip
+
+def default_subnet_from_ip(local_ip: str) -> str:
+    parts = local_ip.split(".")
+    if len(parts) == 4:
+        return f"{parts[0]}.{parts[1]}.{parts[2]}.0/24"
+    return "192.168.1.0/24"
+
+async def discover_cloud_device(device: Device, client: httpx.AsyncClient) -> dict:
+    url = device.http_endpoint.rstrip("/") + "/discovery"
+    try:
+        response = await asyncio.wait_for(client.get(url), timeout=2.0)
+        if response.status_code == 200:
+            data = response.json()
+            data["ip"] = device.http_endpoint
+            return data
+    except Exception as e:
+        logger.error(f"Cloud discovery error for device {device.id} at {device.http_endpoint}: {e}")
+    return None
+
+async def discover_lan_device(ip: str, port: str, client: httpx.AsyncClient) -> dict:
+    url = f"http://{ip}:{port}/discovery"
+    try:
+        response = await asyncio.wait_for(client.get(url), timeout=2.0)
+        if response.status_code == 200:
+            data = response.json()
+            data["ip"] = ip
+            return data
+    except Exception as e:
+        logger.debug(f"No response from {ip}:{port} - {e}")
+    return None
+
+@router.get("/discover-all", summary="Discover devices with progress updates")
+async def discover_all_devices(db: AsyncSession = Depends(get_db)):
+    async def event_generator():
+        discovered_devices = []
+        eventCount = 0  # Count every SSE event sent
+        async with httpx.AsyncClient(timeout=httpx.Timeout(2.0)) as client:
+            if DEPLOYMENT_MODE.upper() == "LAN":
+                local_ip = get_local_ip()
+                subnet = os.getenv("LAN_SUBNET", default_subnet_from_ip(local_ip))
+                port = os.getenv("LAN_PORT", "80")
+                network = ipaddress.ip_network(subnet, strict=False)
+                ips = [str(ip) for ip in network.hosts()]
+                # If you want a fixed target for LAN mode, force total_ips to 256:
+                total_ips = len(ips)  # Or: total_ips = len(ips) if you prefer the real count
+                logger.info(f"LAN mode: scanning {total_ips} IPs in subnet {subnet} on port {port}")
+
+                sem = asyncio.Semaphore(20)
+                async def sem_discover(ip: str):
+                    async with sem:
+                        return await discover_lan_device(ip, port, client)
+                tasks = [asyncio.create_task(sem_discover(ip)) for ip in ips]
+                for task in asyncio.as_completed(tasks):
+                    eventCount += 1  # Increment for every event (each IP tested)
+                    try:
+                        result = await task
+                    except Exception as exc:
+                        logger.error(f"Error in LAN discovery task: {exc}")
+                        result = None
+                    if result:
+                        discovered_devices.append(result)
+                    yield f"data: {json.dumps({'eventCount': eventCount, 'total': total_ips})}\n\n"
+            else:
+                result = await db.execute(select(Device))
+                devices = result.scalars().all()
+                total_devices = len(devices)
+                logger.info(f"CLOUD mode: found {total_devices} registered devices")
+                sem = asyncio.Semaphore(20)
+                async def sem_discover_cloud(device: Device):
+                    async with sem:
+                        return await discover_cloud_device(device, client)
+                tasks = [asyncio.create_task(sem_discover_cloud(device)) for device in devices]
+                for task in asyncio.as_completed(tasks):
+                    eventCount += 1
+                    try:
+                        result = await task
+                    except Exception as exc:
+                        logger.error(f"Error in CLOUD discovery task: {exc}")
+                        result = None
+                    if result:
+                        discovered_devices.append(result)
+                    yield f"data: {json.dumps({'eventCount': eventCount, 'total': total_devices})}\n\n"
+        # Final event: send the full discovered devices list.
+        yield f"data: {json.dumps({'discovered_devices': discovered_devices})}\n\n"
+    return StreamingResponse(event_generator(), media_type="text/event-stream")
+
+
+# ---------- Additional Endpoints ----------
+@router.get("/discover", summary="Check if a device is connected")
+async def check_device_connection(
+    ip: str = Query(..., description="IP address of the device to validate")
+):
+    controller = DeviceController(device_ip=ip)
+    device_info = await controller.discover()
+    logger.info(f"Discovery response for {ip}: {device_info}")
+    if not device_info or not isinstance(device_info, dict) or "device_id" not in device_info:
+        raise HTTPException(status_code=404, detail="No device found at the provided IP")
+    formatted_device = {
+        "id": device_info.get("device_id"),
+        "name": device_info.get("name", device_info.get("device_id")),
+        "type": device_info.get("type"),
+        "status": device_info.get("status"),
+        "version": device_info.get("version"),
+        "ip": device_info.get("ip")
+    }
+    return formatted_device
+
+@router.post("/dosing", response_model=DeviceResponse)
+async def create_dosing_device(
+    device: DosingDeviceCreate,
+    session: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    try:
+        endpoint = device.http_endpoint
+        if not endpoint.startswith("http"):
+            endpoint = f"http://localhost/{endpoint}"
+        controller = DeviceController(device_ip=endpoint)
+        discovered_device = await controller.discover()
+        if not discovered_device:
+            raise HTTPException(status_code=500, detail="Device discovery failed at the given endpoint")
+        existing = await session.execute(select(Device).where(Device.mac_id == device.mac_id))
+        if existing.scalar_one_or_none():
+            raise HTTPException(status_code=400, detail="Device already registered")
+        new_device = Device(
+            name=discovered_device.get("name", device.name),
+            user_id=current_user.id,
+            mac_id=device.mac_id,
+            type=DeviceType.DOSING_UNIT,
+            http_endpoint=endpoint,
+            location_description=device.location_description or "",
+            pump_configurations=[p.model_dump() for p in device.pump_configurations],
+            is_active=True,
+            farm_id=device.farm_id
+        )
+        session.add(new_device)
+        await session.commit()
+        await session.refresh(new_device)
+        return new_device
+    except Exception as e:
+        await session.rollback()
+        raise HTTPException(status_code=500, detail=f"Error creating dosing device: {e}")
+
+@router.post("/sensor", response_model=DeviceResponse)
+async def create_sensor_device(
+    device: SensorDeviceCreate,
+    session: AsyncSession = Depends(get_db)
+):
+    try:
+        new_device = Device(
+            mac_id=device.mac_id,
+            name=device.name,
+            type=device.type,
+            http_endpoint=device.http_endpoint,
+            location_description=device.location_description,
+            sensor_parameters=device.sensor_parameters,
+            is_active=True,
+            farm_id=device.farm_id
+        )
+        session.add(new_device)
+        await session.commit()
+        await session.refresh(new_device)
+        return new_device
+    except Exception as e:
+        await session.rollback()
+        raise HTTPException(status_code=500, detail=f"Error creating sensor device: {e}")
+
+@router.get("", response_model=list[DeviceResponse], summary="List all devices")
+async def list_devices(db: AsyncSession = Depends(get_db)):
+    result = await db.execute(select(Device))
+    return result.scalars().all()
+
+@router.get("/{device_id}", response_model=DeviceResponse, summary="Get device details")
+async def get_device(device_id: int, db: AsyncSession = Depends(get_db)):
+    result = await db.execute(select(Device).where(Device.id == device_id))
+    device = result.scalar_one_or_none()
+    if not device:
+        raise HTTPException(status_code=404, detail="Device not found")
+    return device
+
+@router.get("/sensoreading/{device_id}")
+async def get_sensor_readings(device_id: int, db: AsyncSession = Depends(get_db)):
+    result = await db.execute(select(Device).where(Device.id == device_id))
+    device = result.scalar_one_or_none()
+    if not device:
+        raise HTTPException(status_code=404, detail="Device not found")
+    sensor_data = await getSensorData(device)
+    return sensor_data
+
+
+@router.get("/device/{device_id}/version", summary="Get device version")
+async def get_device_version(device_id: int, db: AsyncSession = Depends(get_db)):
+    try:
+        # Fetch the device from the database
+        result = await db.execute(select(Device).where(Device.id == device_id))
+        device = result.scalar_one_or_none()
+        
+        if not device:
+            raise HTTPException(status_code=404, detail="Device not found")
+        
+        controller = DeviceController(device_ip=device.http_endpoint)
+        device_version = await controller.get_version()
+        
+        if not device_version:
+            raise HTTPException(status_code=500, detail="Failed to retrieve device version")
+        
+        return {"device_id": device_id, "version": device_version}
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error fetching device version: {e}")
+    
+@router.post("/valve", response_model=DeviceResponse, summary="Register a new valve controller")
+async def create_valve_device(
+    device: ValveDeviceCreate,
+    session: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Create/register a new 4‑valve controller.
+    """
+    # ensure http endpoint discovery
+    endpoint = device.http_endpoint
+    if not endpoint.startswith("http"):
+        endpoint = f"http://{endpoint}"
+    controller = DeviceController(device_ip=endpoint)
+    discovered = await controller.discover()
+    if not discovered:
+        raise HTTPException(status_code=500, detail="Valve controller discovery failed")
+
+    # enforce uniqueness
+    existing = await session.execute(select(Device).where(Device.mac_id == device.mac_id))
+    if existing.scalar_one_or_none():
+        raise HTTPException(status_code=400, detail="Device already registered")
+
+    new_device = Device(
+        name=discovered.get("name", device.name),
+        user_id=current_user.id,
+        mac_id=device.mac_id,
+        type=DeviceType.VALVE_CONTROLLER,
+        http_endpoint=endpoint,
+        location_description=device.location_description or "",
+        valve_configurations=[v.model_dump() for v in device.valve_configurations],
+        is_active=True,
+        farm_id=device.farm_id,
+    )
+    session.add(new_device)
+    await session.commit()
+    await session.refresh(new_device)
+    return new_device
+
+----- app/routers/device_comm.py -----
+from fastapi import APIRouter, Body, Depends, HTTPException, Path, Query
+from fastapi.responses import FileResponse
+import httpx
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.core.config import DEPLOYMENT_MODE
+from app.core.database import get_db
+from app.models import Device, Task
+from pydantic import BaseModel
+
+import os
+
+from app.schemas import DeviceType
+from app.services.device_controller import DeviceController
+
+router = APIRouter()
+
+
+@router.get("/pending_tasks")
+async def get_pending_tasks(
+    device_id: str = Query(..., description="MAC ID or identifier of the device"),
+    db: AsyncSession = Depends(get_db)
+):
+    # Dynamic query (optional)
+    result = await db.execute(
+        select(Task).where(Task.device_id == device_id, Task.status == "pending")
+    )
+    tasks = result.scalars().all()
+
+    return tasks
+
+
+@router.get("/update")
+async def check_for_update(
+    device_id: str = Query(..., description="MAC ID or unique device identifier"),
+    db: AsyncSession = Depends(get_db)
+):
+    result = await db.execute(select(Device).where(Device.mac_id == device_id))
+    device = result.scalar_one_or_none()
+
+    latest_version = "2.2.0"
+    update_available = device and device.version != latest_version
+    return {
+        "version": latest_version,
+        "update_available": update_available
+    }
+
+
+@router.get("/update/pull")
+async def pull_firmware(
+    device_id: str = Query(..., description="MAC ID or device identifier")
+):
+    firmware_path = "firmware/firmware.bin"
+    if not os.path.exists(firmware_path):
+        raise HTTPException(status_code=404, detail="Firmware file not found.")
+    return FileResponse(
+        firmware_path,
+        media_type="application/octet-stream",
+        filename="firmware.bin"
+    )
+router = APIRouter(prefix="/api/v1/device_comm", tags=["device_comm"])
+
+class ValveEventPayload(BaseModel):
+    device_id: str
+    valve_id: int
+    state: str  # "on" or "off"
+
+@router.post("/valve_event", summary="Receive a valve toggle event from device")
+async def valve_event(
+    payload: ValveEventPayload,
+    db: AsyncSession = Depends(get_db)
+):
+    # Store it as a pending task (or log for admin)
+    task = Task(
+        device_id=payload.device_id,
+        type="valve_event",
+        parameters={"valve_id": payload.valve_id, "state": payload.state},
+        status="received"
+    )
+    db.add(task)
+    await db.commit()
+    return {"message": "Valve event recorded"}
+
+@router.get("/valve/{device_id}/state", summary="Fetch current valve states")
+async def get_valve_state(
+    device_id: str = Path(..., description="MAC ID of the valve controller"),
+    db: AsyncSession = Depends(get_db),
+):
+    device = await db.get(Device, device_id)
+    if not device or device.type != DeviceType.VALVE_CONTROLLER:
+        raise HTTPException(status_code=404, detail="Valve controller not found")
+    # call the device's /state endpoint
+    async with httpx.AsyncClient() as client:
+        resp = await client.get(f"{device.http_endpoint.rstrip('/')}/state", timeout=5)
+        resp.raise_for_status()
+        return resp.json()
+
+@router.post("/valve/{device_id}/toggle", summary="Toggle a single valve")
+async def toggle_valve(
+    device_id: str = Path(..., description="MAC ID of the valve controller"),
+    body: dict = Body(..., media_type="application/json"),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Body: { "valve_id": 1 }
+    """
+    valve_id = body.get("valve_id")
+    if not isinstance(valve_id, int) or not (1 <= valve_id <= 4):
+        raise HTTPException(status_code=400, detail="Invalid valve_id (must be 1–4)")
+    device = await db.get(Device, device_id)
+    if not device or device.type != DeviceType.VALVE_CONTROLLER:
+        raise HTTPException(status_code=404, detail="Valve controller not found")
+    # forward to hardware
+    async with httpx.AsyncClient() as client:
+        resp = await client.post(
+            f"{device.http_endpoint.rstrip('/')}/toggle",
+            json={"valve_id": valve_id},
+            timeout=5
+        )
+        resp.raise_for_status()
+        data = resp.json()
+    # also enqueue in our Task table for audit/logging if you like
+    task = Task(device_id=device_id, type="valve", parameters={"valve_id": valve_id, "new_state": data.get("new_state")})
+    db.add(task)
+    await db.commit()
+    return data
+
+----- app/core/config.py -----
+import os
+from dotenv import load_dotenv
+
+# Load any .env file
+load_dotenv()
+
+# ─── Environment ──────────────────────────────────────────────────────────────
+ENVIRONMENT     = os.getenv("ENVIRONMENT", "development")
+TESTING         = os.getenv("TESTING", "0") == "1"
+DEPLOYMENT_MODE = os.getenv("DEPLOYMENT_MODE", "LAN").upper()  # "LAN" or "CLOUD"
+
+# ─── CORS ─────────────────────────────────────────────────────────────────────
+# comma‑separated or "*" for all
+ALLOWED_ORIGINS = os.getenv("ALLOWED_ORIGINS", "*").split(",")
+
+# ─── Database ─────────────────────────────────────────────────────────────────
+# if TESTING and TEST_DATABASE_URL is set, use it; otherwise fallback to DATABASE_URL
+DATABASE_URL      = os.getenv("TEST_DATABASE_URL") if TESTING else os.getenv("DATABASE_URL", "sqlite+aiosqlite:///./Hydroleaf.db")
+
+# ─── Camera storage & tasks ───────────────────────────────────────────────────
+DATA_ROOT      = os.getenv("CAM_DATA_ROOT", "./data")
+RAW_DIR        = os.getenv("CAM_RAW_DIR", "raw")
+CLIPS_DIR      = os.getenv("CAM_CLIPS_DIR", "clips")
+RETENTION_DAYS = int(os.getenv("CAM_RETENTION_DAYS", "10"))
+OFFLINE_TIMEOUT= int(os.getenv("CAM_OFFLINE_TIMEOUT", "45"))
+BOUNDARY       = os.getenv("CAM_BOUNDARY", "frame")
+
+# ─── API ──────────────────────────────────────────────────────────────────────
+API_V1_STR   = os.getenv("API_V1_STR", "/api/v1")
+PROJECT_NAME = os.getenv("PROJECT_NAME", "Hydroleaf")
+SESSION_KEY = os.getenv("SESSION_KEY", "Hydroleaf_session")
+
+----- app/core/database.py -----
+import logging
+from typing import Dict, List, AsyncGenerator
+from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
+from sqlalchemy.orm import sessionmaker, declarative_base
+from sqlalchemy import text
+from datetime import datetime
+
+from app.core.config import DATABASE_URL
+
+logger = logging.getLogger(__name__)
+
+# Create engine for SQLite
+engine = create_async_engine(
+    DATABASE_URL,
+    echo=False,
+    future=True,
+    pool_size=10,
+    max_overflow=20,
+    pool_pre_ping=True,
+)
+
+# Create session factory
+AsyncSessionLocal = sessionmaker(
+    engine,
+    class_=AsyncSession,
+    expire_on_commit=False,
+    autocommit=False,
+    autoflush=False
+)
+
+# Create declarative base
+Base = declarative_base()
+
+from alembic.config import Config
+from alembic import command
+async def init_db():
+    alembic_cfg = Config("alembic.ini")
+    command.upgrade(alembic_cfg, "head")
+
+async def get_db() -> AsyncGenerator[AsyncSession, None]:
+    """Get database session"""
+    async with AsyncSessionLocal() as session:
+        try:
+            yield session
+        finally:
+            await session.close()
+
+async def check_db_connection() -> Dict:
+    """Check SQLite database connection and status"""
+    try:
+        async with AsyncSessionLocal() as session:
+            # Test basic connectivity
+            result = await session.execute(text("SELECT 1"))
+            value = result.scalar()
+            
+            # Get table information
+            tables_result = await session.execute(
+                text("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'")
+            )
+            existing_tables = [row[0] for row in tables_result.fetchall()]
+            
+            # Expected tables
+            expected_tables = [
+                'devices',
+                'dosing_profiles',
+                'sensor_readings',
+                'dosing_operations'
+            ]
+            
+            missing_tables = set(expected_tables) - set(existing_tables)
+            
+            return {
+                "status": "connected",
+                "type": "sqlite",
+                "tables": {
+                    "existing": existing_tables,
+                    "missing": list(missing_tables),
+                    "status": "complete" if not missing_tables else "incomplete"
+                },
+                "error": None
+            }
+            
+    except Exception as e:
+        logger.error(f"Database connection check failed: {e}")
+        return {
+            "status": "error",
+            "type": "sqlite",
+            "tables": None,
+            "error": str(e)
+        }
+
+async def get_table_stats() -> Dict:
+    """Get row counts for SQLite tables"""
+    try:
+        async with AsyncSessionLocal() as session:
+            # Get list of actual tables
+            tables_result = await session.execute(
+                text("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'")
+            )
+            tables = [row[0] for row in tables_result.fetchall()]
+            
+            stats = {}
+            for table in tables:
+                count_result = await session.execute(text(f"SELECT COUNT(*) FROM {table}"))
+                count = count_result.scalar()
+                stats[table] = count
+                
+            return {
+                "status": "success",
+                "counts": stats,
+                "error": None
+            }
+    except Exception as e:
+        logger.error(f"Error getting table statistics: {e}")
+        return {
+            "status": "error",
+            "counts": {},
+            "error": str(e)
+        }
+
+async def get_migration_status() -> Dict:
+    """Get SQLite database migration status"""
+    try:
+        async with AsyncSessionLocal() as session:
+            result = await session.execute(
+                text("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'")
+            )
+            existing_tables = [row[0] for row in result.fetchall()]
+            
+            expected_tables = [
+                'devices',
+                'dosing_profiles',
+                'sensor_readings',
+                'dosing_operations'
+            ]
+            
+            missing_tables = set(expected_tables) - set(existing_tables)
+            
+            return {
+                "status": "ok" if not missing_tables else "incomplete",
+                "existing_tables": existing_tables,
+                "missing_tables": list(missing_tables),
+                "error": None
+            }
+    except Exception as e:
+        logger.error(f"Error checking migration status: {e}")
+        return {
+            "status": "error",
+            "existing_tables": [],
+            "missing_tables": [],
+            "error": str(e)
+        }
+
+async def cleanup_db() -> bool:
+    """Cleanup database connections"""
+    try:
+        await engine.dispose()
+        logger.info("Database connections cleaned up successfully")
+        return True
+    except Exception as e:
+        logger.error(f"Error during database cleanup: {e}")
+        return False
+
+----- app/core/__init__.py -----
+
+
+----- app/utils/image_utils.py -----
+# app/utils/image_utils.py
+import cv2
+import numpy as np
+
+def is_day(frame: np.ndarray, thresh: float = 50.0) -> bool:
+    """
+    Convert to grayscale and use mean intensity to decide day vs night.
+    """
+    gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+    return float(gray.mean()) >= thresh
+
+def clean_frame(frame: np.ndarray, day: bool) -> np.ndarray:
+    """
+    Apply a simple cleanup depending on day/night:
+      - day: histogram‐equalize the V channel (improve contrast)
+      - night: denoise with fastNlMeans
+    """
+    if day:
+        hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
+        hsv[:, :, 2] = cv2.equalizeHist(hsv[:, :, 2])
+        return cv2.cvtColor(hsv, cv2.COLOR_HSV2BGR)
+    else:
+        # parameters (10,10,7,21) tuned for mild denoising
+        return cv2.fastNlMeansDenoisingColored(frame, None, 10, 10, 7, 21)
+
+
+----- app/utils/camera_tasks.py -----
+
+# app/utils/camera_tasks.py
+import asyncio
+import logging
+from datetime import datetime, timedelta, timezone
+from pathlib import Path
+import cv2
+from sqlalchemy.future import select
+from app.models import Camera
+from app.core.config import DATA_ROOT, RAW_DIR, CLIPS_DIR, RETENTION_DAYS, OFFLINE_TIMEOUT
+from app.core.database import AsyncSessionLocal
+
+logger = logging.getLogger(__name__)
+encode_locks: dict[str, asyncio.Lock] = {}
+
+def _encode_and_cleanup_sync(cam_id: str):
+    cam_dir = Path(DATA_ROOT) / cam_id
+    raw_dir = cam_dir / RAW_DIR
+    clips_dir = cam_dir / CLIPS_DIR
+    clips_dir.mkdir(parents=True, exist_ok=True)
+    CLIP_MS = 15 * 60 * 1000
+    files = sorted(raw_dir.glob("*.jpg"), key=lambda f: int(f.stem))
+    buckets: dict[int, list[Path]] = {}
+    for f in files:
+        period = int(f.stem) // CLIP_MS
+        buckets.setdefault(period, []).append(f)
+    for period, group in buckets.items():
+        timestamps = sorted(int(f.stem) for f in group)
+        if timestamps[-1] - timestamps[0] < CLIP_MS:
+            continue
+        clip_start = period * CLIP_MS
+        clip_path = clips_dir / f"{clip_start}.mp4"
+        if clip_path.exists():
+            continue
+        first = cv2.imread(str(group[0]))
+        h, w = first.shape[:2]
+        vw = cv2.VideoWriter(
+            str(clip_path), cv2.VideoWriter_fourcc(*"mp4v"), 10, (w, h)
+        )
+        for imgf in group:
+            im = cv2.imread(str(imgf))
+            if im is not None:
+                vw.write(im)
+            imgf.unlink(missing_ok=True)
+        vw.release()
+    # prune old clips
+    cutoff = datetime.now(timezone.utc) - timedelta(days=RETENTION_DAYS)
+    for clip in clips_dir.glob("*.mp4"):
+        if datetime.fromtimestamp(clip.stat().st_mtime, timezone.utc) < cutoff:
+            clip.unlink(missing_ok=True)
+
+async def encode_and_cleanup(cam_id: str):
+    lock = encode_locks.setdefault(cam_id, asyncio.Lock())
+    if lock.locked():
+        return
+    async with lock:
+        await asyncio.to_thread(_encode_and_cleanup_sync, cam_id)
+
+async def offline_watcher(db_factory, interval_seconds: float = 5.0):
+    logger.info(f"Starting offline watcher, interval={interval_seconds}s")
+    while True:
+        await asyncio.sleep(interval_seconds)
+        now = datetime.now(timezone.utc)
+        async with db_factory() as session:
+            result = await session.execute(select(Camera))
+            cams = result.scalars().all()
+            for cam in cams:
+                last_seen = cam.last_seen or datetime.fromtimestamp(0, timezone.utc)
+                is_online = (now - last_seen).total_seconds() <= OFFLINE_TIMEOUT
+                if cam.is_online != is_online:
+                    cam.is_online = is_online
+                    logger.info(f"Camera {cam.id} online status changed: {is_online}")
+            await session.commit()
+
+
+----- app/utils/json_utils.py -----
+from datetime import datetime
+import json
+
+class CustomJSONEncoder(json.JSONEncoder):
+    def default(self, obj):
+        if isinstance(obj, datetime):
+            return obj.isoformat()
+        return super().default(obj)
+
+def format_json_response(data):
+    return json.dumps(data, cls=CustomJSONEncoder, indent=2)
+
+----- app/services/dose_manager.py -----
+# dose_manager.py
+import logging
+from datetime import datetime
+from app.models import Device
+from fastapi import HTTPException
+from app.services.device_controller import DeviceController
+from sqlalchemy.ext.asyncio import AsyncSession
+
+logger = logging.getLogger(__name__)
+
+class DoseManager:
+    def __init__(self):
+        pass
+
+    async def execute_dosing(self, device_id: int, http_endpoint: str, dosing_actions: list, combined: bool = False) -> dict:
+        """
+        Execute a dosing command using the unified device controller.
+        If combined=True, the controller will use the /dose_monitor endpoint.
+        """
+        if not dosing_actions:
+            raise ValueError("No dosing action provided")
+        controller = DeviceController(device_ip=http_endpoint)
+        responses = []
+        for action in dosing_actions:
+            pump = action.get("pump_number") or action.get("pump")
+            amount = action.get("dose_ml") or action.get("amount")
+            if pump is None or amount is None:
+                raise ValueError("Dosing action must include pump number and dose amount")
+            try:
+                resp = await controller.execute_dosing(pump, amount, combined=combined)
+                responses.append(resp)
+            except Exception as e:
+                raise HTTPException(status_code=500, detail=str(e))
+        
+        logger.info(f"Sent dosing commands to device {device_id}: {responses}")
+        return {
+            "status": "command_sent",
+            "device_id": device_id,
+            "actions": dosing_actions,
+            "responses": responses
+        }
+
+    async def cancel_dosing(self, device_id: str, http_endpoint: str) -> dict:
+    # Create a controller instance for the device.
+        controller = DeviceController(device_ip=http_endpoint)
+        response = await controller.cancel_dosing()
+        logger.info(f"Cancellation response for device {device_id}: {response}")
+        return {"status": "dosing_cancelled", "device_id": device_id, "response": response}
+    async def get_device(self, device_id: int, db: AsyncSession):
+        device = await db.get(Device, device_id)
+        if not device:
+            raise HTTPException(status_code=404, detail="Device not found")
+        return device
+
+
+# Create singleton instance
+dose_manager = DoseManager()
+
+async def execute_dosing_operation(device_id: str, http_endpoint: str, dosing_actions: list, combined: bool = False) -> dict:
+    return await dose_manager.execute_dosing(device_id, http_endpoint, dosing_actions, combined)
+
+async def cancel_dosing_operation(device_id: int, http_endpoint: str) -> dict:
+    return await dose_manager.cancel_dosing(device_id, http_endpoint)
+
+
+----- app/services/supply_chain_service.py -----
+import os
+import asyncio
+import json
+import logging
+import re
+from datetime import datetime
+from fastapi import HTTPException
+from typing import Dict, Any, Tuple, Union, List
+import httpx
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.models import SupplyChainAnalysis, ConversationLog
+from app.services.serper import fetch_search_results
+
+logger = logging.getLogger(__name__)
+
+# Production-level configuration via environment variables
+OLLAMA_URL = os.getenv("OLLAMA_URL", "http://localhost:11434/api/generate")
+MODEL_1_5B = os.getenv("MODEL_1_5B", "deepseek-r1:1.5b")
+MODEL_7B = os.getenv("MODEL_7B", "gemma3")
+LLM_REQUEST_TIMEOUT = int(os.getenv("LLM_REQUEST_TIMEOUT", "300"))
+
+def extract_json_from_response(response_text: str) -> Dict:
+    """
+    Extract and parse JSON from an LLM response while handling errors gracefully.
+    """
+    try:
+        response_text = response_text.replace("'", '"').strip()
+        json_match = re.search(r"(\{.*\})", response_text, flags=re.DOTALL)
+        if json_match:
+            cleaned_json = json_match.group(1)
+            return json.loads(cleaned_json)
+        else:
+            logger.error("No valid JSON block found in LLM response.")
+            raise HTTPException(status_code=500, detail="Invalid JSON from LLM")
+    except json.JSONDecodeError as e:
+        logger.error(f"JSON Parsing Error: {e}. Response: {response_text}")
+        raise HTTPException(status_code=500, detail="Malformed JSON format from LLM")
+
+async def call_llm(prompt: str, model_name: str = MODEL_1_5B) -> Dict:
+    """
+    Calls the LLM API and extracts JSON data from the response.
+    """
+    logger.info(f"Calling LLM with model {model_name}, prompt:\n{prompt}")
+    request_body = {"model": model_name, "prompt": prompt, "stream": False}
+    
+    try:
+        async with httpx.AsyncClient(timeout=LLM_REQUEST_TIMEOUT) as client:
+            response = await client.post(OLLAMA_URL, json=request_body)
+            response.raise_for_status()
+            data = response.json()
+            raw_completion = data.get("response", "").strip()
+            logger.info(f"Ollama raw response: {raw_completion}")
+            return extract_json_from_response(raw_completion)
+    
+    except httpx.HTTPStatusError as http_err:
+        logger.error(f"Ollama HTTP error: {http_err}")
+        raise HTTPException(status_code=500, detail="LLM API HTTP error") from http_err
+    except Exception as e:
+        logger.error(f"Ollama call failed: {e}")
+        raise HTTPException(status_code=500, detail="Error processing LLM response") from e
+
+async def analyze_transport_optimization(transport_request: Dict[str, Any]) -> Tuple[Dict, Dict]:
+    """
+    Fetches optimized transport analysis for agricultural products.
+    """
+    origin = transport_request.get("origin", "Unknown")
+    destination = transport_request.get("destination", "Unknown")
+    produce_type = transport_request.get("produce_type", "Unknown Product")
+    weight_kg = transport_request.get("weight_kg", 0)
+    transport_mode = transport_request.get("transport_mode", "railway")
+
+    distance_query = f"average distance in km from {origin} to {destination} by {transport_mode}"
+    cost_query = f"average cost per kg to transport {produce_type} from {origin} to {destination} by {transport_mode}"
+    time_query = f"average travel time in hours from {origin} to {destination} by {transport_mode}"
+    perish_query = f"average time in hours before {produce_type} perishes during transport"
+    market_price_query = f"average market price per kg for {produce_type} in {destination}"
+
+    distance_km = await fetch_and_average_value(distance_query)
+    cost_per_kg = await fetch_and_average_value(cost_query)
+    estimated_time_hours = await fetch_and_average_value(time_query)
+    perish_time_hours = await fetch_and_average_value(perish_query)
+    market_price_per_kg = await fetch_and_average_value(market_price_query)
+
+    total_cost = cost_per_kg * weight_kg
+    net_profit_per_kg = market_price_per_kg - cost_per_kg
+
+    prompt = f"""
+You are a supply chain optimization expert. Evaluate the following transport parameters for {produce_type}:
+- Origin: {origin}
+- Destination: {destination}
+- Transport Mode: {transport_mode}
+- Distance: {distance_km:.2f} km
+- Cost per kg: {cost_per_kg:.2f} USD
+- Total Weight: {weight_kg} kg
+- Estimated Travel Time: {estimated_time_hours:.2f} hours
+- Time before perish: {perish_time_hours:.2f} hours
+- Market Price per kg: {market_price_per_kg:.2f} USD
+
+Considering possible delays and perishability constraints, provide a final recommendation to optimize transportation.
+Output in JSON format:
+{{
+  "final_recommendation": "<optimized transport plan>",
+  "reasoning": "<detailed explanation>"
+}}
+""".strip()
+
+    optimization_result = await call_llm(prompt, model_name=MODEL_7B)
+
+    analysis_record = {
+        "origin": origin,
+        "destination": destination,
+        "produce_type": produce_type,
+        "weight_kg": weight_kg,
+        "transport_mode": transport_mode,
+        "distance_km": distance_km,
+        "cost_per_kg": cost_per_kg,
+        "total_cost": total_cost,
+        "estimated_time_hours": estimated_time_hours,
+        "market_price_per_kg": market_price_per_kg,
+        "net_profit_per_kg": net_profit_per_kg,
+        "final_recommendation": json.dumps(optimization_result.get("final_recommendation", "No recommendation provided"))
+    }
+    return analysis_record, optimization_result
+
+async def store_supply_chain_analysis(db_session: AsyncSession, analysis_record: Dict[str, Any]):
+    """
+    Stores transport analysis results into the database.
+    """
+    record = SupplyChainAnalysis(**analysis_record)
+    db_session.add(record)
+    try:
+        await db_session.commit()
+        await db_session.refresh(record)
+        logger.info(f"Supply chain analysis record stored with ID: {record.id}")
+    except Exception as exc:
+        await db_session.rollback()
+        logger.error(f"Error storing supply chain analysis record: {exc}")
+        raise HTTPException(status_code=500, detail="Failed to store supply chain analysis record") from exc
+
+async def store_conversation(db_session: AsyncSession, user_request: Dict[str, Any],
+                             prompt: str, llm_response: Dict[str, Any]):
+    """
+    Logs LLM conversations into the database.
+    """
+    log = ConversationLog(conversation={
+        "user_request": user_request,
+        "llm_prompt": prompt,
+        "llm_response": llm_response
+    })
+    db_session.add(log)
+    try:
+        await db_session.commit()
+        await db_session.refresh(log)
+        logger.info(f"Conversation log stored with ID: {log.id}")
+    except Exception as exc:
+        await db_session.rollback()
+        logger.error(f"Error storing conversation log: {exc}")
+        raise HTTPException(status_code=500, detail="Failed to store conversation log") from exc
+
+async def trigger_transport_analysis(transport_request: Dict[str, Any], db_session: AsyncSession) -> Dict[str, Any]:
+    """
+    Runs the transport optimization analysis and stores the results.
+    """
+    analysis_record, optimization_result = await analyze_transport_optimization(transport_request)
+    prompt_for_log = f"Analysis parameters: {json.dumps(analysis_record, indent=2)}"
+    await store_supply_chain_analysis(db_session, analysis_record)
+    await store_conversation(db_session, transport_request, prompt_for_log, optimization_result)
+    return {"analysis": analysis_record, "optimization": optimization_result}
+
+async def fetch_and_average_value(query: str) -> float:
+    """
+    Dummy implementation to support testing.
+    Returns a numeric value based on keywords found in the query.
+    """
+    q = query.lower()
+    if "distance" in q:
+        return 350.0
+    elif "cost" in q:
+        return 1.0
+    elif "travel" in q:
+        return 6.0
+    elif "perish" in q:
+        return 24.0
+    elif "market price" in q:
+        return 2.5
+    return 0.0
+
+
+
+----- app/services/device_discovery.py -----
+import time
+
+# In‑memory registry: key=device_id, value=dict(ip=<ip>, last_seen=<timestamp>)
+_connected_devices = {}
+
+def update_device(device_id: str, ip: str) -> None:
+    _connected_devices[device_id] = {"ip": ip, "last_seen": time.time()}
+
+def get_connected_devices() -> dict:
+    now = time.time()
+    # Only return devices seen in the last 60 seconds (adjust as needed)
+    return {device_id: info for device_id, info in _connected_devices.items() if now - info["last_seen"] < 60}
+
+
+----- app/services/serper.py -----
+import os
+import asyncio
+import httpx
+from bs4 import BeautifulSoup
+from typing import Any, Dict, List, Optional
+import logging
+
+logger = logging.getLogger(__name__)
+
+# Configuration
+SERPER_API_KEY: str = os.getenv("SERPER_API_KEY") or ""
+if not SERPER_API_KEY:
+    raise RuntimeError("Environment variable SERPER_API_KEY is not set.")
+
+BASE_URL = "https://google.serper.dev/search"
+HEADERS = {"User-Agent": "Hydroleaf/1.0 (+https://yourdomain.com)"}
+MAX_SCRAPE_WORKERS: int = int(os.getenv("SERPER_MAX_WORKERS", "5"))
+RETRY_ATTEMPTS: int = int(os.getenv("SERPER_RETRIES", "3"))
+RETRY_BACKOFF_BASE: float = float(os.getenv("SERPER_BACKOFF", "1.0"))
+
+
+def _sync_scrape_text(url: str) -> str:
+    """
+    Blocking function to fetch and parse page text.
+    """
+    if not url:
+        return ""
+    try:
+        with httpx.Client(headers=HEADERS, timeout=5.0) as client:
+            resp = client.get(url)
+            resp.raise_for_status()
+            soup = BeautifulSoup(resp.text, "html.parser")
+            for tag in soup(["script", "style", "noscript"]):
+                tag.decompose()
+            return soup.get_text(separator=" ", strip=True)
+    except Exception as exc:
+        logger.warning(f"Scraping failed for {url}: {exc}")
+        return ""
+
+
+async def _scrape_page_text(url: str) -> str:
+    """
+    Async wrapper around the blocking scraper using a thread.
+    """
+    return await asyncio.to_thread(_sync_scrape_text, url)
+
+
+async def _get_json_with_retry(
+    client: httpx.AsyncClient, url: str, params: Dict[str, Any]
+) -> Dict[str, Any]:
+    """
+    Perform a GET request with retry and exponential backoff.
+    """
+    for attempt in range(1, RETRY_ATTEMPTS + 1):
+        try:
+            response = await client.get(url, params=params, headers=HEADERS, timeout=10.0)
+            response.raise_for_status()
+            return response.json()
+        except httpx.HTTPStatusError as http_err:
+            logger.error(f"Serper API HTTP error ({http_err.response.status_code}): {http_err.response.text}")
+            raise
+        except Exception as exc:
+            if attempt == RETRY_ATTEMPTS:
+                logger.error(f"Serper request failed after {attempt} attempts: {exc}")
+                raise
+            backoff = RETRY_BACKOFF_BASE * (2 ** (attempt - 1))
+            logger.info(f"Retrying Serper API in {backoff:.1f}s (attempt {attempt}/{RETRY_ATTEMPTS})")
+            await asyncio.sleep(backoff)
+    # Should never reach here
+    raise RuntimeError("Exceeded retry attempts for Serper API")
+
+
+async def fetch_search_results(
+    query: str,
+    num_results: int = 5,
+    gl: str = "in",
+    hl: str = "en"
+) -> Dict[str, Any]:
+    """
+    Fetch search results from Google Serper API and enrich organic results with page content.
+
+    :param query: Search query string.
+    :param num_results: Number of organic results to return.
+    :param gl: Geolocation parameter (e.g., 'in').
+    :param hl: Language parameter (e.g., 'en').
+    :return: Raw API response including 'organic' entries with added 'page_content'.
+    """
+    params = {
+        "q": query,
+        "gl": gl,
+        "hl": hl,
+        "apiKey": SERPER_API_KEY,
+        "num": num_results,
+        "full": "true",
+        "output": "detailed"
+    }
+
+    async with httpx.AsyncClient() as client:
+        data = await _get_json_with_retry(client, BASE_URL, params)
+
+    organic: Optional[List[Dict[str, Any]]] = data.get("organic")
+    if not organic:
+        logger.debug("No organic results found in Serper response.")
+        return data
+
+    # Limit to desired number of entries
+    results_list = organic[:num_results]
+
+    # Concurrently scrape each page's text with bounded concurrency
+    semaphore = asyncio.Semaphore(MAX_SCRAPE_WORKERS)
+
+    async def sem_scrape(entry: Dict[str, Any]) -> None:
+        link = entry.get("link")
+        if not link:
+            entry["page_content"] = ""
+            return
+        async with semaphore:
+            entry["page_content"] = await _scrape_page_text(link)
+
+    # Kick off all scraping tasks
+    await asyncio.gather(*(sem_scrape(entry) for entry in results_list))
+
+    # Overwrite the organic list with enriched entries
+    data["organic"] = results_list
+    return data
+
+
+----- app/services/__init__.py -----
+
+
+----- app/services/llm.py -----
+import os
+import asyncio
+import openai
+import json
+import logging
+import re
+from datetime import datetime
+from fastapi import HTTPException
+from typing import Dict, List, Union, Tuple
+import httpx
+from bs4 import BeautifulSoup
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.models import Device
+from app.services.dose_manager import DoseManager
+from app.services.serper import fetch_search_results
+
+
+logger = logging.getLogger(__name__)
+
+# Production-level configuration via environment variables
+OLLAMA_URL = os.getenv("OLLAMA_URL", "http://localhost:11434/api/generate")
+MODEL_1_5B = os.getenv("MODEL_1_5B", "deepseek-r1:1.5b")
+GPT_MODEL = os.getenv("GPT_MODEL")
+MODEL_7B = os.getenv("MODEL_7B", "deepseek-r1:7b")
+LLM_REQUEST_TIMEOUT = int(os.getenv("LLM_REQUEST_TIMEOUT", "300"))
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+USE_OLLAMA = os.getenv("USE_OLLAMA", "false").lower() == "true"
+
+
+dosing_manager = DoseManager()
+
+def enhance_query(user_query: str, plant_profile: dict) -> str:
+    location = str(plant_profile.get("location", "Unknown"))
+    plant_name = plant_profile.get("plant_name", "Unknown Plant")
+    plant_type = plant_profile.get("plant_type", "Unknown Type")
+    growth_stage = plant_profile.get("growth_stage", "Unknown Stage")
+    seeding_date = plant_profile.get("seeding_date", "Unknown Date")
+    additional_context = (
+        f"Please consider that the plant '{plant_name}' of type '{plant_type}' is in the '{growth_stage}' stage, "
+        f"seeded on {seeding_date}, and located in {location}. Provide precise nutrient dosing recommendations based on current sensor data."
+    )
+    if location.lower() not in user_query.lower():
+        return f"{user_query}. {additional_context}"
+    return user_query
+
+def parse_json_response(json_str: str) -> Union[List[str], dict]:
+    try:
+        data = json.loads(json_str)
+    except json.JSONDecodeError:
+        # Split into lines if JSON parsing fails
+        paragraphs = json_str.split("\n")
+        result = [para.strip() for para in paragraphs if para.strip()]
+        return result
+    return data
+
+def parse_ollama_response(raw_response: str) -> str:
+    # Remove any <think> block and extra whitespace
+    cleaned = re.sub(r"<think>.*?</think>", "", raw_response, flags=re.DOTALL).strip()
+    return cleaned
+
+def parse_openai_response(raw_response: str) -> str:
+    """Extracts and cleans OpenAI's response to match Ollama's JSON format."""
+    
+    # Remove any <think> blocks (if present)
+    cleaned = re.sub(r"<think>.*?</think>", "", raw_response, flags=re.DOTALL).strip()
+    start = cleaned.find('{')
+    end = cleaned.rfind('}')
+
+    if start == -1 or end == -1 or end <= start:
+        logger.error(f"No valid JSON block found in OpenAI response: {cleaned}")
+        raise ValueError("Invalid JSON response from OpenAI")
+
+    cleaned_json = cleaned[start:end+1]
+
+    # Attempt to parse and reformat to ensure valid JSON
+    try:
+        parsed_response = json.loads(cleaned_json)
+        return json.dumps(parsed_response)  # Ensure JSON consistency
+    except json.JSONDecodeError as e:
+        logger.error(f"Malformed JSON from OpenAI: {cleaned_json}")
+        raise ValueError("Malformed JSON from OpenAI") from e
+
+
+async def build_dosing_prompt(device: Device, sensor_data: dict, plant_profile: dict) -> str:
+    """
+    Creates a text prompt that asks the LLM for a JSON-based dosing plan.
+    """
+    if not device.pump_configurations:
+        raise ValueError(f"Device {device.id} has no pump configurations available")
+    
+    pump_info = "\n".join([
+        f"Pump {pump['pump_number']}: {pump['chemical_name']} - {pump.get('chemical_description', 'No description')}"
+        for pump in device.pump_configurations
+    ])
+    plant_info = (
+        f"Plant: {plant_profile.get('plant_name', 'Unknown')}\n"
+        f"Type: {plant_profile.get('plant_type', 'Unknown')}\n"
+        f"Growth Stage: {plant_profile.get('growth_stage', 'N/A')} days\n"
+        f"Seeding Date: {plant_profile.get('seeding_date', 'N/A')}\n"
+        f"Region: {plant_profile.get('region', 'Bangalore')}\n"
+        f"Location: {plant_profile.get('location', 'Bangalore')}\n"
+        f"Target pH Range: {plant_profile.get('target_ph_min', '3')} - {plant_profile.get('target_ph_max', '4')}\n"
+        f"Target TDS Range: {plant_profile.get('target_tds_min', '150')} - {plant_profile.get('target_tds_max', '1000')}\n"
+    )
+    prompt = (
+        "You are an expert hydroponic system manager. Based on the following information, determine optimal nutrient dosing amounts.\n\n"
+        "Current Sensor Readings:\n"
+        f"- pH: {sensor_data.get('ph', 'Unknown')}\n"
+        f"- TDS (PPM): {sensor_data.get('tds', 'Unknown')}\n\n"
+        "Plant Information:\n"
+        f"{plant_info}\n\n"
+        "Available Dosing Pumps:\n"
+        f"{pump_info}\n\n"
+        "Provide dosing recommendations in the following JSON format:\n"
+        '{\n'
+        '  "actions": [\n'
+        '    {\n'
+        '      "pump_number": 1,\n'
+        '      "chemical_name": "Nutrient A",\n'
+        '      "dose_ml": 50,\n'
+        '      "reasoning": "Brief explanation"\n'
+        '    }\n'
+        '  ],\n'
+        '  "next_check_hours": 24\n'
+        '}\n\n'
+        "Consider:\n"
+        "1. Current pH and TDS levels\n"
+        "2. Plant growth stage\n"
+        "3. Chemical interactions\n"
+        "4. Maximum safe dosing limits\n\n"
+        "5. You **must NOT** create additional pumps beyond those listed above.\n"
+        "Please provide a JSON response with exactly two keys: 'actions' (a list) and 'next_check_hours' (a number). "
+        "Do not include any additional text or formatting. Limit your answer to 300 tokens."
+    )
+    return prompt
+
+async def build_plan_prompt(sensor_data: dict, plant_profile: dict, query: str) -> str:
+    """
+    Creates a detailed text prompt for a growing plan.
+    Optionally uses a Serper-based web search to gather additional detailed context.
+    """
+    plant_info = (
+        f"Plant: {plant_profile['plant_name']}\n"
+        f"Plant Type: {plant_profile['plant_type']}\n"
+        f"Growth Stage: {plant_profile['growth_stage']} days from seeding (seeded at {plant_profile['seeding_date']})\n"
+        f"Region: {plant_profile.get('region', 'Unknown')}\n"
+        f"Location: {plant_profile.get('location', 'Unknown')}"
+    )
+    promptPlan = f"""
+You are an expert hydroponic system manager. Based on the following information, determine optimal nutrient dosing amounts.
+
+Plant Information:
+{plant_info}
+
+Current Sensor Readings:
+- pH: {sensor_data.get('P','Unknown')}
+- TDS (PPM): {sensor_data.get('TDS','Unknown')}
+
+Provide an efficient and optimized solution according to the plant's location, local weather conditions, and soil conditions.
+
+Consider:
+1. Place of planting
+2. Plant growth stage
+3. Chemical interactions
+4. Maximum safe dosing limits
+
+Provide a detailed growing plan for {plant_profile['plant_name']} based on the {plant_profile['location']}. Include the best months for planting and the total growing duration. Specify pH and TDS requirements based on the local soil and water conditions. If the query mentions 'seeding' or 'growing,' tailor the plan accordingly. Break down the process into clear steps, covering:
+
+1. Ideal Planting Time
+2. Growth Duration
+3. Soil and Water Conditions
+4. Seeding Stage
+5. Growing Stage
+6. Harvesting Time
+7. Additional Tips
+""".strip()
+
+    # Enhance the query with additional location context.
+    enhanced_query = f"{query}. Focus on best practices in {plant_profile.get('region', 'Unknown')} for {plant_profile.get('plant_type', 'Unknown')} cultivation."
+
+    # Gather additional data from a web search using Serper.
+    search_results = await fetch_search_results(enhanced_query)
+    organic_results = search_results.get("organic", [])
+    if organic_results:
+        # Process the top 5 results for a richer context.
+        raw_info_list = []
+        for entry in organic_results[:5]:
+            title = entry.get("title", "No Title")
+            snippet = entry.get("snippet", "No snippet available.")
+            link = entry.get("link", None)
+            info_str = f"• Title: {title}\n  Snippet: {snippet}"
+            if link:
+                info_str += f"\n  Link: {link}"
+            raw_info_list.append(info_str)
+        raw_info = "\n\n".join(raw_info_list)
+    else:
+        raw_info = "No additional information available."
+
+    # Append a header to the additional information.
+    final_prompt = f"{promptPlan}\n\nDetailed Search Insights:\n{raw_info}"
+    return final_prompt.strip()
+
+
+async def direct_ollama_call(prompt: str, model_name: str) -> str:
+    """
+    Calls the local Ollama API to run the prompt on the specified model.
+    Returns the raw completion for further processing.
+    """
+    logger.info(f"Making direct Ollama call to model {model_name} with prompt:\n{prompt}")
+    try:
+        request_body = {
+            "model": model_name,
+            "prompt": prompt,
+            "stream": False
+        }
+        async with httpx.AsyncClient(timeout=LLM_REQUEST_TIMEOUT) as client:
+            response = await client.post(OLLAMA_URL, json=request_body)
+            response.raise_for_status()
+            data = response.json()
+            raw_completion = data.get("response", "").strip()
+            logger.info(f"Ollama raw completion: {raw_completion}")
+            if not raw_completion:
+                logger.error("No response received from Ollama.")
+                raise HTTPException(status_code=500, detail="Empty response from LLM service")
+            return raw_completion
+    except Exception as e:
+        logger.error(f"Ollama call failed: {e}")
+        raise HTTPException(status_code=500, detail="Error calling LLM service") from e
+
+
+async def direct_openai_text_call(prompt: str, model_name: str) -> str:
+    client = openai.AsyncOpenAI(api_key=OPENAI_API_KEY)
+    response = await client.chat.completions.create(
+        model=model_name,
+        messages=[{"role": "user", "content": prompt}],
+        max_tokens=800,
+        temperature=0.5
+    )
+    return response.choices[0].message.content.strip()
+
+
+async def direct_openai_call(prompt: str, model_name: str) -> str:
+    """
+    Calls OpenAI's API to generate a response and formats it like Ollama's.
+    """
+    if not OPENAI_API_KEY:
+        raise ValueError("OpenAI API Key is missing. Set it as an environment variable.")
+
+    logger.info(f"Making OpenAI call to model {model_name} with prompt:\n{prompt}")
+
+    try:
+        client = openai.AsyncOpenAI(api_key=OPENAI_API_KEY)
+        response = await client.chat.completions.create(
+            model=model_name,
+            messages=[{"role": "user", "content": prompt}],
+            max_tokens=600
+        )
+        logger.info(f"OpenAI response: {response}")
+        
+        raw_completion = response.choices[0].message.content.strip()
+        cleaned_response = parse_openai_response(raw_completion)
+        
+        logger.info(f"OpenAI cleaned response: {cleaned_response}")
+        return cleaned_response
+    except Exception as e:
+        logger.error(f"OpenAI call failed: {e}")
+        raise HTTPException(status_code=500, detail="Error calling OpenAI LLM") from e
+    
+def validate_llm_response(response: Dict) -> None:
+    """
+    Validates that the parsed JSON response has a top-level 'actions' list with the required keys.
+    """
+    if not isinstance(response, dict):
+        raise ValueError("Response must be a dictionary")
+    if "actions" not in response:
+        raise ValueError("Response must contain 'actions' key")
+    if not isinstance(response["actions"], list):
+        raise ValueError("'actions' must be a list")
+    for action in response["actions"]:
+        required_keys = {"pump_number", "chemical_name", "dose_ml", "reasoning"}
+        if not all(key in action for key in required_keys):
+            raise ValueError(f"Action missing required keys: {required_keys}")
+        if not isinstance(action["dose_ml"], (int, float)) or action["dose_ml"] < 0:
+            raise ValueError("dose_ml must be a positive number")
+
+async def call_llm_async(prompt: str, model_name: str = MODEL_1_5B) -> Tuple[Dict, str]:
+    """
+    Calls either Ollama or OpenAI and ensures the response format is consistent.
+    Returns:
+      - The parsed JSON response.
+      - The full raw completion for UI display.
+    """
+    logger.info(f"Sending prompt to LLM:\n{prompt}")
+
+    if USE_OLLAMA:
+        raw_completion = await direct_ollama_call(prompt, model_name)
+        cleaned = parse_ollama_response(raw_completion).replace("'", '"').strip()
+        start = cleaned.find('{')
+        end = cleaned.rfind('}')
+        if start == -1 or end == -1 or end <= start:
+          logger.error("No valid JSON block found in cleaned response.")
+          raise HTTPException(status_code=500, detail="Invalid JSON from LLM")
+        cleaned_json = cleaned[start:end+1]   
+    else:
+        raw_completion = await direct_openai_call(prompt, GPT_MODEL)  
+        cleaned_json = parse_openai_response(raw_completion)  
+
+    logger.info(f"Raw response from LLM:\n{raw_completion}")
+
+    # Validate JSON structure
+    try:
+        parsed_response = json.loads(cleaned_json)
+    except json.JSONDecodeError as e:
+        logger.error(f"Invalid JSON from LLM after extraction: {cleaned_json}")
+        raise HTTPException(status_code=500, detail="Invalid JSON from LLM") from e
+    return parsed_response, raw_completion
+
+async def call_llm_plan(prompt: str, model_name: str = MODEL_1_5B) -> str:
+    """
+    Calls the local Ollama API for a freeform plan.
+    Returns the raw text (which may include a <think> block) for display.
+    """
+    logger.info(f"Sending plan prompt to LLM:\n{prompt}")
+    if USE_OLLAMA:
+       raw_completion = await direct_ollama_call(prompt, model_name)
+    else:
+       logger.info(f" plan raw text: {GPT_MODEL}")
+       raw_completion = await direct_openai_text_call(prompt, GPT_MODEL)   
+    logger.info(f"Ollama plan raw text: {raw_completion}")
+    return raw_completion
+
+async def execute_dosing_plan(device: Device, dosing_plan: Dict) -> Dict:
+    """
+    Executes the dosing plan by calling the device’s /pump endpoint for each dosing action.
+    """
+    if not device.http_endpoint:
+        raise ValueError(f"Device {device.id} has no HTTP endpoint configured")
+    message = {
+        "timestamp": datetime.utcnow().isoformat(),
+        "device_id": device.id,
+        "actions": dosing_plan.get("actions", []),
+        "next_check_hours": dosing_plan.get("next_check_hours", 24)
+    }
+    
+    logger.info(f"Dosing plan for device {device.id}: {message}")
+    async with httpx.AsyncClient() as client:
+        for action in dosing_plan.get("actions", []):
+            pump_number = action.get("pump_number")
+            dose_ml = action.get("dose_ml")
+            endpoint = device.http_endpoint if device.http_endpoint.startswith("http") else f"http://{device.http_endpoint}"
+            try:
+                logger.info(f"Pump activation started")
+                response = await client.post(
+                    f"{endpoint}/pump",
+                    json={"pump": pump_number, "amount": int(dose_ml)},
+                    timeout=10
+                )
+                response_data = response.json()
+                success_message = response_data.get("message") or response_data.get("msg")
+                if response.status_code == 200 and success_message == "Pump started":
+                    logger.info(f"Pump {pump_number} activated successfully: {response_data}")
+                else:
+                      logger.error(f"Failed to activate pump {pump_number}: {response_data}")
+
+            except httpx.RequestError as e:
+                logger.error(f"HTTP request to pump {pump_number} failed: {e}")
+                raise HTTPException(status_code=500, detail=f"Pump {pump_number} activation failed") from e
+    return message
+
+async def getSensorData(device: Device) -> dict:
+    """
+    Retrieves sensor data from the device’s /monitor endpoint.
+    """
+    if not device.http_endpoint:
+        raise ValueError(f"Device {device.id} has no HTTP endpoint configured")
+    logger.info(f"Fetching sensor data for device {device.id}")
+    endpoint = device.http_endpoint if device.http_endpoint.startswith("http") else f"http://{device.http_endpoint}"
+    async with httpx.AsyncClient() as client:
+        try:
+            response = await client.get(f"{endpoint}/monitor", timeout=10)
+            response.raise_for_status()
+            data = response.json()
+            logger.info(f"Sensor data for device {device.id}: {data}")
+            return data
+        except Exception as e:
+            logger.error(f"Error fetching sensor data: {e}")
+            raise HTTPException(status_code=500, detail="Failed to fetch sensor data") from e
+
+async def process_dosing_request(
+    device_id: int,
+    sensor_data: dict,
+    plant_profile: dict,
+    db: AsyncSession
+) -> Tuple[Dict, str]:
+    """
+    Triggered by the dosing endpoint; builds a prompt, calls the LLM,
+    parses the JSON dosing plan, and executes it.
+    Returns the execution result and the raw LLM response.
+    """
+    try:
+        device = await dosing_manager.get_device(device_id, db)
+        if not device.pump_configurations:
+            raise ValueError(f"Device {device.id} has no pump configurations available")
+        if not device.http_endpoint:
+            raise ValueError(f"Device {device.id} has no HTTP endpoint configured")
+        prompt = await build_dosing_prompt(device, sensor_data, plant_profile)
+        dosing_plan, ai_response = await call_llm_async(prompt=prompt, model_name=MODEL_1_5B)
+        result = await execute_dosing_plan(device, dosing_plan)
+        return result, ai_response
+    except ValueError as ve:
+        logger.error(f"ValueError in dosing request: {ve}")
+        raise HTTPException(status_code=400, detail=str(ve))
+    except json.JSONDecodeError as je:
+        logger.error(f"JSON Parsing Error: {je}")
+        raise HTTPException(status_code=500, detail="Invalid JSON format from LLM")
+    except Exception as e:
+        logger.exception(f"Unexpected error: {e}")
+        raise HTTPException(status_code=500, detail="An unexpected error occurred") from e
+
+async def process_sensor_plan(
+    device_id: int,
+    sensor_data: dict,
+    plant_profile: dict,
+    query: str,
+    db: AsyncSession
+):
+    """
+    Triggered by the plan endpoint; builds a prompt, calls the LLM,
+    and returns a structured growing plan.
+    """
+    try:
+        device = await dosing_manager.get_device(device_id, db)
+        if not device.http_endpoint:
+            raise ValueError(f"Device {device.id} has no HTTP endpoint configured")
+        prompt = await build_plan_prompt(sensor_data, plant_profile, query)
+        sensor_plan_raw = await call_llm_plan(prompt, MODEL_1_5B)
+        beautify_response = parse_json_response(sensor_plan_raw)
+        if isinstance(beautify_response, list):
+            beautify_response = {"plan": "\n".join(beautify_response)}
+        return beautify_response
+    except ValueError as ve:
+        logger.error(f"ValueError in sensor plan request: {ve}")
+        raise HTTPException(status_code=400, detail=str(ve))
+    except json.JSONDecodeError as je:
+        logger.error(f"JSON Parsing Error: {je}")
+        raise HTTPException(status_code=500, detail="Invalid format from LLM")
+    except Exception as e:
+        logger.exception(f"Unexpected error in sensor plan: {e}")
+        raise HTTPException(status_code=500, detail="An unexpected error occurred") from e
+
+async def call_llm(prompt: str, model_name: str) -> Dict:
+    """
+    Utility function that calls the LLM and returns the parsed JSON response.
+    """
+    logger.info(f"Calling LLM with model {model_name}, prompt:\n{prompt}")
+    if USE_OLLAMA:
+       raw_completion = await direct_ollama_call(prompt, model_name)
+       cleaned = parse_ollama_response(raw_completion).replace("'", '"').strip()
+    else:
+       raw_completion = await direct_openai_call(prompt, GPT_MODEL)  
+       cleaned =  parse_openai_response(raw_completion).replace("'", '"').strip()  
+    try:
+        parsed_response = json.loads(cleaned)
+    except json.JSONDecodeError:
+        logger.error(f"Invalid JSON from LLM: {raw_completion}")
+        raise HTTPException(status_code=500, detail="Invalid JSON from LLM")
+    return parsed_response
+
+async def analyze_transport_options(origin: str, destination: str, weight_kg: float) -> Dict:
+    prompt = f"""
+    You are a logistics expert. Analyze the best railway and trucking options for transporting goods.
+    - Origin: {origin}
+    - Destination: {destination}
+    - Weight: {weight_kg} kg
+
+    Provide a JSON output with estimated cost, time, and best transport mode.
+    """
+    return await call_llm(prompt, MODEL_1_5B)
+
+async def analyze_market_price(produce_type: str) -> Dict:
+    prompt = f"""
+    You are a market analyst. Provide the latest price per kg of {produce_type} in major cities.
+    - Provide an approximate or typical value if uncertain.
+    - Output must be valid JSON.
+    """
+    return await call_llm(prompt, MODEL_1_5B)
+
+async def generate_final_decision(transport_analysis: Dict, market_price: Dict) -> Dict:
+    prompt = f"""
+    You are an AI supply chain consultant. Based on the transport analysis and market price insights, 
+    determine if this transportation plan is profitable.
+
+    Transport Analysis:
+    {json.dumps(transport_analysis, indent=2)}
+
+    Market Price Data:
+    {json.dumps(market_price, indent=2)}
+
+    Provide a JSON output with the final decision and reasoning.
+    """
+    return await call_llm(prompt, MODEL_7B) 
+
+
+----- app/services/device_controller.py -----
+# device_controller.py
+import logging
+import asyncio
+from datetime import datetime
+from typing import Dict, Optional
+import httpx
+from fastapi import HTTPException
+import re
+logger = logging.getLogger(__name__)
+from app.schemas import DeviceType
+
+class DeviceController:
+    """
+    Unified controller for the dosing and monitoring device.
+    Provides methods for:
+      - Discovering the device via its /discovery endpoint.
+      - Executing dosing commands via /pump or the combined /dose_monitor endpoint.
+      - Fetching sensor readings via the /monitor endpoint.
+    """
+    def __init__(self, device_ip: str, request_timeout: float = 10.0):
+        self.device_ip = device_ip
+        self.request_timeout = request_timeout
+
+    async def discover(self) -> Optional[Dict]:
+        """
+        Try /discovery first; if that fails, assume it's a valve controller and call /state.
+        """
+        async with httpx.AsyncClient(timeout=self.request_timeout) as client:
+            # 1) Try standard discovery
+            try:
+                url = await self._build_url("discovery")
+                res = await client.get(url)
+                if res.status_code == 200:
+                    data = res.json()
+                    data["ip"] = self.device_ip
+                    return data
+            except Exception:
+                logger.debug(f"/discovery failed for {self.device_ip}, trying /state")
+
+            # 2) Fallback to valve controller /state
+            try:
+                url = await self._build_url("state")
+                res = await client.get(url)
+                res.raise_for_status()
+                state = res.json()
+                # expect { device_id, valves: [ {id, state}, … ] }
+                return {
+                    "device_id": state.get("device_id"),
+                    "type": DeviceType.VALVE_CONTROLLER.value,
+                    "valves": state.get("valves", []),
+                    "ip": self.device_ip
+                }
+            except Exception as e:
+                logger.debug(f"/state discovery failed for {self.device_ip}: {e}")
+
+        return None
+
+
+    async def get_sensor_readings(self) -> Dict:
+        """
+        Retrieve averaged sensor readings from the device via the /monitor endpoint.
+        (The device now returns averaged pH and TDS values.)
+        """
+        url = f"http://{self.device_ip}/monitor"
+        try:
+            async with httpx.AsyncClient(timeout=self.request_timeout) as client:
+                response = await client.get(url)
+                if response.status_code == 200:
+                    data = response.json()
+                    logger.info(f"Sensor readings from {self.device_ip}: {data}")
+                    return data
+                else:
+                    raise HTTPException(status_code=response.status_code, detail=f"Sensor reading failed: {response.text}")
+        except Exception as e:
+            logger.error(f"Error fetching sensor readings: {e}")
+            raise HTTPException(status_code=500, detail=str(e))
+    async def cancel_dosing(self) -> Dict:
+        """
+        Cancel dosing by sending a stop command to the device.
+        Uses the /pump_calibration endpoint with {"command": "stop"}.
+        """
+        url = f"http://{self.device_ip}/pump_calibration"
+        payload = {"command": "stop"}
+        try:
+            async with httpx.AsyncClient(timeout=self.request_timeout) as client:
+                response = await client.post(url, json=payload)
+                if response.status_code == 200:
+                    logger.info(f"Cancellation command sent to {url}: {payload}")
+                    return response.json()
+                else:
+                    raise HTTPException(status_code=response.status_code, detail=f"Cancellation failed: {response.text}")
+        except Exception as e:
+            logger.error(f"Error sending cancellation command: {e}")
+            raise HTTPException(status_code=500, detail=str(e))
+    
+    async def _build_url(self, path: str) -> str:
+        base = self.device_ip
+        if not base.startswith(("http://","https://")):
+            base = f"http://{base}"
+        return f"{base.rstrip('/')}/{path.lstrip('/')}"
+    
+    async def execute_dosing(self, pump: int, amount: int, combined: bool = False) -> Dict:
+        endpoint = "dose_monitor" if combined else "pump"
+        url = await self._build_url(endpoint)
+        payload = {"pump": pump, "amount": amount, "timestamp": datetime.utcnow().isoformat()}
+        async with httpx.AsyncClient(timeout=self.request_timeout) as client:
+            resp = await client.post(url, json=payload)
+            resp.raise_for_status()
+            return resp.json()
+    async def get_state(self) -> Dict:
+        """
+        Fetch the current valves state from /state.
+        """
+        url = await self._build_url("state")
+        async with httpx.AsyncClient(timeout=self.request_timeout) as client:
+            res = await client.get(url)
+            res.raise_for_status()
+            return res.json()
+
+    async def toggle_valve(self, valve_id: int) -> Dict:
+        """
+        Toggle a single valve via /toggle.
+        """
+        url = await self._build_url("toggle")
+        payload = {"valve_id": valve_id}
+        async with httpx.AsyncClient(timeout=self.request_timeout) as client:
+            res = await client.post(url, json=payload)
+            res.raise_for_status()
+            return res.json()
+
+----- app/services/ph_tds.py -----
+import logging
+from typing import Dict
+from fastapi import HTTPException
+import httpx
+
+logger = logging.getLogger(__name__)
+
+async def get_ph_tds_readings(device_ip: str) -> Dict[str, float]:
+    """
+    Fetch pH and TDS readings from the device's /monitor endpoint directly,
+    without using DeviceController.
+    """
+    url = f"{device_ip}/monitor"
+    
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            response = await client.get(url)
+            response.raise_for_status()
+            data = response.json()
+            logger.info(f"[{device_ip}] Raw /monitor response: {data}")
+
+            if "pH" in data and "TDS" in data:
+                return {
+                    "ph": float(data["pH"]),
+                    "tds": float(data["TDS"])
+                }
+            else:
+                raise HTTPException(status_code=500, detail=f"Invalid /monitor response: {data}")
+
+    except Exception as e:
+        logger.error(f"Failed to fetch pH/TDS from {device_ip}: {e}")
+        raise HTTPException(status_code=500, detail=f"Error fetching from /monitor: {e}")
+
+
+----- app/services/dosing_profile_service.py -----
+# dosing_profile_service.py
+import json
+import logging
+from datetime import datetime
+from typing import Dict
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.future import select
+from fastapi import HTTPException
+from app.models import Device, DosingProfile
+from app.services.device_controller import DeviceController
+from app.services.ph_tds import get_ph_tds_readings  # Ensure this returns averaged values
+from app.services.llm import call_llm_async, build_dosing_prompt
+
+logger = logging.getLogger(__name__)
+
+
+async def set_dosing_profile_service(profile_data: dict, db: AsyncSession) -> dict:
+    """
+    Set the dosing profile for a unified dosing/monitoring device.
+    This function uses the unified device for both sensor reading and dosing.
+    """
+    device_id = profile_data.get("device_id")
+    if not device_id:
+        raise HTTPException(status_code=400, detail="Device ID is required in profile data")
+    
+    # Retrieve the unified device from the database.
+    result = await db.execute(select(Device).where(Device.id == device_id))
+    dosing_device = result.scalars().first()
+    
+    if not dosing_device:
+        # If the device is not found, attempt discovery via the unified controller.
+        device_ip = profile_data.get("device_ip")
+        if not device_ip:
+            raise HTTPException(status_code=404, detail="Unified device not found and device_ip not provided")
+        controller = DeviceController(device_ip=device_ip)
+        discovered_device = await controller.discover()
+        if discovered_device:
+            new_device = Device(
+                name=discovered_device.get("name", "Discovered Unified Device"),
+                type="dosing_unit",  # Using the same type for unified devices
+                http_endpoint=discovered_device.get("http_endpoint"),
+                location_description=discovered_device.get("location_description", ""),
+                pump_configurations=[],  # Can be updated later if needed
+                is_active=True
+            )
+            db.add(new_device)
+            try:
+                await db.commit()
+                await db.refresh(new_device)
+                dosing_device = new_device
+            except Exception as exc:
+                await db.rollback()
+                raise HTTPException(status_code=500, detail=f"Error adding discovered device: {exc}") from exc
+        else:
+            raise HTTPException(status_code=404, detail="Unified dosing device not found and could not be discovered")
+    
+    # For the unified device, use its HTTP endpoint to get sensor readings.
+    sensor_ip = dosing_device.http_endpoint
+    logger.info(f"Fetching pH/TDS readings from device at {sensor_ip}")
+    try:
+        readings = await get_ph_tds_readings(sensor_ip)
+    except Exception as exc:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error fetching PH/TDS readings: {exc}"
+        ) from exc
+
+    ph = readings.get("ph")
+    tds = readings.get("tds")
+
+    # Build a comprehensive dosing prompt using the unified device details.
+    # (Now using the unified device instance, averaged sensor values, and profile_data.)
+    prompt = await build_dosing_prompt(dosing_device, {"ph": ph, "tds": tds}, profile_data)
+    try:
+        llm_response, raw_llm = await call_llm_async(prompt)
+        logger.info(f"LLM response: {llm_response}")
+        if isinstance(llm_response, str):
+            result_json = json.loads(llm_response)
+        elif isinstance(llm_response, list):
+            result_json = {"actions": llm_response}
+        elif isinstance(llm_response, dict):
+            result_json = llm_response
+        else:
+            raise ValueError("Unexpected response format from LLM.")
+        
+        recommended_dose = result_json.get("actions", [])
+    except Exception as exc:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error calling LLM: {exc}"
+        ) from exc
+
+    # Create a new dosing profile using the unified device.
+    new_profile = DosingProfile(
+        device_id=dosing_device.id,
+        plant_name=profile_data.get("plant_name"),
+        plant_type=profile_data.get("plant_type"),
+        growth_stage=profile_data.get("growth_stage"),
+        seeding_date=profile_data.get("seeding_date"),
+        target_ph_min=profile_data.get("target_ph_min"),
+        target_ph_max=profile_data.get("target_ph_max"),
+        target_tds_min=profile_data.get("target_tds_min"),
+        target_tds_max=profile_data.get("target_tds_max"),
+        dosing_schedule=profile_data.get("dosing_schedule")
+    )
+    db.add(new_profile)
+    try:
+        await db.commit()
+        await db.refresh(new_profile)
+    except Exception as exc:
+        await db.rollback()
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error saving dosing profile: {exc}"
+        ) from exc
+
+    return {"recommended_dose": recommended_dose, "profile": new_profile}
+
+
+----- app/services/plant_service.py -----
+import logging
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.future import select
+from fastapi import HTTPException
+from app.models import Plant
+logger = logging.getLogger(__name__)
+
+async def get_all_plants(db: AsyncSession):
+    """Retrieve all plants from the database."""
+    try:
+        logger.info("Fetching plants from database...")
+
+        # Fetch plants
+        result = await db.execute(select(Plant))
+        plants = result.scalars().all()
+
+        if not plants:
+            logger.info("No plants found, returning an empty list.")
+            return []
+
+        logger.info(f"Fetched {len(plants)} plants from the database")
+        return plants
+
+    except Exception as e:
+        logger.error(f"Database query failed: {str(e)}")
+        return []
+
+
+async def get_plant_by_id(plant_id: int, db: AsyncSession):
+    """Retrieve a specific plant by ID."""
+    plant = await db.get(Plant, plant_id)
+    if not plant:
+        raise HTTPException(status_code=404, detail="Plant not found")
+    return plant
+
+async def create_plant(plant_data, db: AsyncSession):
+    """Create a new plant."""
+    new_plant = Plant(**plant_data.model_dump())
+    db.add(new_plant)
+    await db.commit()
+    await db.refresh(new_plant)
+    return new_plant
+
+async def delete_plant(plant_id: int, db: AsyncSession):
+    """Delete a plant by ID."""
+    plant = await db.get(Plant, plant_id)
+    if not plant:
+        raise HTTPException(status_code=404, detail="Plant not found")
+    await db.delete(plant)
+    await db.commit()
+    return {"message": "Plant deleted successfully"}
+
+
+----- app/services/ping.py -----
+import asyncio
+from asyncio.subprocess import PIPE
+
+async def ping_host(ip: str, timeout: float = 1.0) -> bool:
+    # Using Linux-style ping: '-c 1' for one packet, '-W' for timeout in seconds
+    proc = await asyncio.create_subprocess_exec(
+        "ping", "-c", "1", "-W", str(int(timeout)),
+        ip,
+        stdout=PIPE, stderr=PIPE
+    )
+    try:
+        await asyncio.wait_for(proc.communicate(), timeout=timeout + 1)
+    except asyncio.TimeoutError:
+        proc.kill()
+        return False
+    return proc.returncode == 0
+
+

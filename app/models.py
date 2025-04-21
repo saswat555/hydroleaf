@@ -26,11 +26,12 @@ class Device(Base):
     # JSON fields
     pump_configurations = Column(JSON, nullable=True)
     sensor_parameters = Column(JSON, nullable=True)
+    valve_configurations = Column(JSON, nullable=True)
     # Relationships
     dosing_profiles = relationship("DosingProfile", back_populates="device", cascade="all, delete-orphan")
     sensor_readings = relationship("SensorReading", back_populates="device", cascade="all, delete-orphan")
     dosing_operations = relationship("DosingOperation", back_populates="device", cascade="all, delete-orphan")
-
+    dosing_profiles = relationship("DosingProfile", back_populates="device", cascade="all, delete-orphan")
 class DosingProfile(Base):
     __tablename__ = "dosing_profiles"
 
@@ -146,6 +147,7 @@ class User(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     farms = relationship("Farm", back_populates="user", cascade="all, delete-orphan")
     
+    
 class Farm(Base):
     __tablename__ = "farms"
 
@@ -159,3 +161,31 @@ class Farm(Base):
     # Relationships
     devices = relationship("Device", back_populates="farm", cascade="all, delete-orphan")
     user = relationship("User", back_populates="farms")
+
+class Camera(Base):
+    __tablename__ = "cameras"
+
+    id              = Column(String(64), primary_key=True, index=True)
+    name            = Column(String(120), nullable=False)
+    is_online       = Column(Boolean, default=False)
+    last_seen       = Column(DateTime(timezone=True), nullable=True)
+    frames_received = Column(Integer, default=0)
+    clips_count     = Column(Integer, default=0)
+    last_clip_time  = Column(DateTime(timezone=True), nullable=True)
+    storage_used    = Column(Float, default=0.0)  # MB
+    settings        = Column(JSON, nullable=True)
+
+    users = relationship("UserCamera", back_populates="camera", cascade="all, delete-orphan")
+
+class UserCamera(Base):
+    __tablename__ = "user_cameras"
+
+    id        = Column(Integer, primary_key=True, index=True)
+    user_id   = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"))
+    camera_id = Column(String(64),  ForeignKey("cameras.id", ondelete="CASCADE"))
+    nickname  = Column(String(120), nullable=True)
+
+    user   = relationship("User", back_populates="cameras")
+    camera = relationship("Camera", back_populates="users")
+
+User.cameras = relationship("UserCamera", back_populates="user", cascade="all, delete-orphan")

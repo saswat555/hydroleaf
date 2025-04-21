@@ -9,6 +9,7 @@ class DeviceType(str, Enum):
     DOSING_UNIT = "dosing_unit"
     PH_TDS_SENSOR = "ph_tds_sensor"
     ENVIRONMENT_SENSOR = "environment_sensor"
+    VALVE_CONTROLLER = "valve_controller"
    
 class PumpConfig(BaseModel):
     pump_number: int = Field(..., ge=1, le=4)
@@ -16,7 +17,11 @@ class PumpConfig(BaseModel):
     chemical_description: Optional[str] = Field(None, max_length=200)
 
     model_config = ConfigDict(from_attributes=True)
-
+class ValveConfig(BaseModel):
+    valve_id: int = Field(..., ge=1, le=4)
+    name: Optional[str] = Field(None, max_length=50)
+    model_config = ConfigDict(from_attributes=True)
+    
 class DeviceBase(BaseModel):
     mac_id: str = Field(..., max_length=64)
     name: str = Field(..., max_length=128)
@@ -25,6 +30,7 @@ class DeviceBase(BaseModel):
     location_description: Optional[str] = Field(None, max_length=256)
     farm_id: Optional[int] = None
     model_config = ConfigDict(from_attributes=True)
+    valve_configurations: Optional[List[ValveConfig]] = None
 
 class DosingDeviceCreate(DeviceBase):
     pump_configurations: List[PumpConfig] = Field(..., min_length=1, max_length=4)
@@ -262,3 +268,13 @@ class FarmResponse(FarmBase):
 
     class Config:
         orm_mode = True
+
+class ValveDeviceCreate(DeviceBase):
+    valve_configurations: List[ValveConfig] = Field(..., min_length=1, max_length=4)
+
+    @field_validator('type')
+    @classmethod
+    def validate_device_type(cls, v):
+        if v != DeviceType.VALVE_CONTROLLER:
+            raise ValueError("Device type must be valve_controller for ValveDeviceCreate")
+        return v

@@ -21,6 +21,7 @@ from app.schemas import (
     SensorDeviceCreate,
     DeviceResponse,
     DeviceType,
+    ValveDeviceCreate,
 )
 
 logger = logging.getLogger(__name__)
@@ -255,4 +256,41 @@ async def get_device_version(device_id: int, db: AsyncSession = Depends(get_db))
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error fetching device version: {e}")
     
+@router.post("/valve", response_model=DeviceResponse, summary="Register a new valve controller")
+async def create_valve_device(
+    device: ValveDeviceCreate,
+    session: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Create/register a new 4‑valve controller.
+    """
+    # ensure http endpoint discovery
+    endpoint = device.http_endpoint
+    if not endpoint.startswith("http"):
+        endpoint = f"http://{endpoint}"
+    controller = DeviceController(device_ip=endpoint)
+    discovered = await controller.discover()
+    if not discovered:
+        raise HTTPException(status_code=500, detail="Valve controller discovery failed")
 
+    # enforce uniqueness
+    existing = await session.execute(select(Device).where(Device.mac_id == device.mac_id))
+    if existing.scalar_one_or_none():
+        raise HTTPException(status_code=400, detail="Device already registered")
+
+    new_device = Device(
+        name=discovered.get("name", device.name),
+        user_id=current_user.id,
+        mac_id=device.mac_id,
+        type=DeviceType.VALVE_CONTROLLER,
+        http_endpoint=endpoint,
+        location_description=device.location_description or "",
+        valve_configurations=[v.model_dump() for v in device.valve_configurations],
+        is_active=True,
+        farm_id=device.farm_id,
+    )
+    session.add(new_device)
+    await session.commit()
+    await session.refresh(new_device)
+    return new_device

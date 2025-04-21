@@ -1,279 +1,217 @@
-from fastapi import FastAPI, HTTPException, status, Request
-import uvicorn
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
-from fastapi.logger import logger as fastapi_logger
-from pydantic import BaseModel
-from contextlib import asynccontextmanager
-from datetime import datetime, timezone
-from typing import Dict, List, Optional, Any
-import logging
+# app/main.py
 import os
 import time
-from sqlalchemy import text
+import logging
 import asyncio
-from app.routers import devices, dosing, config, farms, plants, supply_chain, cloud, users, admin, device_comm
-from app.routers.heartbeat import router as heartbeat_router
-from app.routers import admin_users
-from app.routers import auth
-from app.core.database import (
-    init_db, 
-    check_db_connection,
-    get_table_stats,
-    get_migration_status
+from pathlib import Path
+from datetime import datetime, timezone
+
+from fastapi import FastAPI, HTTPException, Request, status
+from fastapi.middleware.cors import CORSMiddleware
+from starlette.middleware.sessions import SessionMiddleware
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import JSONResponse
+from fastapi.templating import Jinja2Templates
+from contextlib import asynccontextmanager
+import uvicorn
+
+from app.core.config import (
+    ENVIRONMENT, OFFLINE_TIMEOUT, ALLOWED_ORIGINS,
+    SESSION_KEY, API_V1_STR
 )
-from app.simulated_esp import simulated_esp_app 
-# Configure logging
+from app.core.database import init_db, AsyncSessionLocal, get_db, engine, Base
+from app.routers import (
+    devices_router, dosing_router, config_router,
+    farms_router, plants_router, supply_chain_router,
+    cloud_router, users_router, admin_users_router,
+    auth_router, device_comm_router, heartbeat_router,
+    admin_router, cameras_router
+)
+from app.routers.cameras import upload_day_frame, upload_night_frame
+from app.simulated_esp import simulated_esp_app
+from app.utils.camera_tasks import offline_watcher
+
+# Logging setup
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
 logger = logging.getLogger(__name__)
 
-# Pydantic models for responses
-class HealthResponse(BaseModel):
-    status: str
-    version: str
-    timestamp: datetime
-    environment: str
-    uptime: float
-
-class TableInfo(BaseModel):
-    existing: List[str]
-    missing: List[str]
-    status: str
-
-class MigrationInfo(BaseModel):
-    status: str
-    existing_tables: List[str]
-    missing_tables: List[str]
-    error: Optional[str] = None
-
-class DatabaseHealthResponse(BaseModel):
-    status: str
-    type: str
-    timestamp: datetime
-    last_check: Optional[datetime] = None
-    error: Optional[str] = None
-    migrations: MigrationInfo
-    tables: Dict[str, Any]
-
-    class Config:
-        arbitrary_types_allowed = True
-
-class SystemHealthResponse(BaseModel):
-    system: Dict[str, Any]
-    database: Dict[str, Any]
-    timestamp: datetime
-    api_version: str
-    environment: str
-
-    class Config:
-        arbitrary_types_allowed = True
-
-# Global variables
-START_TIME = time.time()
-API_VERSION = "1.0.0"
-
-# Application lifespan
+# Application lifespan for migrations & startup
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Application lifespan manager"""
-    logger.info("Starting Hydroleaf API")
+    logger.info("Starting Hydroleaf API - ensuring database schema...")
+    # Verify Alembic config
+    if not Path("alembic.ini").is_file() or not Path("alembic").is_dir():
+        raise RuntimeError(
+            "Alembic configuration missing: please run `alembic init alembic` and set up migrations."
+        )
+
+    # 1) Run Alembic migrations
     try:
-        await init_db()
-        yield
-        logger.info("Shutting down Hydroleaf API")
+        await asyncio.to_thread(init_db)
+        logger.info("Alembic migrations complete")
     except Exception as e:
-        logger.error(f"Error during application lifecycle: {e}")
+        logger.error(f"Migration step failed: {e}")
         raise
 
-# Create FastAPI application
+    # 2) Auto-create any missing tables
+    try:
+        async with engine.begin() as conn:
+            await conn.run_sync(Base.metadata.create_all)
+        logger.info("SQLAlchemy metadata.create_all complete")
+    except Exception as e:
+        logger.error(f"Auto-create tables failed: {e}")
+        raise
+
+    # Mark startup complete
+    app.state.start_time = time.time()
+    yield
+    logger.info("Shutting down Hydroleaf API")
+
+# Instantiate app
 app = FastAPI(
     title="Hydroleaf API",
-    description="API for managing IoT devices and automated dosing in hydroponic systems",
-    version=API_VERSION,
-    lifespan=lifespan,
-    docs_url="/api/docs",
-    redoc_url="/api/redoc",
-    openapi_url="/api/openapi.json"
+    version=os.getenv("API_VERSION", "1.0.0"),
+    docs_url=f"{API_V1_STR}/docs",
+    redoc_url=None,
+    openapi_url=f"{API_V1_STR}/openapi.json",
+    lifespan=lifespan
 )
 
-# CORS middleware
+# Middleware
+app.add_middleware(SessionMiddleware, secret_key=SESSION_KEY)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=os.getenv("ALLOWED_ORIGINS", "*").split(","),
+    allow_origins=ALLOWED_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+app.mount("/static", StaticFiles(directory="app/static"), name="static")
 app.mount("/simulated_esp", simulated_esp_app)
 
+templates = Jinja2Templates(directory="app/templates")
+
+# --- Logging middleware (fixed) ---
 @app.middleware("http")
 async def log_requests(request: Request, call_next):
-    """Log request details"""
-    start_time = time.time()
-    client_ip = request.client.host if request.client else "unknown"
-    
-    logger.info(f"Request started: {request.method} {request.url.path} from {client_ip}")
-    
+    start = time.time()
     try:
         response = await call_next(request)
-        process_time = time.time() - start_time
-        
-        logger.info(
-            f"Request completed: {request.method} {request.url.path} "
-            f"Status: {response.status_code} "
-            f"Duration: {process_time:.3f}s "
-            f"Client: {client_ip}"
-        )
-        
-        response.headers["X-Process-Time"] = str(process_time)
-        response.headers["X-API-Version"] = API_VERSION
-        
+        latency = time.time() - start
+        response.headers.update({
+            "X-Process-Time": f"{latency:.3f}",
+            "X-API-Version": app.version,
+        })
         return response
-    except Exception as e:
-        logger.error(f"Request failed: {request.method} {request.url.path} Error: {e}")
+    except Exception as exc:
+        logger.error(f"Unhandled error during request: {exc}", exc_info=True)
         raise
 
-# Health check endpoints
-@app.get("/api/v1/health", response_model=HealthResponse)
+# Health endpoints
+@app.get(f"{API_V1_STR}/health")
 async def health_check():
-    """Basic health check endpoint"""
-    try:
-        uptime = time.time() - START_TIME
-        return {
-            "status": "healthy",
-            "version": API_VERSION,
-            "timestamp": datetime.now(timezone.utc),
-            "environment": os.getenv("ENVIRONMENT", "development"),
-            "uptime": uptime
-        }
-    except Exception as e:
-        logger.error(f"Health check failed: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="System health check failed"
-        )
+    uptime = time.time() - app.state.start_time
+    return {
+        "status": "healthy",
+        "version": app.version,
+        "timestamp": datetime.now(timezone.utc),
+        "environment": ENVIRONMENT,
+        "uptime": uptime,
+    }
 
-@app.get("/api/v1/health/database", response_model=DatabaseHealthResponse)
-async def database_health_check():
-    """Database health check endpoint"""
+@app.get(f"{API_V1_STR}/health/database")
+async def database_health():
+    now = datetime.now(timezone.utc)
     try:
-        db_info = await check_db_connection()
-        migration_info = await get_migration_status()
-        table_stats = await get_table_stats()
-        
-        current_time = datetime.now(timezone.utc)
-        
-        return {
-            "status": "healthy" if db_info["status"] == "connected" else "unhealthy",
-            "type": "sqlite",
-            "timestamp": current_time,
-            "last_check": current_time,
-            "error": db_info.get("error"),
-            "migrations": {
-                "status": migration_info["status"],
-                "existing_tables": migration_info.get("existing_tables", []),
-                "missing_tables": migration_info.get("missing_tables", []),
-                "error": migration_info.get("error")
-            },
-            "tables": {
-                "counts": table_stats.get("counts", {}),
-                "status": table_stats.get("status", "unknown")
-            }
-        }
+        session = await get_db().__anext__()
+        await session.close()
     except Exception as e:
-        logger.error(f"Database health check failed: {e}")
-        return {
-            "status": "error",
-            "type": "sqlite",
-            "timestamp": datetime.now(timezone.utc),
-            "last_check": datetime.now(timezone.utc),
-            "error": str(e),
-            "migrations": {
-                "status": "error",
-                "existing_tables": [],
-                "missing_tables": [],
-                "error": str(e)
-            },
-            "tables": {
-                "counts": {},
-                "status": "error"
-            }
-        }
+        return {"status": "error", "detail": str(e)}
+    return {"status": "ok", "timestamp": now}
 
-@app.get("/api/v1/health/all", response_model=SystemHealthResponse)
-async def system_health_check():
-    """Complete system health check"""
-    try:
-        system = await health_check()
-        database = await database_health_check()
-        
-        return {
-            "system": system,
-            "database": database,
-            "timestamp": datetime.now(timezone.utc),
-            "api_version": API_VERSION,
-            "environment": os.getenv("ENVIRONMENT", "development")
-        }
-    except Exception as e:
-        logger.error(f"System health check failed: {e}")
-        return {
-            "system": {"status": "error", "error": str(e)},
-            "database": {"status": "unknown"},
-            "timestamp": datetime.now(timezone.utc),
-            "api_version": API_VERSION,
-            "environment": os.getenv("ENVIRONMENT", "development")
-        }
+@app.get(f"{API_V1_STR}/health/system")
+async def system_health():
+    sys = await health_check()
+    db = await database_health()
+    return {
+        "system": sys,
+        "database": db,
+        "timestamp": datetime.now(timezone.utc),
+        "api_version": app.version,
+        "environment": ENVIRONMENT,
+    }
 
-# Error handlers
+# Camera upload endpoints (override default router paths)
+app.add_api_route(
+    "/upload/{camera_id}/day",
+    upload_day_frame,
+    methods=["POST"]
+)
+app.add_api_route(
+    "/upload/{camera_id}/night",
+    upload_night_frame,
+    methods=["POST"]
+)
+
+# Exception handlers
 @app.exception_handler(HTTPException)
-async def http_exception_handler(request: Request, exc: HTTPException):
-    """Handle HTTP exceptions"""
+async def http_exc_handler(request: Request, exc: HTTPException):
     return JSONResponse(
         status_code=exc.status_code,
         content={
             "detail": exc.detail,
             "timestamp": datetime.now(timezone.utc).isoformat(),
-            "path": request.url.path
-        }
+            "path": request.url.path,
+        },
     )
 
 @app.exception_handler(Exception)
-async def general_exception_handler(request: Request, exc: Exception):
-    """Handle general exceptions"""
+async def exc_handler(request: Request, exc: Exception):
     logger.error(f"Unhandled exception: {exc}", exc_info=True)
     return JSONResponse(
         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
         content={
             "detail": "Internal server error",
             "timestamp": datetime.now(timezone.utc).isoformat(),
-            "path": request.url.path
-        }
+            "path": request.url.path,
+        },
     )
 
 # Include routers
-app.include_router(admin_users.router)
-app.include_router(devices.router, prefix="/api/v1/devices", tags=["devices"])
-app.include_router(dosing.router, prefix="/api/v1/dosing", tags=["dosing"])
-app.include_router(config.router, prefix="/api/v1/config", tags=["config"])
-app.include_router(plants.router, prefix="/api/v1/plants", tags=["plants"]) 
-app.include_router(supply_chain.router, prefix="/api/v1/supply_chain", tags=["supply_chain"])
-app.include_router(cloud.router, prefix="/api/v1", tags=["cloud"])
-app.include_router(heartbeat_router)
-app.include_router(farms.router)
-app.include_router(admin.router)
-app.include_router(users.router)
-app.include_router(auth.router, prefix="/api/v1/auth", tags=["auth"])
-app.include_router(device_comm.router, prefix="", tags=["device_comm"])
+app.include_router(admin_users_router, prefix=f"{API_V1_STR}/admin/users", tags=["admin-users"])
+app.include_router(users_router, prefix=f"{API_V1_STR}/users", tags=["users"])
+app.include_router(auth_router, prefix=f"{API_V1_STR}/auth", tags=["auth"])
+app.include_router(devices_router, prefix=f"{API_V1_STR}/devices", tags=["devices"])
+app.include_router(dosing_router, prefix=f"{API_V1_STR}/dosing", tags=["dosing"])
+app.include_router(config_router, prefix=f"{API_V1_STR}/config", tags=["config"])
+app.include_router(plants_router, prefix=f"{API_V1_STR}/plants", tags=["plants"])
+app.include_router(farms_router, prefix=f"{API_V1_STR}/farms", tags=["farms"])
+app.include_router(supply_chain_router, prefix=f"{API_V1_STR}/supply_chain", tags=["supply_chain"])
+app.include_router(cloud_router, prefix=f"{API_V1_STR}/cloud", tags=["cloud"])
+app.include_router(heartbeat_router, prefix="", tags=["heartbeat"])
+app.include_router(admin_router, prefix="/admin", tags=["admin"])
+app.include_router(device_comm_router, prefix=f"{API_V1_STR}/device_comm", tags=["device_comm"])
+app.include_router(cameras_router, prefix=f"{API_V1_STR}/cameras", tags=["cameras"])
 
+# Startup tasks
+@app.on_event("startup")
+async def startup_tasks():
+    asyncio.create_task(
+        offline_watcher(
+            db_factory=AsyncSessionLocal,
+            interval_seconds=OFFLINE_TIMEOUT / 2,
+        )
+    )
 
+# Run server
 if __name__ == "__main__":
     uvicorn.run(
-        "main:app",
+        "app.main:app",
         host="0.0.0.0",
         port=int(os.getenv("PORT", 8000)),
-        reload=bool(os.getenv("DEBUG", "True")),
-        log_level=os.getenv("LOG_LEVEL", "info")
+        log_level=os.getenv("LOG_LEVEL", "info"),
+        reload=os.getenv("DEBUG", "false").lower() == "true"
     )

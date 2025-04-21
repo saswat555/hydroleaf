@@ -2,7 +2,6 @@ import logging
 from typing import Dict, List, AsyncGenerator
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 from sqlalchemy.orm import sessionmaker, declarative_base
-from sqlalchemy.pool import StaticPool
 from sqlalchemy import text
 from datetime import datetime
 
@@ -15,8 +14,9 @@ engine = create_async_engine(
     DATABASE_URL,
     echo=False,
     future=True,
-    connect_args={"check_same_thread": False},
-    poolclass=StaticPool
+    pool_size=10,
+    max_overflow=20,
+    pool_pre_ping=True,
 )
 
 # Create session factory
@@ -31,24 +31,11 @@ AsyncSessionLocal = sessionmaker(
 # Create declarative base
 Base = declarative_base()
 
-async def init_db() -> bool:
-    """Initialize database"""
-    try:
-        async with engine.begin() as conn:
-            # await conn.run_sync(Base.metadata.drop_all)
-            await conn.run_sync(Base.metadata.create_all)
-            
-            # Verify tables were created
-            result = await conn.execute(
-                text("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'")
-            )
-            tables = [row[0] for row in result.fetchall()]
-            logger.info(f"Created tables: {tables}")
-            
-        return True
-    except Exception as e:
-        logger.error(f"Error initializing database: {e}")
-        raise
+from alembic.config import Config
+from alembic import command
+async def init_db():
+    alembic_cfg = Config("alembic.ini")
+    command.upgrade(alembic_cfg, "head")
 
 async def get_db() -> AsyncGenerator[AsyncSession, None]:
     """Get database session"""
