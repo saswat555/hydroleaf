@@ -20,6 +20,7 @@ class Device(Base):
     location_description = Column(String(256))
     is_active = Column(Boolean, default=True)
     last_seen = Column(DateTime(timezone=True), nullable=True)
+    firmware_version = Column(String(32), nullable=True, server_default="0.0.0")
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
     farm = relationship("Farm", back_populates="devices")
@@ -31,7 +32,6 @@ class Device(Base):
     dosing_profiles = relationship("DosingProfile", back_populates="device", cascade="all, delete-orphan")
     sensor_readings = relationship("SensorReading", back_populates="device", cascade="all, delete-orphan")
     dosing_operations = relationship("DosingOperation", back_populates="device", cascade="all, delete-orphan")
-    dosing_profiles = relationship("DosingProfile", back_populates="device", cascade="all, delete-orphan")
 class DosingProfile(Base):
     __tablename__ = "dosing_profiles"
 
@@ -146,7 +146,7 @@ class User(Base):
     role = Column(String(50), nullable=False, default="user")
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     farms = relationship("Farm", back_populates="user", cascade="all, delete-orphan")
-    
+    profile = relationship("UserProfile", back_populates="user", uselist=False, cascade="all, delete-orphan")
     
 class Farm(Base):
     __tablename__ = "farms"
@@ -189,3 +189,58 @@ class UserCamera(Base):
     camera = relationship("Camera", back_populates="users")
 
 User.cameras = relationship("UserCamera", back_populates="user", cascade="all, delete-orphan")
+
+class UserProfile(Base):
+    __tablename__ = "user_profiles"
+
+    id = Column(Integer, primary_key=True, index=True)
+    # add FK to users
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, unique=True)
+    first_name   = Column(String(50), nullable=True)
+    last_name    = Column(String(50), nullable=True)
+    phone        = Column(String(20), nullable=True)
+    address      = Column(String(256), nullable=True)
+    city         = Column(String(100), nullable=True)
+    state        = Column(String(100), nullable=True)
+    country      = Column(String(100), nullable=True)
+    postal_code  = Column(String(20), nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(),
+                         onupdate=func.now(), nullable=False)
+
+    user = relationship("User", back_populates="profile")
+
+class ActivationKey(Base):
+    __tablename__ = "activation_keys"
+    id                  = Column(Integer, primary_key=True, index=True)
+    key                 = Column(String(64), unique=True, nullable=False, index=True)
+    device_type         = Column(SQLAlchemyEnum(DeviceType), nullable=False)
+    plan_id             = Column(Integer, ForeignKey("subscription_plans.id"), nullable=False)
+    created_by          = Column(Integer, ForeignKey("users.id"), nullable=False)
+    created_at          = Column(DateTime(timezone=True), server_default=func.now())
+    redeemed            = Column(Boolean, default=False)
+    redeemed_device_id  = Column(Integer, ForeignKey("devices.id"), nullable=True)
+    redeemed_user_id    = Column(Integer, ForeignKey("users.id"), nullable=True)
+    redeemed_at         = Column(DateTime(timezone=True), nullable=True)
+    
+    plan = relationship("SubscriptionPlan", backref="activation_keys")
+class SubscriptionPlan(Base):
+    __tablename__ = "subscription_plans"
+    id            = Column(Integer, primary_key=True, index=True)
+    name          = Column(String(128), nullable=False)
+    device_types  = Column(JSON, nullable=False)   # e.g. ["dosing_unit"]
+    duration_days = Column(Integer, nullable=False) # 28 to 730
+    price_cents   = Column(Integer, nullable=False)
+    created_by    = Column(Integer, ForeignKey("users.id"), nullable=False)
+    created_at    = Column(DateTime(timezone=True), server_default=func.now())
+
+class Subscription(Base):
+    __tablename__ = "subscriptions"
+    id         = Column(Integer, primary_key=True, index=True)
+    user_id    = Column(Integer, ForeignKey("users.id"), nullable=False)
+    device_id  = Column(Integer, ForeignKey("devices.id"), nullable=False)
+    plan_id    = Column(Integer, ForeignKey("subscription_plans.id"), nullable=False)
+    start_date = Column(DateTime(timezone=True), server_default=func.now())
+    end_date   = Column(DateTime(timezone=True), nullable=False)
+    active     = Column(Boolean, default=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())

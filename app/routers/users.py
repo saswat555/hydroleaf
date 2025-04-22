@@ -17,6 +17,9 @@ async def update_my_profile(update: UserUpdate, db=Depends(get_db), current_user
     # Allow updating only permitted fields (e.g. email).
     if update.email:
         current_user.email = update.email
+    profile = current_user.profile
+    for field, value in update.dict(exclude_unset=True, exclude={"email","role"}).items():
+        setattr(profile, field, value)
     # Do NOT allow role change by the user.
     db.add(current_user)
     await db.commit()

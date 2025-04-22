@@ -26,11 +26,11 @@ async def discovery():
     return {
         "device_id": "dummy_device",
         "name": "Simulated ESP Device",
-        "type": "DOSING_MONITOR_UNIT",
-        "version": "2.1.0",
-        "status": "online",
-        "ip": "127.0.0.1"  # Simulated IP address
-    }
+        "type": "dosing_unit",            # match your DeviceType enum
+         "version": "2.1.0",
+         "status": "online",
+         "ip": "127.0.0.1"  # Simulated IP address
+     }
 
 @simulated_esp_app.post("/pump")
 async def pump(request: Request):
@@ -58,11 +58,11 @@ async def monitor():
     """
     return {
         "device_id": "dummy_device",
-        "type": "DOSING_MONITOR_UNIT",
+        "type": "dosing_unit",            # keep it consistent
         "version": "2.1.0",
         "wifi_connected": True,
-        "pH": 6.8,
-        "TDS": 750
+        "ph": 6.8,                        # lowercase keys
+        "tds": 750
     }
 
 @simulated_esp_app.post("/dose_monitor")
@@ -97,7 +97,27 @@ async def pump_calibration(request: Request):
         return {"message": "All pumps on"}
     else:
         raise HTTPException(status_code=400, detail="Invalid command")
+@simulated_esp_app.get("/state")
+async def state():
+    # simulate 4‑valve statuses
+    return {
+      "device_id": "dummy_valve",
+      "valves": [
+        {"id": 1, "state": "off"},
+        {"id": 2, "state": "off"},
+        {"id": 3, "state": "off"},
+        {"id": 4, "state": "off"},
+      ]
+    }
 
+@simulated_esp_app.post("/toggle")
+async def toggle(request: Request):
+    data = await request.json()
+    valve = data.get("valve_id")
+    if valve not in [1,2,3,4]:
+        raise HTTPException(400, "Invalid valve_id")
+    # just echo back
+    return {"device_id": "dummy_valve", "new_state": "toggled", "valve_id": valve}
 # Add a main section to run the app on port 8080.
 if __name__ == "__main__":
     uvicorn.run("simulated_esp:simulated_esp_app", host="0.0.0.0", port=8080, reload=True)

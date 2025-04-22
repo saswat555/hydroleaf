@@ -21,7 +21,7 @@ class ValveConfig(BaseModel):
     valve_id: int = Field(..., ge=1, le=4)
     name: Optional[str] = Field(None, max_length=50)
     model_config = ConfigDict(from_attributes=True)
-    
+
 class DeviceBase(BaseModel):
     mac_id: str = Field(..., max_length=64)
     name: str = Field(..., max_length=128)
@@ -201,14 +201,6 @@ class DosingCancellationRequest(BaseModel):
 
 # -------------------- User Related Schemas -------------------- #
 
-class UserResponse(BaseModel):
-    id: int
-    email: EmailStr
-    role: str
-    created_at: datetime
-
-    class Config:
-        orm_mode = True
 
 class UserUpdate(BaseModel):
     email: Optional[EmailStr] = None
@@ -250,7 +242,7 @@ class UserCreate(BaseModel):
     state: Optional[str] = Field(None, max_length=100)
     country: Optional[str] = Field(None, max_length=100)
     postal_code: Optional[str] = Field(None, max_length=20)
-    name: str = Field(..., max_length=128),  # ← extra comma makes this a tuple!
+    name: str = Field(..., max_length=128)
     location: Optional[str] = Field(None, max_length=256)
 
 
@@ -278,3 +270,55 @@ class ValveDeviceCreate(DeviceBase):
         if v != DeviceType.VALVE_CONTROLLER:
             raise ValueError("Device type must be valve_controller for ValveDeviceCreate")
         return v
+    
+class UserProfileBase(BaseModel):
+    first_name:  Optional[str] = None
+    last_name:   Optional[str] = None
+    phone:       Optional[str] = None
+    address:     Optional[str] = None
+    city:        Optional[str] = None
+    state:       Optional[str] = None
+    country:     Optional[str] = None
+    postal_code: Optional[str] = None
+
+class UserProfileCreate(UserProfileBase):
+    pass
+
+class UserProfileResponse(UserProfileBase):
+    id:         int
+    user_id:    int
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
+        orm_mode = True
+
+class UserResponse(BaseModel):
+    id: int
+    email: EmailStr
+    role: str
+    created_at: datetime
+    profile: Optional[UserProfileResponse] = None
+    class Config:
+        orm_mode = True
+
+class SubscriptionPlanCreate(BaseModel):
+    name: str
+    device_types: List[str]
+    duration_days: int
+    price_cents: int
+
+class SubscriptionResponse(BaseModel):
+    id: int
+    user_id: int
+    device_id: int
+    plan_id: int
+    start_date: datetime
+    end_date: datetime
+    active: bool
+
+    class Config:
+        orm_mode = True
+
+class ActivationKeyResponse(BaseModel):
+    activation_key: str

@@ -21,6 +21,7 @@ class Device(Base):
     location_description = Column(String(256))
     is_active = Column(Boolean, default=True)
     last_seen = Column(DateTime(timezone=True), nullable=True)
+    firmware_version = Column(String(32), nullable=True, server_default="0.0.0")
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
     farm = relationship("Farm", back_populates="devices")
@@ -32,7 +33,6 @@ class Device(Base):
     dosing_profiles = relationship("DosingProfile", back_populates="device", cascade="all, delete-orphan")
     sensor_readings = relationship("SensorReading", back_populates="device", cascade="all, delete-orphan")
     dosing_operations = relationship("DosingOperation", back_populates="device", cascade="all, delete-orphan")
-    dosing_profiles = relationship("DosingProfile", back_populates="device", cascade="all, delete-orphan")
 class DosingProfile(Base):
     __tablename__ = "dosing_profiles"
 
@@ -147,7 +147,7 @@ class User(Base):
     role = Column(String(50), nullable=False, default="user")
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     farms = relationship("Farm", back_populates="user", cascade="all, delete-orphan")
-    
+    profile = relationship("UserProfile", back_populates="user", uselist=False, cascade="all, delete-orphan")
     
 class Farm(Base):
     __tablename__ = "farms"
@@ -190,6 +190,61 @@ class UserCamera(Base):
     camera = relationship("Camera", back_populates="users")
 
 User.cameras = relationship("UserCamera", back_populates="user", cascade="all, delete-orphan")
+
+class UserProfile(Base):
+    __tablename__ = "user_profiles"
+
+    id = Column(Integer, primary_key=True, index=True)
+    # add FK to users
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, unique=True)
+    first_name   = Column(String(50), nullable=True)
+    last_name    = Column(String(50), nullable=True)
+    phone        = Column(String(20), nullable=True)
+    address      = Column(String(256), nullable=True)
+    city         = Column(String(100), nullable=True)
+    state        = Column(String(100), nullable=True)
+    country      = Column(String(100), nullable=True)
+    postal_code  = Column(String(20), nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(),
+                         onupdate=func.now(), nullable=False)
+
+    user = relationship("User", back_populates="profile")
+
+class ActivationKey(Base):
+    __tablename__ = "activation_keys"
+    id                  = Column(Integer, primary_key=True, index=True)
+    key                 = Column(String(64), unique=True, nullable=False, index=True)
+    device_type         = Column(SQLAlchemyEnum(DeviceType), nullable=False)
+    plan_id             = Column(Integer, ForeignKey("subscription_plans.id"), nullable=False)
+    created_by          = Column(Integer, ForeignKey("users.id"), nullable=False)
+    created_at          = Column(DateTime(timezone=True), server_default=func.now())
+    redeemed            = Column(Boolean, default=False)
+    redeemed_device_id  = Column(Integer, ForeignKey("devices.id"), nullable=True)
+    redeemed_user_id    = Column(Integer, ForeignKey("users.id"), nullable=True)
+    redeemed_at         = Column(DateTime(timezone=True), nullable=True)
+    
+    plan = relationship("SubscriptionPlan", backref="activation_keys")
+class SubscriptionPlan(Base):
+    __tablename__ = "subscription_plans"
+    id            = Column(Integer, primary_key=True, index=True)
+    name          = Column(String(128), nullable=False)
+    device_types  = Column(JSON, nullable=False)   # e.g. ["dosing_unit"]
+    duration_days = Column(Integer, nullable=False) # 28 to 730
+    price_cents   = Column(Integer, nullable=False)
+    created_by    = Column(Integer, ForeignKey("users.id"), nullable=False)
+    created_at    = Column(DateTime(timezone=True), server_default=func.now())
+
+class Subscription(Base):
+    __tablename__ = "subscriptions"
+    id         = Column(Integer, primary_key=True, index=True)
+    user_id    = Column(Integer, ForeignKey("users.id"), nullable=False)
+    device_id  = Column(Integer, ForeignKey("devices.id"), nullable=False)
+    plan_id    = Column(Integer, ForeignKey("subscription_plans.id"), nullable=False)
+    start_date = Column(DateTime(timezone=True), server_default=func.now())
+    end_date   = Column(DateTime(timezone=True), nullable=False)
+    active     = Column(Boolean, default=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
 
 
 ----- app/__init__.py -----
@@ -300,7 +355,27 @@ async def pump_calibration(request: Request):
         return {"message": "All pumps on"}
     else:
         raise HTTPException(status_code=400, detail="Invalid command")
+@simulated_esp_app.get("/state")
+async def state():
+    # simulate 4‑valve statuses
+    return {
+      "device_id": "dummy_valve",
+      "valves": [
+        {"id": 1, "state": "off"},
+        {"id": 2, "state": "off"},
+        {"id": 3, "state": "off"},
+        {"id": 4, "state": "off"},
+      ]
+    }
 
+@simulated_esp_app.post("/toggle")
+async def toggle(request: Request):
+    data = await request.json()
+    valve = data.get("valve_id")
+    if valve not in [1,2,3,4]:
+        raise HTTPException(400, "Invalid valve_id")
+    # just echo back
+    return {"device_id": "dummy_valve", "new_state": "toggled", "valve_id": valve}
 # Add a main section to run the app on port 8080.
 if __name__ == "__main__":
     uvicorn.run("simulated_esp:simulated_esp_app", host="0.0.0.0", port=8080, reload=True)
@@ -330,7 +405,7 @@ class ValveConfig(BaseModel):
     valve_id: int = Field(..., ge=1, le=4)
     name: Optional[str] = Field(None, max_length=50)
     model_config = ConfigDict(from_attributes=True)
-    
+
 class DeviceBase(BaseModel):
     mac_id: str = Field(..., max_length=64)
     name: str = Field(..., max_length=128)
@@ -510,14 +585,6 @@ class DosingCancellationRequest(BaseModel):
 
 # -------------------- User Related Schemas -------------------- #
 
-class UserResponse(BaseModel):
-    id: int
-    email: EmailStr
-    role: str
-    created_at: datetime
-
-    class Config:
-        orm_mode = True
 
 class UserUpdate(BaseModel):
     email: Optional[EmailStr] = None
@@ -559,7 +626,7 @@ class UserCreate(BaseModel):
     state: Optional[str] = Field(None, max_length=100)
     country: Optional[str] = Field(None, max_length=100)
     postal_code: Optional[str] = Field(None, max_length=20)
-    name: str = Field(..., max_length=128),  # ← extra comma makes this a tuple!
+    name: str = Field(..., max_length=128)
     location: Optional[str] = Field(None, max_length=256)
 
 
@@ -587,6 +654,58 @@ class ValveDeviceCreate(DeviceBase):
         if v != DeviceType.VALVE_CONTROLLER:
             raise ValueError("Device type must be valve_controller for ValveDeviceCreate")
         return v
+    
+class UserProfileBase(BaseModel):
+    first_name:  Optional[str] = None
+    last_name:   Optional[str] = None
+    phone:       Optional[str] = None
+    address:     Optional[str] = None
+    city:        Optional[str] = None
+    state:       Optional[str] = None
+    country:     Optional[str] = None
+    postal_code: Optional[str] = None
+
+class UserProfileCreate(UserProfileBase):
+    pass
+
+class UserProfileResponse(UserProfileBase):
+    id:         int
+    user_id:    int
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
+        orm_mode = True
+
+class UserResponse(BaseModel):
+    id: int
+    email: EmailStr
+    role: str
+    created_at: datetime
+    profile: Optional[UserProfileResponse] = None
+    class Config:
+        orm_mode = True
+
+class SubscriptionPlanCreate(BaseModel):
+    name: str
+    device_types: List[str]
+    duration_days: int
+    price_cents: int
+
+class SubscriptionResponse(BaseModel):
+    id: int
+    user_id: int
+    device_id: int
+    plan_id: int
+    start_date: datetime
+    end_date: datetime
+    active: bool
+
+    class Config:
+        orm_mode = True
+
+class ActivationKeyResponse(BaseModel):
+    activation_key: str
 
 ----- app/.env -----
 # .env
@@ -810,7 +929,11 @@ app.include_router(heartbeat_router, prefix="", tags=["heartbeat"])
 app.include_router(admin_router, prefix="/admin", tags=["admin"])
 app.include_router(device_comm_router, prefix=f"{API_V1_STR}/device_comm", tags=["device_comm"])
 app.include_router(cameras_router, prefix=f"{API_V1_STR}/cameras", tags=["cameras"])
-
+app.include_router(
+    device_comm_router,
+    prefix=f"{API_V1_STR}/device_comm",   # e.g. "/api/v1/device_comm"
+    tags=["device_comm"],
+)
 # Startup tasks
 @app.on_event("startup")
 async def startup_tasks():
@@ -834,14 +957,16 @@ if __name__ == "__main__":
 
 ----- app/dependencies.py -----
 # app/dependencies.py
+from datetime import datetime, timezone
 import os
 import jwt
 from fastapi import Depends, HTTPException, status
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.future import select
-from app.models import User
+from app.models import ActivationKey, Subscription, SubscriptionPlan, User
 from app.core.database import get_db
-
+bearer_scheme = HTTPBearer() 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login")
 
 async def get_current_user(token: str = Depends(oauth2_scheme), db=Depends(get_db)):
@@ -879,6 +1004,36 @@ async def get_current_admin(user: User = Depends(get_current_user)):
             detail="Admin privileges required"
         )
     return user
+
+
+async def get_current_device(
+    creds: HTTPAuthorizationCredentials = Depends(bearer_scheme),
+    db=Depends(get_db),
+):
+    key = creds.credentials
+    ak = await db.scalar(select(ActivationKey).where(ActivationKey.key == key))
+    if not ak or not ak.redeemed:
+        raise HTTPException(status_code=401, detail="Invalid or un‑redeemed device key")
+    device = await db.get(Device, ak.redeemed_device_id)
+    if not device:
+        raise HTTPException(status_code=404, detail="Device not found")
+    # check subscription
+    now = datetime.now(timezone.utc)
+    sub = await db.scalar(
+      select(Subscription)
+      .where(
+        Subscription.device_id == device.id,
+        Subscription.active == True,
+        Subscription.start_date <= now,
+        Subscription.end_date >= now
+      )
+    )
+    if not sub:
+        raise HTTPException(status_code=403, detail="No active subscription")
+    plan = await db.get(SubscriptionPlan, sub.plan_id)
+    if device.type.value not in plan.device_types:
+        raise HTTPException(status_code=403, detail="Plan does not cover this device type")
+    return device
 
 ----- app/routers/auth.py -----
 # app/routers/auth.py
@@ -932,6 +1087,21 @@ async def signup(user_create: UserCreate, db=Depends(get_db)):
     db.add(user)
     await db.commit()
     await db.refresh(user)
+    from app.models import UserProfile
+    profile = UserProfile(
+        user_id    = user.id,
+        first_name = user_create.first_name,
+        last_name  = user_create.last_name,
+        phone      = user_create.phone,
+        address    = user_create.address,
+        city       = user_create.city,
+        state      = user_create.state,
+        country    = user_create.country,
+        postal_code= user_create.postal_code
+    )
+    db.add(profile)
+    await db.commit()
+    await db.refresh(profile)
     return user
 
 
@@ -1072,6 +1242,9 @@ async def update_my_profile(update: UserUpdate, db=Depends(get_db), current_user
     # Allow updating only permitted fields (e.g. email).
     if update.email:
         current_user.email = update.email
+    profile = current_user.profile
+    for field, value in update.dict(exclude_unset=True, exclude={"email","role"}).items():
+        setattr(profile, field, value)
     # Do NOT allow role change by the user.
     db.add(current_user)
     await db.commit()
@@ -1269,6 +1442,61 @@ async def impersonate_user(
     }
 
 
+----- app/routers/admin_subscriptions.py -----
+from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.future import select
+import secrets
+from app.models import ActivationKey, SubscriptionPlan, Subscription
+from app.schemas import DeviceType, SubscriptionPlanCreate, ActivationKeyResponse
+from app.dependencies import get_current_admin
+from app.core.database import get_db
+
+router = APIRouter(prefix="/admin", tags=["admin"])
+
+@router.post("/generate_activation_key", response_model=ActivationKeyResponse)
+async def generate_activation_key(
+    device_type: DeviceType,
+    plan_id: int,
+    db: AsyncSession = Depends(get_db),
+    admin=Depends(get_current_admin)
+):
+    key = secrets.token_urlsafe(32)
+    ak = ActivationKey(
+        key=key,
+        device_type=device_type,
+        created_by=admin.id
+    )
+    plan = await db.get(SubscriptionPlan, plan_id)
+    if not plan:
+        raise HTTPException(404, "Subscription plan not found")
+
+    key = secrets.token_urlsafe(32)
+    ak = ActivationKey(
+        key=key,
+        device_type=device_type,
+        plan_id=plan_id,
+        created_by=admin.id
+     )
+    db.add(ak)
+    await db.commit()
+    return {"activation_key": key}
+
+@router.post("/subscription_plans", response_model=SubscriptionPlan)
+async def create_plan(
+    plan: SubscriptionPlanCreate,
+    db: AsyncSession = Depends(get_db),
+    admin=Depends(get_current_admin)
+):
+    if not (28 <= plan.duration_days <= 730):
+        raise HTTPException(400, "Duration must be between 28 and 730 days")
+    sp = SubscriptionPlan(**plan.model_dump(), created_by=admin.id)
+    db.add(sp)
+    await db.commit()
+    await db.refresh(sp)
+    return sp
+
+
 ----- app/routers/plants.py -----
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.logger import logger
@@ -1360,6 +1588,67 @@ async def execute_dosing(plant_id: int, db: AsyncSession = Depends(get_db)):
         actions.append({"pump": 4, "dose_ml": 5, "reasoning": "Decrease nutrients"})
     
     return {"plant_id": plant_id, "actions": actions}
+
+
+----- app/routers/subscriptions.py -----
+# app/routers/subscriptions.py
+from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy.future import select
+from sqlalchemy.ext.asyncio import AsyncSession
+from datetime import datetime, timedelta
+
+from app.models import ActivationKey, Subscription, SubscriptionPlan, Device
+from app.schemas import SubscriptionResponse  # you’ll need to define this
+from app.dependencies import get_current_user
+from app.core.database import get_db
+
+router = APIRouter(prefix="/api/v1/subscriptions", tags=["subscriptions"])
+
+@router.post("/redeem", response_model=SubscriptionResponse)
+async def redeem_key(
+    activation_key: str,
+    device_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    # 1) fetch & validate key
+    ak = await db.scalar(
+        select(ActivationKey).where(
+            ActivationKey.key == activation_key,
+            ActivationKey.redeemed == False
+        )
+    )
+    if not ak:
+        raise HTTPException(400, "Invalid or already‐used activation key")
+
+    # 2) fetch & validate device
+    device = await db.get(Device, device_id)
+    if not device or device.type != ak.device_type:
+        raise HTTPException(400, "Key does not match this device type")
+
+    # 3) mark the key redeemed
+    ak.redeemed = True
+    ak.redeemed_user_id = current_user.id
+    ak.redeemed_device_id = device_id
+    ak.redeemed_at = datetime.utcnow()
+
+    # 4) create a Subscription
+    plan = await db.get(SubscriptionPlan, ak.plan_id)
+    start = datetime.utcnow()
+    end = start + timedelta(days=plan.duration_days)
+
+    sub = Subscription(
+        user_id=current_user.id,
+        device_id=device_id,
+        plan_id=plan.id,
+        start_date=start,
+        end_date=end,
+        active=True
+    )
+    db.add_all([ak, sub])
+    await db.commit()
+    await db.refresh(sub)
+    return sub
 
 
 ----- app/routers/dosing.py -----
@@ -1709,38 +1998,30 @@ async def list_connected_devices():
 
 
 ----- app/routers/cameras.py -----
-# app/routers/cameras.py
-
 from datetime import datetime, timezone
-import mimetypes, asyncio
-from pathlib import Path
-import time
-from fastapi import APIRouter, Depends, Request, BackgroundTasks, HTTPException
-from fastapi.responses import FileResponse, StreamingResponse, JSONResponse, RedirectResponse
-from fastapi.templating import Jinja2Templates
-from requests import Session
-from sqlalchemy.ext.asyncio import AsyncSession
-from app.core.database import get_db
-from app.models import Camera, UserCamera, User
+import mimetypes
 import asyncio
-from app.utils.camera_tasks import encode_and_cleanup
-from app.core.config import DATA_ROOT, RAW_DIR, CLIPS_DIR, BOUNDARY
+import time
+from pathlib import Path
+
 import numpy as np
 import cv2
-from app.utils.image_utils import is_day, clean_frame
+from fastapi import APIRouter, Depends, Request, BackgroundTasks, HTTPException
+from fastapi.responses import FileResponse, StreamingResponse, JSONResponse
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.core.config import DATA_ROOT, RAW_DIR, CLIPS_DIR, BOUNDARY
+from app.core.database import get_db
+from app.models import Camera, User
+from app.utils.camera_tasks import encode_and_cleanup
 
 router = APIRouter()
 
-templates = Jinja2Templates(directory="app/templates")
-
 def current_user(request: Request, db=Depends(get_db)) -> User | None:
     uid = request.session.get("uid")
-    if not uid: return None
+    if not uid:
+        return None
     return db.query(User).get(uid)
-
-@router.get("/login")
-def login_form(request: Request):
-    return templates.TemplateResponse("login.html", {"request": request})
 
 async def _process_upload(
     camera_id: str,
@@ -1749,49 +2030,40 @@ async def _process_upload(
     db: AsyncSession,
     day_flag: bool
 ) -> dict:
-    """
-    Shared logic for ingesting a JPEG frame:
-    - Validate content-type
-    - Decode JPEG
-    - Clean frame (day_flag determines mode)
-    - Save raw and latest files
-    - Update camera record
-    - Schedule encoding
-    """
-    # Validate Content-Type
+    # 1) Validate content-type
     content_type = request.headers.get("content-type", "")
     if not content_type.startswith("image/"):
-        raise HTTPException(status_code=415, detail="Unsupported Media Type; expected image/jpeg")
+        raise HTTPException(415, "Unsupported Media Type; expected image/jpeg")
 
-    # Read raw bytes
+    # 2) Read & decode
     raw_bytes = await request.body()
-
-    # Decode JPEG
     arr = np.frombuffer(raw_bytes, dtype=np.uint8)
     frame = cv2.imdecode(arr, cv2.IMREAD_COLOR)
     if frame is None:
-        raise HTTPException(status_code=400, detail="Invalid JPEG data")
+        raise HTTPException(400, "Invalid JPEG data")
 
-    # Clean frame according to day/night
+    # 3) Day/night enhancement
     try:
-        cleaned = clean_frame(frame, day_flag)
-        ok, buf = cv2.imencode(".jpg", cleaned)
+        if day_flag:
+            processed = _enhance_day(frame)
+        else:
+            processed = _enhance_night(frame)
+        ok, buf = cv2.imencode(".jpg", processed)
         image_bytes = buf.tobytes() if ok else raw_bytes
     except Exception:
         image_bytes = raw_bytes
 
-    # Prepare directories
+    # 4) Save files
     base_dir = Path(DATA_ROOT) / camera_id
     raw_dir = base_dir / RAW_DIR
     raw_dir.mkdir(parents=True, exist_ok=True)
     latest_file = base_dir / "latest.jpg"
 
-    # Write files
-    timestamp = int(time.time() * 1000)
-    (raw_dir / f"{timestamp}.jpg").write_bytes(image_bytes)
+    ts = int(time.time() * 1000)
+    (raw_dir / f"{ts}.jpg").write_bytes(image_bytes)
     latest_file.write_bytes(image_bytes)
 
-    # Update DB record asynchronously
+    # 5) Update DB
     camera = await db.get(Camera, camera_id)
     if not camera:
         camera = Camera(id=camera_id, name=camera_id)
@@ -1800,108 +2072,203 @@ async def _process_upload(
     camera.last_seen = datetime.utcnow()
     await db.commit()
 
-    # Schedule background encoding
-        # Schedule background encoding in a fresh event loop
-    def _encode_wrapper(cam_id: str):
-        # this will spin up its own event loop to call the async function
-        asyncio.run(encode_and_cleanup(cam_id))
+    # 6) Schedule encoding
+    def _encode(cam: str):
+        asyncio.run(encode_and_cleanup(cam))
+    background_tasks.add_task(_encode, camera_id)
 
-    background_tasks.add_task(_encode_wrapper, camera_id)
-
-
-    return {"ok": True, "ts": timestamp, "mode": "day" if day_flag else "night"}
+    return {"ok": True, "ts": ts, "mode": "day" if day_flag else "night"}
 
 @router.post("/upload/{camera_id}/day")
 async def upload_day_frame(
-    camera_id: str,
-    request: Request,
+    camera_id: str, request: Request,
     background_tasks: BackgroundTasks,
     db: AsyncSession = Depends(get_db)
 ) -> dict:
-    """Upload and clean a frame in daytime mode"""
     return await _process_upload(camera_id, request, background_tasks, db, day_flag=True)
 
 @router.post("/upload/{camera_id}/night")
 async def upload_night_frame(
-    camera_id: str,
-    request: Request,
+    camera_id: str, request: Request,
     background_tasks: BackgroundTasks,
     db: AsyncSession = Depends(get_db)
 ) -> dict:
-    """Upload and clean a frame in nighttime mode"""
     return await _process_upload(camera_id, request, background_tasks, db, day_flag=False)
 
 @router.get("/stream/{camera_id}")
 def mjpeg_stream(camera_id: str):
-    cam_dir = Path(DATA_ROOT)/camera_id
+    cam_dir = Path(DATA_ROOT) / camera_id
     if not cam_dir.exists():
         raise HTTPException(404, "Camera not found")
+
     async def gen():
-        last = 0
+        last_mtime = 0
         while True:
-            img = cam_dir/"latest.jpg"
-            if img.exists():
-                m = img.stat().st_mtime_ns
-                if m != last:
-                    last = m
-                    data = img.read_bytes()
+            img_path = cam_dir / "latest.jpg"
+            if img_path.exists():
+                m = img_path.stat().st_mtime_ns
+                if m != last_mtime:
+                    last_mtime = m
+                    data = img_path.read_bytes()
                     yield (
                         f"--{BOUNDARY}\r\n"
                         f"Content-Type: image/jpeg\r\n"
                         f"Content-Length: {len(data)}\r\n\r\n"
-                    ).encode() + data + f"\r\n--{BOUNDARY}\r\n".encode()
+                    ).encode() + data + b"\r\n"
             await asyncio.sleep(0.05)
-    return StreamingResponse(gen(), media_type=f"multipart/x-mixed-replace; boundary={BOUNDARY}")
+
+    return StreamingResponse(gen(),
+        media_type=f"multipart/x-mixed-replace; boundary={BOUNDARY}")
 
 @router.get("/still/{camera_id}")
 def still(camera_id: str):
-    p = Path(DATA_ROOT)/camera_id/"latest.jpg"
-    if not p.exists(): raise HTTPException(404)
+    p = Path(DATA_ROOT) / camera_id / "latest.jpg"
+    if not p.exists():
+        raise HTTPException(404, "Image not found")
     return FileResponse(p, media_type="image/jpeg")
 
 @router.get("/api/clips/{camera_id}")
 def list_clips(camera_id: str):
-    clips = sorted((Path(DATA_ROOT)/camera_id/CLIPS_DIR).glob("*.mp4"),
+    clip_dir = Path(DATA_ROOT) / camera_id / CLIPS_DIR
+    clips = sorted(clip_dir.glob("*.mp4"),
                    key=lambda p: p.stat().st_mtime, reverse=True)
     out = []
     for c in clips:
         ts = int(c.stem)
-        dt = datetime.fromtimestamp(ts/1000, timezone.utc).isoformat()
-        size_mb = round(c.stat().st_size/1024/1024,2)
-        # …duration via cv2 if needed…
-        out.append({"filename":c.name,"datetime":dt,"size_mb":size_mb})
+        out.append({
+            "filename": c.name,
+            "datetime": datetime.fromtimestamp(ts/1000, timezone.utc).isoformat(),
+            "size_mb": round(c.stat().st_size / 1024**2, 2)
+        })
     return JSONResponse(out)
 
 @router.get("/clips/{camera_id}/{clip_name}")
 def serve_clip(camera_id: str, clip_name: str):
-    clip = Path(DATA_ROOT)/camera_id/CLIPS_DIR/clip_name
-    if not clip.exists(): raise HTTPException(404)
-    return FileResponse(clip, media_type=mimetypes.guess_type(clip_name)[0] or "video/mp4")
+    clip = Path(DATA_ROOT) / camera_id / CLIPS_DIR / clip_name
+    if not clip.exists():
+        raise HTTPException(404, "Clip not found")
+    mime = mimetypes.guess_type(clip_name)[0] or "video/mp4"
+    return FileResponse(clip, media_type=mime)
 
 @router.get("/api/status/{camera_id}")
 def cam_status(camera_id: str, db=Depends(get_db)):
     cam = db.query(Camera).get(camera_id)
-    if not cam: raise HTTPException(404)
-    return {"is_online":cam.is_online, "last_seen":cam.last_seen}
+    if not cam:
+        raise HTTPException(404, "Camera not registered")
+    return {"is_online": cam.is_online, "last_seen": cam.last_seen}
 
-# … plus assign‑camera HTML form & POST handler …
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Below: internal helpers for day & night enhancement
+# ─────────────────────────────────────────────────────────────────────────────
+
+def _enhance_day(frame: np.ndarray) -> np.ndarray:
+    """Apply mild color & contrast boost plus denoise for daytime."""
+    # Convert to Lab color space
+    lab = cv2.cvtColor(frame, cv2.COLOR_BGR2LAB)
+    l, a, b = cv2.split(lab)
+    # CLAHE for contrast
+    clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8,8))
+    cl = clahe.apply(l)
+    lab = cv2.merge((cl, a, b))
+    enhanced = cv2.cvtColor(lab, cv2.COLOR_LAB2BGR)
+    # Fast denoise
+    return cv2.fastNlMeansDenoisingColored(enhanced, None, 4, 4, 7, 21)
+
+def enhance_night(frame: np.ndarray) -> np.ndarray:
+    """Enhance low-light frame (grayscale focus, noise reduction)."""
+    # 1. Gamma Correction (brighten midtones)
+    # Using a lower gamma to intensify brightness in dark areas.
+    gamma = 0.5  # more aggressive brightening than 0.6
+    inv_gamma = 1.0 / gamma
+    # Create a lookup table for gamma correction
+    table = np.array([( (i/255.0) ** inv_gamma ) * 255 for i in range(256)]).astype("uint8")
+    bright = cv2.LUT(frame, table)  # apply gamma curve
+    
+    # 2. Convert to grayscale for contrast enhancement
+    gray = cv2.cvtColor(bright, cv2.COLOR_BGR2GRAY)
+    # Apply CLAHE (Adaptive histogram equalization) on the grayscale image
+    clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
+    equalized = clahe.apply(gray)
+    
+    # 3. Merge enhanced grayscale back to color (to retain some color info, if needed)
+    # We duplicate the equalized grayscale into 3 channels
+    eq_bgr = cv2.cvtColor(equalized, cv2.COLOR_GRAY2BGR)
+    # Blend the color image with the equalized grayscale image.
+    # This keeps some original color (70%) while imbuing luminance contrast from equalized image (30%).
+    merged = cv2.addWeighted(bright, 0.7, eq_bgr, 0.3, 0)
+    
+    # 4. Denoise – strong noise reduction on the merged image.
+    # Using Non-Local Means Denoising. Parameters can be tuned (h=luminance strength, hColor=color strength).
+    denoised = cv2.fastNlMeansDenoisingColored(merged, None, h=10, hColor=10, templateWindowSize=7, searchWindowSize=21)
+    
+    # 5. (Optional) Sharpening to enhance edges (unsharp mask technique)
+    # We apply a Gaussian blur and then subtract a portion of it from the denoised image.
+    blur = cv2.GaussianBlur(denoised, (0,0), sigmaX=3, sigmaY=3)
+    sharpened = cv2.addWeighted(denoised, 1.5, blur, -0.5, 0)
+    
+    # Return the final processed frame.
+    return sharpened
+
 
 
 ----- app/routers/heartbeat.py -----
-from fastapi import APIRouter, Request
+# app/routers/heartbeat.py
+
+from fastapi import APIRouter, Request, Depends
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.future import select
+from sqlalchemy import func
 from app.core.config import DEPLOYMENT_MODE
 from app.services.device_discovery import update_device
+from app.dependencies import get_current_device
+from app.core.database import get_db
+from app.models import Device, Task
 
 router = APIRouter()
 
-@router.post("/heartbeat")
-async def heartbeat(request: Request):
-    data = await request.json()
-    device_id = data.get("device_id")
-    client_ip = request.client.host  # IP address of the connecting device
+@router.post(
+    "/heartbeat",
+    dependencies=[Depends(get_current_device)],  # authenticate deviceKey → ActivationKey → Device → Subscription
+)
+async def heartbeat(
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+):
+    # 1) Parse payload
+    payload    = await request.json()
+    device_id  = payload.get("device_id")
+    fw_version = payload.get("version")
+    client_ip  = request.client.host
+
+    # 2) Presence tracking (for your LAN/CLOUD discovery)
     if DEPLOYMENT_MODE == "CLOUD" and device_id:
         update_device(device_id, client_ip)
-    return {"status": "ok"}
+
+    # 3) Update the Device row (last_seen + firmware_version)
+    result = await db.execute(select(Device).where(Device.mac_id == device_id))
+    device = result.scalar_one_or_none()
+    if device:
+        device.last_seen        = func.now()
+        device.firmware_version = fw_version
+        await db.commit()
+
+    # 4) Pull all pending “pump” tasks
+    q = await db.execute(
+        select(Task).where(
+            Task.device_id == device_id,
+            Task.status    == "pending",
+            Task.type      == "pump",
+        )
+    )
+    tasks = [t.parameters for t in q.scalars().all()]
+
+    # 5) Return exactly what the firmware is expecting
+    return {
+        "status":         "ok",
+        "status_message": "All systems nominal",
+        "tasks":          tasks,
+    }
 
 
 ----- app/routers/devices.py -----
@@ -2203,23 +2570,26 @@ async def create_valve_device(
     return new_device
 
 ----- app/routers/device_comm.py -----
-from fastapi import APIRouter, Body, Depends, HTTPException, Path, Query
+from fastapi import APIRouter, Body, Depends, HTTPException, Path, Query, Request
 from fastapi.responses import FileResponse
 import httpx
-from sqlalchemy import select
+import semver
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import DEPLOYMENT_MODE
 from app.core.database import get_db
+from app.dependencies import get_current_device
 from app.models import Device, Task
 from pydantic import BaseModel
 
 import os
 
-from app.schemas import DeviceType
+from app.schemas import DeviceType, SimpleDosingCommand
 from app.services.device_controller import DeviceController
 
-router = APIRouter()
+router = APIRouter(prefix="/api/v1/device_comm", tags=["device_comm"])
+ 
 
 
 @router.get("/pending_tasks")
@@ -2264,8 +2634,6 @@ async def pull_firmware(
         media_type="application/octet-stream",
         filename="firmware.bin"
     )
-router = APIRouter(prefix="/api/v1/device_comm", tags=["device_comm"])
-
 class ValveEventPayload(BaseModel):
     device_id: str
     valve_id: int
@@ -2330,6 +2698,106 @@ async def toggle_valve(
     db.add(task)
     await db.commit()
     return data
+
+
+def find_latest_firmware(device_type: str) -> tuple[str,str]:
+    """
+    Scan ./firmware/<device_type> for version folders,
+    return (latest_version, path_to_bin).
+    """
+    base = os.path.join("firmware", device_type)
+    if not os.path.isdir(base):
+        raise FileNotFoundError(f"No firmware folder for device type '{device_type}'")
+    versions = [d for d in os.listdir(base)
+                if os.path.isdir(os.path.join(base, d)) and semver.VersionInfo.isvalid(d)]
+    if not versions:
+        raise FileNotFoundError(f"No versioned firmware found under {base}")
+    latest = str(max(versions, key=semver.VersionInfo.parse))
+    binpath = os.path.join(base, latest, "firmware.bin")
+    if not os.path.isfile(binpath):
+        raise FileNotFoundError(f"Missing firmware.bin in {base}/{latest}")
+    return latest, binpath
+
+@router.get("/pending_tasks")
+async def get_pending_tasks(
+    device_id: str = Query(..., description="MAC ID or device identifier"),
+    db: AsyncSession = Depends(get_db)
+):
+    result = await db.execute(
+        select(Task).where(Task.device_id == device_id, Task.status == "pending")
+    )
+    return [t.to_dict() for t in result.scalars().all()]
+
+@router.post("/heartbeat", dependencies=[Depends(get_current_device)])
+async def heartbeat(request: Request, db: AsyncSession = Depends(get_db)):
+    payload = await request.json()
+    mac  = payload["device_id"]
+    dtype= payload["type"]
+    ver  = payload["version"]
+
+    # 1) update last_seen & firmware_version…
+    device = await db.scalar(select(Device).where(Device.mac_id == mac))
+    device.last_seen = func.now()
+    device.firmware_version = ver
+    await db.commit()
+
+    # 2) collect pending pump tasks
+    result = await db.execute(
+        select(Task).where(Task.device_id == mac, Task.status == "pending", Task.type == "pump")
+    )
+    tasks = [t.parameters for t in result.scalars().all()]
+
+    # 3) check for OTA
+    try:
+        latest_ver, _ = find_latest_firmware(dtype)
+        update_available = semver.compare(latest_ver, ver) > 0
+    except Exception:
+        latest_ver, update_available = ver, False
+
+    return {
+      "status":         "ok",
+      "status_message": "All systems nominal",     # or any custom message
+      "tasks":          tasks,                    # e.g. [{ "pump":1, "amount":50 }, …]
+      "update": {
+         "current":   ver,
+         "latest":    latest_ver,
+         "available": update_available
+      }
+    }
+
+
+@router.get("/update")
+async def check_for_update(device_id: str = Query(...), db: AsyncSession = Depends(get_db)):
+    device = await db.scalar(select(Device).where(Device.mac_id == device_id))
+    if not device:
+        raise HTTPException(404, "Device not registered")
+    latest, _ = find_latest_firmware(device.type.value)
+    available = semver.compare(latest, device.firmware_version or "0.0.0") > 0
+    return {"version": latest, "update_available": available}
+
+@router.get("/update/pull")
+async def pull_firmware(device_id: str = Query(...), db: AsyncSession = Depends(get_db)):
+    device = await db.scalar(select(Device).where(Device.mac_id == device_id))
+    latest, path = find_latest_firmware(device.type.value)
+    return FileResponse(path, media_type="application/octet-stream", filename=f"{device.type.value}-{latest}.bin")
+
+
+@router.post("/tasks", summary="Enqueue a dosing task")
+async def enqueue_pump(
+    body: SimpleDosingCommand,                # from your schemas: { pump:int, amount:float }
+    device_id: str = Query(...),
+    db: AsyncSession = Depends(get_db),
+):
+    task = Task(
+      device_id = device_id,
+      type      = "pump",
+      parameters= { "pump": body.pump, "amount": body.amount },
+      status    = "pending"
+    )
+    db.add(task)
+    await db.commit()
+    return {"message": "Pump task enqueued", "task": task.to_dict()}
+
 
 ----- app/core/config.py -----
 import os
@@ -3613,6 +4081,23 @@ class DeviceController:
 
         return None
 
+    async def get_version(self) -> str:
+        """
+        Try /version first, fallback to /discovery.
+        """
+        async with httpx.AsyncClient(timeout=self.request_timeout) as client:
+            url = await self._build_url("version")
+            try:
+                res = await client.get(url)
+                if res.status_code == 200:
+                    data = res.json()
+                    # assume { version: "x.y.z" }
+                    return data.get("version")
+            except Exception:
+                pass
+            # fallback
+            disc = await self.discover()
+            return disc.get("version") if disc else None
 
     async def get_sensor_readings(self) -> Dict:
         """

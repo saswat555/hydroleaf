@@ -55,6 +55,23 @@ class DeviceController:
 
         return None
 
+    async def get_version(self) -> str:
+        """
+        Try /version first, fallback to /discovery.
+        """
+        async with httpx.AsyncClient(timeout=self.request_timeout) as client:
+            url = await self._build_url("version")
+            try:
+                res = await client.get(url)
+                if res.status_code == 200:
+                    data = res.json()
+                    # assume { version: "x.y.z" }
+                    return data.get("version")
+            except Exception:
+                pass
+            # fallback
+            disc = await self.discover()
+            return disc.get("version") if disc else None
 
     async def get_sensor_readings(self) -> Dict:
         """

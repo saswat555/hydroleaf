@@ -1,20 +1,23 @@
-from fastapi import APIRouter, Body, Depends, HTTPException, Path, Query
+from fastapi import APIRouter, Body, Depends, HTTPException, Path, Query, Request
 from fastapi.responses import FileResponse
 import httpx
-from sqlalchemy import select
+import semver
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import DEPLOYMENT_MODE
 from app.core.database import get_db
+from app.dependencies import get_current_device
 from app.models import Device, Task
 from pydantic import BaseModel
 
 import os
 
-from app.schemas import DeviceType
+from app.schemas import DeviceType, SimpleDosingCommand
 from app.services.device_controller import DeviceController
 
-router = APIRouter()
+router = APIRouter(prefix="/api/v1/device_comm", tags=["device_comm"])
+ 
 
 
 @router.get("/pending_tasks")
@@ -59,8 +62,6 @@ async def pull_firmware(
         media_type="application/octet-stream",
         filename="firmware.bin"
     )
-router = APIRouter(prefix="/api/v1/device_comm", tags=["device_comm"])
-
 class ValveEventPayload(BaseModel):
     device_id: str
     valve_id: int
@@ -125,3 +126,102 @@ async def toggle_valve(
     db.add(task)
     await db.commit()
     return data
+
+
+def find_latest_firmware(device_type: str) -> tuple[str,str]:
+    """
+    Scan ./firmware/<device_type> for version folders,
+    return (latest_version, path_to_bin).
+    """
+    base = os.path.join("firmware", device_type)
+    if not os.path.isdir(base):
+        raise FileNotFoundError(f"No firmware folder for device type '{device_type}'")
+    versions = [d for d in os.listdir(base)
+                if os.path.isdir(os.path.join(base, d)) and semver.VersionInfo.isvalid(d)]
+    if not versions:
+        raise FileNotFoundError(f"No versioned firmware found under {base}")
+    latest = str(max(versions, key=semver.VersionInfo.parse))
+    binpath = os.path.join(base, latest, "firmware.bin")
+    if not os.path.isfile(binpath):
+        raise FileNotFoundError(f"Missing firmware.bin in {base}/{latest}")
+    return latest, binpath
+
+@router.get("/pending_tasks")
+async def get_pending_tasks(
+    device_id: str = Query(..., description="MAC ID or device identifier"),
+    db: AsyncSession = Depends(get_db)
+):
+    result = await db.execute(
+        select(Task).where(Task.device_id == device_id, Task.status == "pending")
+    )
+    return [t.to_dict() for t in result.scalars().all()]
+
+@router.post("/heartbeat", dependencies=[Depends(get_current_device)])
+async def heartbeat(request: Request, db: AsyncSession = Depends(get_db)):
+    payload = await request.json()
+    mac  = payload["device_id"]
+    dtype= payload["type"]
+    ver  = payload["version"]
+
+    # 1) update last_seen & firmware_version…
+    device = await db.scalar(select(Device).where(Device.mac_id == mac))
+    device.last_seen = func.now()
+    device.firmware_version = ver
+    await db.commit()
+
+    # 2) collect pending pump tasks
+    result = await db.execute(
+        select(Task).where(Task.device_id == mac, Task.status == "pending", Task.type == "pump")
+    )
+    tasks = [t.parameters for t in result.scalars().all()]
+
+    # 3) check for OTA
+    try:
+        latest_ver, _ = find_latest_firmware(dtype)
+        update_available = semver.compare(latest_ver, ver) > 0
+    except Exception:
+        latest_ver, update_available = ver, False
+
+    return {
+      "status":         "ok",
+      "status_message": "All systems nominal",     # or any custom message
+      "tasks":          tasks,                    # e.g. [{ "pump":1, "amount":50 }, …]
+      "update": {
+         "current":   ver,
+         "latest":    latest_ver,
+         "available": update_available
+      }
+    }
+
+
+@router.get("/update")
+async def check_for_update(device_id: str = Query(...), db: AsyncSession = Depends(get_db)):
+    device = await db.scalar(select(Device).where(Device.mac_id == device_id))
+    if not device:
+        raise HTTPException(404, "Device not registered")
+    latest, _ = find_latest_firmware(device.type.value)
+    available = semver.compare(latest, device.firmware_version or "0.0.0") > 0
+    return {"version": latest, "update_available": available}
+
+@router.get("/update/pull")
+async def pull_firmware(device_id: str = Query(...), db: AsyncSession = Depends(get_db)):
+    device = await db.scalar(select(Device).where(Device.mac_id == device_id))
+    latest, path = find_latest_firmware(device.type.value)
+    return FileResponse(path, media_type="application/octet-stream", filename=f"{device.type.value}-{latest}.bin")
+
+
+@router.post("/tasks", summary="Enqueue a dosing task")
+async def enqueue_pump(
+    body: SimpleDosingCommand,                # from your schemas: { pump:int, amount:float }
+    device_id: str = Query(...),
+    db: AsyncSession = Depends(get_db),
+):
+    task = Task(
+      device_id = device_id,
+      type      = "pump",
+      parameters= { "pump": body.pump, "amount": body.amount },
+      status    = "pending"
+    )
+    db.add(task)
+    await db.commit()
+    return {"message": "Pump task enqueued", "task": task.to_dict()}

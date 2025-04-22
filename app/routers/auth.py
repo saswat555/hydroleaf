@@ -49,4 +49,19 @@ async def signup(user_create: UserCreate, db=Depends(get_db)):
     db.add(user)
     await db.commit()
     await db.refresh(user)
+    from app.models import UserProfile
+    profile = UserProfile(
+        user_id    = user.id,
+        first_name = user_create.first_name,
+        last_name  = user_create.last_name,
+        phone      = user_create.phone,
+        address    = user_create.address,
+        city       = user_create.city,
+        state      = user_create.state,
+        country    = user_create.country,
+        postal_code= user_create.postal_code
+    )
+    db.add(profile)
+    await db.commit()
+    await db.refresh(profile)
     return user

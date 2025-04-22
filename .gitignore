@@ -11,7 +11,7 @@ env/
 # Database files
 *.sqlite3
 *.db
-
+code.txt
 data/
 # Logs
 *.log

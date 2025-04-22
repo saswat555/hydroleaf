@@ -195,7 +195,11 @@ app.include_router(heartbeat_router, prefix="", tags=["heartbeat"])
 app.include_router(admin_router, prefix="/admin", tags=["admin"])
 app.include_router(device_comm_router, prefix=f"{API_V1_STR}/device_comm", tags=["device_comm"])
 app.include_router(cameras_router, prefix=f"{API_V1_STR}/cameras", tags=["cameras"])
-
+app.include_router(
+    device_comm_router,
+    prefix=f"{API_V1_STR}/device_comm",   # e.g. "/api/v1/device_comm"
+    tags=["device_comm"],
+)
 # Startup tasks
 @app.on_event("startup")
 async def startup_tasks():
