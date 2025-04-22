@@ -6,7 +6,7 @@ from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.future import select
-from app.models import ActivationKey, Subscription, SubscriptionPlan, User
+from app.models import ActivationKey, Device, Subscription, SubscriptionPlan, User
 from app.core.database import get_db
 bearer_scheme = HTTPBearer() 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login")
