@@ -15,6 +15,7 @@ from app.models import Device, User
 from app.dependencies import get_current_user
 from app.core.database import get_db
 from app.services.device_controller import DeviceController
+from app.services.device_discovery import assign_unique_device_key
 from app.services.llm import getSensorData
 from app.schemas import (
     DosingDeviceCreate,
@@ -151,6 +152,14 @@ async def check_device_connection(
         "ip": device_info.get("ip")
     }
     return formatted_device
+    
+
+@router.post("/assign_unique_key/{device_id}")
+async def assign_key_to_device(device_id: int, db: AsyncSession = Depends(get_db)):
+    """
+    Endpoint to assign a unique key to the device.
+    """
+    return await assign_unique_device_key(device_id, db)
 
 @router.post("/dosing", response_model=DeviceResponse)
 async def create_dosing_device(
@@ -161,7 +170,7 @@ async def create_dosing_device(
     try:
         endpoint = device.http_endpoint
         if not endpoint.startswith("http"):
-            endpoint = f"http://localhost/{endpoint}"
+            endpoint = f"http://{endpoint}"
         controller = DeviceController(device_ip=endpoint)
         discovered_device = await controller.discover()
         if not discovered_device:

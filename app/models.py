@@ -14,6 +14,7 @@ class Device(Base):
     user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
     farm_id = Column(Integer, ForeignKey("farms.id"), nullable=True)
     mac_id = Column(String(64), unique=True, nullable=False)
+    unique_key = Column(String, unique=True, nullable=True)
     name = Column(String(128), nullable=False)
     type = Column(SQLAlchemyEnum(DeviceType), nullable=False)
     http_endpoint = Column(String(256), nullable=False, unique=True)

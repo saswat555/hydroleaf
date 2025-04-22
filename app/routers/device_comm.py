@@ -71,7 +71,6 @@ async def valve_event(
     payload: ValveEventPayload,
     db: AsyncSession = Depends(get_db)
 ):
-    # Store it as a pending task (or log for admin)
     task = Task(
         device_id=payload.device_id,
         type="valve_event",

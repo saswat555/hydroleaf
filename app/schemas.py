@@ -54,12 +54,14 @@ class SensorDeviceCreate(DeviceBase):
 
 class DeviceResponse(DeviceBase):
     id: int
+    mac_id: str
     created_at: datetime
     updated_at: datetime
     is_active: bool
     last_seen: Optional[datetime] = None
     pump_configurations: Optional[List[PumpConfig]] = None
     sensor_parameters: Optional[Dict[str, str]] = None
+    unique_key: Optional[str]
 
     model_config = ConfigDict(from_attributes=True)
 

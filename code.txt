@@ -609,7 +609,7 @@ MODEL_NAME_1_5B=deepseek-r1:1.5b
 MODEL_NAME_7B=deepseek-r1:7b
 USE_OLLAMA="false"
 
-SERPER_API_KEY=31e32e860200a40a198e1464a2d3fc3eee6da6d0
+SERPER_API_KEY=f023fae80f6f95ff64e6ee0b34b0cec0de43ab4a
 
 
 ----- app/main.py -----
