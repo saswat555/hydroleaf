@@ -43,7 +43,7 @@ async def create_admin(email: str, password: str):
 
 def main():
     # Initialize the database
-    asyncio.run(init_db())
+    init_db()
     email = input("Enter admin email: ")
     password = getpass("Enter admin password: ")
     asyncio.run(create_admin(email, password))
