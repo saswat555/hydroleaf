@@ -1,8 +1,11 @@
+from datetime import timezone
+import datetime
 import json
 import os
 import ipaddress
 import asyncio
 import socket
+from typing import List
 import httpx
 import logging
 from fastapi import APIRouter, HTTPException, Depends, Query, Request,  WebSocket
@@ -11,7 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 import re
 from app.core.config import DEPLOYMENT_MODE  # e.g. "LAN" or "CLOUD"
-from app.models import Device, User
+from app.models import Device, Subscription, User
 from app.dependencies import get_current_user
 from app.core.database import get_db
 from app.services.device_controller import DeviceController
@@ -294,3 +297,29 @@ async def create_valve_device(
     await session.commit()
     await session.refresh(new_device)
     return new_device
+
+@router.get(
+    "/my",
+    response_model=List[DeviceResponse],
+    summary="List my active devices (with valid subscription)"
+)
+async def list_my_devices(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    now = datetime.now(timezone.utc)
+    # only devices I own *and* that have an active subscription right now
+    q = (
+        select(Device)
+        .join(Subscription, Subscription.device_id == Device.id)
+        .where(
+            Device.user_id == current_user.id,
+            Device.is_active == True,
+            Subscription.active == True,
+            Subscription.start_date <= now,
+            Subscription.end_date >= now,
+        )
+        .distinct()
+    )
+    result = await db.execute(q)
+    return result.scalars().all()

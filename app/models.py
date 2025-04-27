@@ -6,7 +6,7 @@ from sqlalchemy.sql import func
 from datetime import datetime, timezone
 from app.core.database import Base
 from app.schemas import DeviceType
-
+from enum import Enum
 class Device(Base):
     __tablename__ = "devices"
 
@@ -61,11 +61,15 @@ class DosingProfile(Base):
 class Task(Base):
     __tablename__ = "tasks"
     id = Column(Integer, primary_key=True, index=True)
-    device_id = Column(String, index=True)
+    device_id = Column(String, index=True, nullable=False)  # mac_id of the device
     type = Column(String)  # e.g., 'pump', 'reset'
     parameters = Column(JSON)
     status = Column(String, default="pending")  
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        nullable=False
+    )
 
     def to_dict(self):
         return {
@@ -222,8 +226,13 @@ class ActivationKey(Base):
     redeemed_device_id  = Column(Integer, ForeignKey("devices.id"), nullable=True)
     redeemed_user_id    = Column(Integer, ForeignKey("users.id"), nullable=True)
     redeemed_at         = Column(DateTime(timezone=True), nullable=True)
-    
+    allowed_device_id   = Column(Integer, ForeignKey("devices.id"), nullable=True)
     plan = relationship("SubscriptionPlan", backref="activation_keys")
+    allowed_device = relationship(
+        "Device",
+        foreign_keys=[allowed_device_id],
+        backref="allowed_activation_keys",
+    )
 class SubscriptionPlan(Base):
     __tablename__ = "subscription_plans"
     id            = Column(Integer, primary_key=True, index=True)
@@ -244,3 +253,52 @@ class Subscription(Base):
     end_date   = Column(DateTime(timezone=True), nullable=False)
     active     = Column(Boolean, default=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+
+class PaymentStatus(str, Enum):
+    PENDING    = "pending"
+    PROCESSING = "processing"
+    COMPLETED  = "completed"
+    FAILED     = "failed"
+
+class PaymentOrder(Base):
+    __tablename__ = "payment_orders"
+
+    id                 = Column(Integer, primary_key=True, index=True)
+    user_id            = Column(Integer, ForeignKey("users.id"), nullable=False)
+    device_id          = Column(Integer, ForeignKey("devices.id"), nullable=False)
+    plan_id            = Column(Integer, ForeignKey("subscription_plans.id"), nullable=False)
+    amount_cents       = Column(Integer, nullable=False)
+    status             = Column(SQLAlchemyEnum(PaymentStatus), default=PaymentStatus.PENDING, nullable=False)
+    upi_transaction_id = Column(String(64), nullable=True)
+    created_at         = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at         = Column(DateTime(timezone=True), server_default=func.now(),
+                                onupdate=func.now(), nullable=False)
+
+    # Relationships
+    user   = relationship("User", back_populates="payment_orders")
+    device = relationship("Device")
+    plan   = relationship("SubscriptionPlan")
+
+# back-populate in User
+User.payment_orders = relationship(
+     "PaymentOrder",
+     back_populates="user",
+     cascade="all, delete-orphan",
+ )
+
+
+
+class DetectionRecord(Base):
+    __tablename__ = "detection_records"
+
+    id          = Column(Integer, primary_key=True, index=True)
+    camera_id   = Column(String(64), ForeignKey("cameras.id", ondelete="CASCADE"), nullable=False)
+    object_name = Column(String(100), nullable=False)
+    timestamp   = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False)
+
+# back-populate on Camera
+Camera.detection_records = relationship(
+    "DetectionRecord", back_populates="camera", cascade="all, delete-orphan"
+)
+DetectionRecord.camera = relationship("Camera", back_populates="detection_records")

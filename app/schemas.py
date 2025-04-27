@@ -322,3 +322,56 @@ class SubscriptionResponse(BaseModel):
 
 class ActivationKeyResponse(BaseModel):
     activation_key: str
+
+class SubscriptionPlanResponse(BaseModel):
+    id: int
+    name: str
+    device_types: List[str]
+    duration_days: int
+    price_cents: int
+    created_by: int
+    created_at: datetime
+
+    class Config:
+        orm_mode = True
+from enum import Enum
+
+class PaymentStatus(str, Enum):
+    PENDING    = "pending"
+    PROCESSING = "processing"
+    COMPLETED  = "completed"
+    FAILED     = "failed"
+
+class CreatePaymentRequest(BaseModel):
+    device_id: int
+    plan_id:   int
+
+class ConfirmPaymentRequest(BaseModel):
+    upi_transaction_id: str = Field(..., max_length=64)
+
+class PaymentOrderResponse(BaseModel):
+    id:                 int
+    user_id:            int
+    device_id:          int
+    plan_id:            int
+    amount_cents:       int
+    status:             PaymentStatus
+    upi_transaction_id: Optional[str]
+    qr_code_url:        Optional[str]
+    created_at:         datetime
+    updated_at:         datetime
+
+    class Config:
+        orm_mode = True
+
+from datetime import datetime
+from typing import List
+
+class DetectionRange(BaseModel):
+    object_name: str
+    start_time: datetime
+    end_time: datetime
+
+class CameraReportResponse(BaseModel):
+    camera_id: str
+    detections: List[DetectionRange]

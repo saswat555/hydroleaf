@@ -11,13 +11,15 @@ from .auth          import router as auth_router
 from .users         import router as users_router
 from .admin_users   import router as admin_users_router
 from .device_comm   import router as device_comm_router
-from .heartbeat     import router as heartbeat_router
 from .admin         import router as admin_router
 from .cameras       import router as cameras_router
+# in routers/__init__.py
+from .subscriptions import router as subscriptions_router
+from .admin_subscriptions import router as admin_subscriptions_router
 
 __all__ = [
     "devices_router", "dosing_router", "config_router", "plants_router",
     "supply_chain_router", "farms_router", "cloud_router", "auth_router",
     "users_router", "admin_users_router", "device_comm_router",
-    "heartbeat_router", "admin_router", "cameras_router",
+    "heartbeat_router", "admin_router", "cameras_router","subscriptions_router","admin_subscriptions_router"
 ]

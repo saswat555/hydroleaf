@@ -45,6 +45,11 @@ def _encode_and_cleanup_sync(cam_id: str):
         vw.release()
     # prune old clips
     cutoff = datetime.now(timezone.utc) - timedelta(days=RETENTION_DAYS)
+    # raw frames
+    for frame_file in raw_dir.glob("*.jpg"):
+        if datetime.fromtimestamp(frame_file.stat().st_mtime, timezone.utc) < cutoff:
+            frame_file.unlink(missing_ok=True)
+    # clip files
     for clip in clips_dir.glob("*.mp4"):
         if datetime.fromtimestamp(clip.stat().st_mtime, timezone.utc) < cutoff:
             clip.unlink(missing_ok=True)

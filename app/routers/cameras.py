@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 import mimetypes
 import asyncio
 import time
@@ -10,11 +10,12 @@ from fastapi import APIRouter, Depends, Request, BackgroundTasks, HTTPException
 from fastapi.responses import FileResponse, StreamingResponse, JSONResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.config import DATA_ROOT, RAW_DIR, CLIPS_DIR, BOUNDARY
+from app.core.config import CAM_EVENT_GAP_SECONDS, DATA_ROOT, RAW_DIR, CLIPS_DIR, BOUNDARY
 from app.core.database import get_db
-from app.models import Camera, User
+from app.models import Camera, DetectionRecord, User
+from app.schemas import CameraReportResponse, DetectionRange
 from app.utils.camera_tasks import encode_and_cleanup
-
+from app.utils.camera_queue import camera_queue
 router = APIRouter()
 
 def current_user(request: Request, db=Depends(get_db)) -> User | None:
@@ -47,7 +48,7 @@ async def _process_upload(
         if day_flag:
             processed = _enhance_day(frame)
         else:
-            processed = _enhance_night(frame)
+            processed = enhance_night(frame)
         ok, buf = cv2.imencode(".jpg", processed)
         image_bytes = buf.tobytes() if ok else raw_bytes
     except Exception:
@@ -77,6 +78,14 @@ async def _process_upload(
         asyncio.run(encode_and_cleanup(cam))
     background_tasks.add_task(_encode, camera_id)
 
+    # 7) Schedule YOLO detection
+    # we pass the saved `latest.jpg` for detection
+    latest_file = base_dir / "latest.jpg"
+    # enqueue for async processing
+    background_tasks.add_task(
+        lambda cid, fp: asyncio.get_event_loop().create_task(camera_queue.enqueue(cid, Path(fp))),
+        camera_id, str(latest_file)
+    )
     return {"ok": True, "ts": ts, "mode": "day" if day_flag else "night"}
 
 @router.post("/upload/{camera_id}/day")
@@ -210,3 +219,43 @@ def enhance_night(frame: np.ndarray) -> np.ndarray:
     # Return the final processed frame.
     return sharpened
 
+@router.get("/api/report/{camera_id}", response_model=CameraReportResponse)
+async def get_camera_report(camera_id: str, db: AsyncSession = Depends(get_db)):
+    """
+    Return for each object detected on this camera a list of { start_time, end_time }
+    where consecutive detections within CAM_EVENT_GAP_SECONDS are merged.
+    """
+    q      = await db.execute(
+        np.select(DetectionRecord)
+        .where(DetectionRecord.camera_id == camera_id)
+        .order_by(DetectionRecord.timestamp)
+    )
+    records = q.scalars().all()
+    grouped = {}  # object_name → list of ranges
+
+    gap = timedelta(seconds=CAM_EVENT_GAP_SECONDS)
+
+    for rec in records:
+        lst = grouped.setdefault(rec.object_name, [])
+        if not lst:
+            lst.append({"start": rec.timestamp, "end": rec.timestamp})
+        else:
+            last = lst[-1]
+            if rec.timestamp - last["end"] <= gap:
+                last["end"] = rec.timestamp
+            else:
+                lst.append({"start": rec.timestamp, "end": rec.timestamp})
+
+    # Flatten into Pydantic list
+    detections = []
+    for obj, ranges in grouped.items():
+        for r in ranges:
+            detections.append(
+                DetectionRange(
+                    object_name=obj,
+                    start_time=r["start"],
+                    end_time=r["end"]
+                )
+            )
+
+    return CameraReportResponse(camera_id=camera_id, detections=detections)

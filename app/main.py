@@ -5,8 +5,10 @@ import logging
 import asyncio
 from pathlib import Path
 from datetime import datetime, timezone
-
+from app.utils.camera_queue import camera_queue
 from fastapi import FastAPI, HTTPException, Request, status
+from fastapi import BackgroundTasks, Query, Depends
+from sqlalchemy.ext.asyncio import AsyncSession
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.sessions import SessionMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -24,13 +26,13 @@ from app.routers import (
     devices_router, dosing_router, config_router,
     farms_router, plants_router, supply_chain_router,
     cloud_router, users_router, admin_users_router,
-    auth_router, device_comm_router, heartbeat_router,
-    admin_router, cameras_router
+    auth_router, device_comm_router,
+    admin_router, cameras_router, subscriptions_router, admin_subscriptions_router
 )
 from app.routers.cameras import upload_day_frame, upload_night_frame
-from app.simulated_esp import simulated_esp_app
 from app.utils.camera_tasks import offline_watcher
-
+from app.routers.cameras import _process_upload
+from app.core.database import get_db
 # Logging setup
 logging.basicConfig(
     level=logging.INFO,
@@ -90,7 +92,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
-app.mount("/simulated_esp", simulated_esp_app)
 
 templates = Jinja2Templates(directory="app/templates")
 
@@ -182,7 +183,6 @@ async def exc_handler(request: Request, exc: Exception):
 
 # Include routers
 app.include_router(admin_users_router, prefix=f"{API_V1_STR}/admin/users", tags=["admin-users"])
-app.include_router(users_router, prefix=f"{API_V1_STR}/users", tags=["users"])
 app.include_router(auth_router, prefix=f"{API_V1_STR}/auth", tags=["auth"])
 app.include_router(devices_router, prefix=f"{API_V1_STR}/devices", tags=["devices"])
 app.include_router(dosing_router, prefix=f"{API_V1_STR}/dosing", tags=["dosing"])
@@ -191,16 +191,11 @@ app.include_router(plants_router, prefix=f"{API_V1_STR}/plants", tags=["plants"]
 app.include_router(farms_router, prefix=f"{API_V1_STR}/farms", tags=["farms"])
 app.include_router(supply_chain_router, prefix=f"{API_V1_STR}/supply_chain", tags=["supply_chain"])
 app.include_router(cloud_router, prefix=f"{API_V1_STR}/cloud", tags=["cloud"])
-app.include_router(heartbeat_router, prefix="", tags=["heartbeat"])
 app.include_router(admin_router, prefix="/admin", tags=["admin"])
 app.include_router(device_comm_router, prefix=f"{API_V1_STR}/device_comm", tags=["device_comm"])
 app.include_router(cameras_router, prefix=f"{API_V1_STR}/cameras", tags=["cameras"])
-app.include_router(
-    device_comm_router,
-    prefix=f"{API_V1_STR}/device_comm",   # e.g. "/api/v1/device_comm"
-    tags=["device_comm"],
-)
-# Startup tasks
+app.include_router(subscriptions_router, prefix=f"{API_V1_STR}/subscriptions", tags=["subscriptions"])
+app.include_router(admin_subscriptions_router, prefix="/admin/subscriptions", tags=["admin-subscriptions"])# Startup tasks
 @app.on_event("startup")
 async def startup_tasks():
     asyncio.create_task(
@@ -209,7 +204,24 @@ async def startup_tasks():
             interval_seconds=OFFLINE_TIMEOUT / 2,
         )
     )
-
+    asyncio.create_task(offline_watcher(db_factory=AsyncSessionLocal, interval_seconds=OFFLINE_TIMEOUT/2))
+    # 2) start YOLO detection workers
+    camera_queue.start_workers()
+@app.post("/upload", summary="Legacy camera firmware: send a frame")
+async def legacy_camera_upload(
+    request: Request,
+    background_tasks: BackgroundTasks,
+    camera_id: str = Query(..., description="Camera ID"),
+    db: AsyncSession = Depends(get_db),
+):
+    # firmware signals night mode by header X-Night: true
+    day_flag = request.headers.get("X-Night", "").lower() != "true"
+    try:
+        return await _process_upload(camera_id, request, background_tasks, db, day_flag=day_flag)
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Upload failed: {exc}")
 # Run server
 if __name__ == "__main__":
     uvicorn.run(
