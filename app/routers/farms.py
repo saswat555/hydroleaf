@@ -8,7 +8,7 @@ from app.models import Farm, User
 from app.schemas import FarmCreate, FarmResponse
 from app.dependencies import get_current_user
 
-router = APIRouter(prefix="/api/v1/farms", tags=["farms"])
+router = APIRouter(tags=["farms"])
 
 @router.post("/", response_model=FarmResponse)
 async def create_farm(farm: FarmCreate, db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):

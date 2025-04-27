@@ -25,7 +25,7 @@ def get_password_hash(password):
 async def login(form_data: OAuth2PasswordRequestForm = Depends(), db=Depends(get_db)):
     # Retrieve user by email
     result = await db.execute(select(User).where(User.email == form_data.username))
-    user = result.scalar_one_or_none()
+    user = result.unique().scalar_one_or_none()
     if not user or not verify_password(form_data.password, user.hashed_password):
         raise HTTPException(status_code=400, detail="Invalid credentials")
     
@@ -41,7 +41,7 @@ async def login(form_data: OAuth2PasswordRequestForm = Depends(), db=Depends(get
 async def signup(user_create: UserCreate, db=Depends(get_db)):
     # Check if email exists
     result = await db.execute(select(User).where(User.email == user_create.email))
-    if result.scalar_one_or_none():
+    if result.unique().scalar_one_or_none():
         raise HTTPException(status_code=400, detail="Email already registered")
     
     hashed_pw = get_password_hash(user_create.password)
@@ -64,4 +64,5 @@ async def signup(user_create: UserCreate, db=Depends(get_db)):
     db.add(profile)
     await db.commit()
     await db.refresh(profile)
+    await db.refresh(user)
     return user

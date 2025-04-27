@@ -1,3 +1,4 @@
+import asyncio
 import logging
 from typing import Dict, List, AsyncGenerator
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
@@ -33,12 +34,9 @@ Base = declarative_base()
 
 from alembic.config import Config
 from alembic import command
-async def init_db():
-    alembic_cfg = Config("alembic.ini")
-    command.upgrade(alembic_cfg, "head")
 
 async def get_db() -> AsyncGenerator[AsyncSession, None]:
-    """Get database session"""
+    """Yield a database session."""
     async with AsyncSessionLocal() as session:
         try:
             yield session
@@ -49,45 +47,27 @@ async def check_db_connection() -> Dict:
     """Check SQLite database connection and status"""
     try:
         async with AsyncSessionLocal() as session:
-            # Test basic connectivity
             result = await session.execute(text("SELECT 1"))
-            value = result.scalar()
-            
-            # Get table information
+            _ = result.scalar()
             tables_result = await session.execute(
                 text("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'")
             )
             existing_tables = [row[0] for row in tables_result.fetchall()]
-            
-            # Expected tables
-            expected_tables = [
-                'devices',
-                'dosing_profiles',
-                'sensor_readings',
-                'dosing_operations'
-            ]
-            
-            missing_tables = set(expected_tables) - set(existing_tables)
-            
+            expected = ['devices','dosing_profiles','sensor_readings','dosing_operations']
+            missing = set(expected) - set(existing_tables)
             return {
                 "status": "connected",
                 "type": "sqlite",
                 "tables": {
                     "existing": existing_tables,
-                    "missing": list(missing_tables),
-                    "status": "complete" if not missing_tables else "incomplete"
+                    "missing": list(missing),
+                    "status": "complete" if not missing else "incomplete"
                 },
                 "error": None
             }
-            
     except Exception as e:
         logger.error(f"Database connection check failed: {e}")
-        return {
-            "status": "error",
-            "type": "sqlite",
-            "tables": None,
-            "error": str(e)
-        }
+        return {"status": "error", "type": "sqlite", "tables": None, "error": str(e)}
 
 async def get_table_stats() -> Dict:
     """Get row counts for SQLite tables"""

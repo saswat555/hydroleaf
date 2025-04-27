@@ -1,7 +1,8 @@
-from pydantic import BaseModel, Field, ConfigDict, field_validator, EmailStr
+from enum import Enum
 from typing import Optional, List, Dict
 from datetime import datetime
-from enum import Enum
+
+from pydantic import BaseModel, Field, ConfigDict, field_validator, EmailStr
 
 # -------------------- Device Related Schemas -------------------- #
 
@@ -17,9 +18,11 @@ class PumpConfig(BaseModel):
     chemical_description: Optional[str] = Field(None, max_length=200)
 
     model_config = ConfigDict(from_attributes=True)
+
 class ValveConfig(BaseModel):
     valve_id: int = Field(..., ge=1, le=4)
     name: Optional[str] = Field(None, max_length=50)
+
     model_config = ConfigDict(from_attributes=True)
 
 class DeviceBase(BaseModel):
@@ -29,6 +32,7 @@ class DeviceBase(BaseModel):
     http_endpoint: str = Field(..., max_length=256)
     location_description: Optional[str] = Field(None, max_length=256)
     farm_id: Optional[int] = None
+
     model_config = ConfigDict(from_attributes=True)
     valve_configurations: Optional[List[ValveConfig]] = None
 
@@ -152,8 +156,7 @@ class PlantResponse(PlantBase):
     created_at: datetime
     updated_at: datetime
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 # -------------------- Supply Chain Related Schemas -------------------- #
 
@@ -201,13 +204,12 @@ class DosingCancellationRequest(BaseModel):
 
 # -------------------- User Related Schemas -------------------- #
 
-
 class UserUpdate(BaseModel):
     email: Optional[EmailStr] = None
-    # Production-level user updates include profile fields.
     first_name: Optional[str] = Field(None, max_length=50)
     last_name: Optional[str] = Field(None, max_length=50)
     phone: Optional[str] = Field(None, max_length=20)
+    role: Optional[str] = None
     address: Optional[str] = Field(None, max_length=256)
     city: Optional[str] = Field(None, max_length=100)
     state: Optional[str] = Field(None, max_length=100)
@@ -220,17 +222,17 @@ class UserProfile(BaseModel):
     role: str
     first_name: str = Field(..., max_length=50)
     last_name: str = Field(..., max_length=50)
-    phone: Optional[str] = Field(..., max_length=20)
-    address: Optional[str] = Field(..., max_length=256)
-    city: Optional[str] = Field(..., max_length=100)
-    state: Optional[str] = Field(..., max_length=100)
-    country: Optional[str] = Field(..., max_length=100)
-    postal_code: Optional[str] = Field(..., max_length=20)
+    phone: Optional[str] = Field(None, max_length=20)
+    address: Optional[str] = Field(None, max_length=256)
+    city: Optional[str] = Field(None, max_length=100)
+    state: Optional[str] = Field(None, max_length=100)
+    country: Optional[str] = Field(None, max_length=100)
+    postal_code: Optional[str] = Field(None, max_length=20)
     created_at: datetime
     updated_at: datetime
 
-    class Config:
-        orm_mode = True
+    model_config = ConfigDict(from_attributes=True)
+
 class UserCreate(BaseModel):
     email: EmailStr
     password: str
@@ -245,7 +247,6 @@ class UserCreate(BaseModel):
     name: str = Field(..., max_length=128)
     location: Optional[str] = Field(None, max_length=256)
 
-
 class FarmBase(BaseModel):
     name: str = Field(..., max_length=128)
     location: Optional[str] = Field(None, max_length=256)
@@ -258,8 +259,7 @@ class FarmResponse(FarmBase):
     created_at: datetime
     updated_at: datetime
 
-    class Config:
-        orm_mode = True
+    model_config = ConfigDict(from_attributes=True)
 
 class ValveDeviceCreate(DeviceBase):
     valve_configurations: List[ValveConfig] = Field(..., min_length=1, max_length=4)
@@ -272,26 +272,25 @@ class ValveDeviceCreate(DeviceBase):
         return v
     
 class UserProfileBase(BaseModel):
-    first_name:  Optional[str] = None
-    last_name:   Optional[str] = None
-    phone:       Optional[str] = None
-    address:     Optional[str] = None
-    city:        Optional[str] = None
-    state:       Optional[str] = None
-    country:     Optional[str] = None
+    first_name: Optional[str] = None
+    last_name: Optional[str] = None
+    phone: Optional[str] = None
+    address: Optional[str] = None
+    city: Optional[str] = None
+    state: Optional[str] = None
+    country: Optional[str] = None
     postal_code: Optional[str] = None
 
 class UserProfileCreate(UserProfileBase):
     pass
 
 class UserProfileResponse(UserProfileBase):
-    id:         int
-    user_id:    int
+    id: int
+    user_id: int
     created_at: datetime
     updated_at: datetime
 
-    class Config:
-        orm_mode = True
+    model_config = ConfigDict(from_attributes=True)
 
 class UserResponse(BaseModel):
     id: int
@@ -299,8 +298,8 @@ class UserResponse(BaseModel):
     role: str
     created_at: datetime
     profile: Optional[UserProfileResponse] = None
-    class Config:
-        orm_mode = True
+
+    model_config = ConfigDict(from_attributes=True)
 
 class SubscriptionPlanCreate(BaseModel):
     name: str
@@ -317,8 +316,7 @@ class SubscriptionResponse(BaseModel):
     end_date: datetime
     active: bool
 
-    class Config:
-        orm_mode = True
+    model_config = ConfigDict(from_attributes=True)
 
 class ActivationKeyResponse(BaseModel):
     activation_key: str
@@ -332,40 +330,34 @@ class SubscriptionPlanResponse(BaseModel):
     created_by: int
     created_at: datetime
 
-    class Config:
-        orm_mode = True
-from enum import Enum
-
-class PaymentStatus(str, Enum):
-    PENDING    = "pending"
-    PROCESSING = "processing"
-    COMPLETED  = "completed"
-    FAILED     = "failed"
+    model_config = ConfigDict(from_attributes=True)
 
 class CreatePaymentRequest(BaseModel):
     device_id: int
-    plan_id:   int
+    plan_id: int
 
 class ConfirmPaymentRequest(BaseModel):
     upi_transaction_id: str = Field(..., max_length=64)
 
+class PaymentStatus(str, Enum):
+    PENDING = "pending"
+    PROCESSING = "processing"
+    COMPLETED = "completed"
+    FAILED = "failed"
+
 class PaymentOrderResponse(BaseModel):
-    id:                 int
-    user_id:            int
-    device_id:          int
-    plan_id:            int
-    amount_cents:       int
-    status:             PaymentStatus
+    id: int
+    user_id: int
+    device_id: int
+    plan_id: int
+    amount_cents: int
+    status: PaymentStatus
     upi_transaction_id: Optional[str]
-    qr_code_url:        Optional[str]
-    created_at:         datetime
-    updated_at:         datetime
+    qr_code_url: Optional[str]
+    created_at: datetime
+    updated_at: datetime
 
-    class Config:
-        orm_mode = True
-
-from datetime import datetime
-from typing import List
+    model_config = ConfigDict(from_attributes=True)
 
 class DetectionRange(BaseModel):
     object_name: str

@@ -3,293 +3,371 @@
 ----- app/models.py -----
 # app/models.py
 
-from sqlalchemy import Column, Integer, String, Float, DateTime, Boolean, ForeignKey, JSON, Enum as SQLAlchemyEnum
-from sqlalchemy.orm import relationship
-from sqlalchemy.sql import func
 from datetime import datetime, timezone
+from enum import Enum as PyEnum
+
+from sqlalchemy import (
+    Column,
+    Integer,
+    String,
+    Float,
+    DateTime,
+    Boolean,
+    ForeignKey,
+    JSON,
+    func,
+    Enum as SQLEnum,
+)
+from sqlalchemy.orm import relationship
+
 from app.core.database import Base
 from app.schemas import DeviceType
-from enum import Enum
+
+
+# -------------------------------------------------------------------
+# USERS & PROFILES
+# -------------------------------------------------------------------
+
+class User(Base):
+    __tablename__ = "users"
+
+    id              = Column(Integer, primary_key=True, index=True)
+    email           = Column(String(128), unique=True, nullable=False, index=True)
+    hashed_password = Column(String(256), nullable=False)
+    role            = Column(String(50), nullable=False, default="user")
+    created_at      = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at      = Column(
+                         DateTime(timezone=True),
+                         server_default=func.now(),
+                         onupdate=func.now(),
+                         nullable=False,
+                     )
+
+    # one‐to‐one
+    profile      = relationship(
+                       "UserProfile",
+                       back_populates="user",
+                       uselist=False,
+                       cascade="all, delete-orphan",
+                       lazy="joined",
+                   )
+    # one‐to‐many
+    farms        = relationship(
+                       "Farm",
+                       back_populates="user",
+                       cascade="all, delete-orphan",
+                       lazy="joined",
+                   )
+    devices      = relationship("Device", back_populates="user", cascade="all, delete-orphan")
+    subscriptions = relationship("Subscription", back_populates="user", cascade="all, delete-orphan")
+    payment_orders = relationship("PaymentOrder", back_populates="user", cascade="all, delete-orphan")
+    cameras      = relationship("UserCamera", back_populates="user", cascade="all, delete-orphan")
+
+
+class UserProfile(Base):
+    __tablename__ = "user_profiles"
+
+    id          = Column(Integer, primary_key=True, index=True)
+    user_id     = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, unique=True)
+    first_name  = Column(String(50))
+    last_name   = Column(String(50))
+    phone       = Column(String(20))
+    address     = Column(String(256))
+    city        = Column(String(100))
+    state       = Column(String(100))
+    country     = Column(String(100))
+    postal_code = Column(String(20))
+    created_at  = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at  = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
+
+    user = relationship("User", back_populates="profile")
+
+
+# -------------------------------------------------------------------
+# FARMS
+# -------------------------------------------------------------------
+
+class Farm(Base):
+    __tablename__ = "farms"
+
+    id          = Column(Integer, primary_key=True, index=True)
+    user_id     = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    name        = Column(String(128), nullable=False)
+    location    = Column(String(256))
+    created_at  = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at  = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
+
+    user    = relationship("User", back_populates="farms")
+    devices = relationship("Device", back_populates="farm", cascade="all, delete-orphan")
+
+
+# -------------------------------------------------------------------
+# DEVICES & PROFILES
+# -------------------------------------------------------------------
+
 class Device(Base):
     __tablename__ = "devices"
 
-    id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
-    farm_id = Column(Integer, ForeignKey("farms.id"), nullable=True)
-    mac_id = Column(String(64), unique=True, nullable=False)
-    name = Column(String(128), nullable=False)
-    type = Column(SQLAlchemyEnum(DeviceType), nullable=False)
-    http_endpoint = Column(String(256), nullable=False, unique=True)
-    location_description = Column(String(256))
-    is_active = Column(Boolean, default=True)
-    last_seen = Column(DateTime(timezone=True), nullable=True)
-    firmware_version = Column(String(32), nullable=True, server_default="0.0.0")
-    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
-    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
-    farm = relationship("Farm", back_populates="devices")
-    # JSON fields
-    pump_configurations = Column(JSON, nullable=True)
-    sensor_parameters = Column(JSON, nullable=True)
-    valve_configurations = Column(JSON, nullable=True)
-    # Relationships
-    dosing_profiles = relationship("DosingProfile", back_populates="device", cascade="all, delete-orphan")
-    sensor_readings = relationship("SensorReading", back_populates="device", cascade="all, delete-orphan")
-    dosing_operations = relationship("DosingOperation", back_populates="device", cascade="all, delete-orphan")
+    id                  = Column(Integer, primary_key=True, index=True)
+    user_id             = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    farm_id             = Column(Integer, ForeignKey("farms.id", ondelete="SET NULL"), nullable=True)
+    mac_id              = Column(String(64), unique=True, nullable=False, index=True)
+    name                = Column(String(128), nullable=False)
+    type                = Column(SQLEnum(DeviceType, name="device_type"), nullable=False)
+    http_endpoint       = Column(String(256), unique=True, nullable=False)
+    location_description= Column(String(256))
+    is_active           = Column(Boolean, nullable=False, default=True)
+    last_seen           = Column(DateTime(timezone=True))
+    firmware_version    = Column(String(32), nullable=False, server_default="0.0.0")
+    created_at          = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at          = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
+
+    # JSON blobs
+    pump_configurations = Column(JSON)
+    sensor_parameters   = Column(JSON)
+    valve_configurations= Column(JSON)
+
+    # relationships
+    user               = relationship("User", back_populates="devices")
+    farm               = relationship("Farm", back_populates="devices")
+    dosing_profiles    = relationship("DosingProfile", back_populates="device", cascade="all, delete-orphan")
+    sensor_readings    = relationship("SensorReading", back_populates="device", cascade="all, delete-orphan")
+    dosing_operations  = relationship("DosingOperation", back_populates="device", cascade="all, delete-orphan")
+    subscriptions      = relationship("Subscription", back_populates="device", cascade="all, delete-orphan")
+    payment_orders     = relationship("PaymentOrder", back_populates="device", cascade="all, delete-orphan")
+    tasks              = relationship("Task", back_populates="device", cascade="all, delete-orphan")
+
+
 class DosingProfile(Base):
     __tablename__ = "dosing_profiles"
 
-    id = Column(Integer, primary_key=True, index=True)
-    device_id = Column(Integer, ForeignKey("devices.id", ondelete="CASCADE"))
-    plant_name = Column(String(100), nullable=False)
-    plant_type = Column(String(100), nullable=False)
-    growth_stage = Column(String(50), nullable=False)
-    seeding_date = Column(DateTime(timezone=True), nullable=False)
-    target_ph_min = Column(Float, nullable=False)
-    target_ph_max = Column(Float, nullable=False)
+    id             = Column(Integer, primary_key=True, index=True)
+    device_id      = Column(Integer, ForeignKey("devices.id", ondelete="CASCADE"), nullable=False)
+    plant_name     = Column(String(100), nullable=False)
+    plant_type     = Column(String(100), nullable=False)
+    growth_stage   = Column(String(50), nullable=False)
+    seeding_date   = Column(DateTime(timezone=True), nullable=False)
+    target_ph_min  = Column(Float, nullable=False)
+    target_ph_max  = Column(Float, nullable=False)
     target_tds_min = Column(Float, nullable=False)
     target_tds_max = Column(Float, nullable=False)
-    dosing_schedule = Column(JSON, nullable=False)
-    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
-    # Fix: Set updated_at with a default value so it is never None.
-    updated_at = Column(
-        DateTime(timezone=True),
-        server_default=func.now(),
-        onupdate=func.now(),
-        nullable=False
-    )
+    dosing_schedule= Column(JSON, nullable=False)
+    created_at     = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at     = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
 
-    # Relationships
     device = relationship("Device", back_populates="dosing_profiles")
+
 
 class Task(Base):
     __tablename__ = "tasks"
-    id = Column(Integer, primary_key=True, index=True)
-    device_id = Column(String, index=True, nullable=False)  # mac_id of the device
-    type = Column(String)  # e.g., 'pump', 'reset'
-    parameters = Column(JSON)
-    status = Column(String, default="pending")  
-    created_at = Column(
-        DateTime(timezone=True),
-        server_default=func.now(),
-        nullable=False
-    )
 
-    def to_dict(self):
-        return {
-            "type": self.type,
-            **self.parameters
-        }
+    id           = Column(Integer, primary_key=True, index=True)
+    device_mac_id= Column(String(64), ForeignKey("devices.mac_id", ondelete="CASCADE"), nullable=False, index=True)
+    type         = Column(String(50), nullable=False)
+    parameters   = Column(JSON)
+    status       = Column(String(50), nullable=False, default="pending")
+    created_at   = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+    device = relationship("Device", back_populates="tasks")
+
 
 class SensorReading(Base):
     __tablename__ = "sensor_readings"
 
-    id = Column(Integer, primary_key=True, index=True)
-    device_id = Column(Integer, ForeignKey("devices.id", ondelete="CASCADE"))
-    reading_type = Column(String(50), nullable=False)
-    value = Column(Float, nullable=False)
-    timestamp = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+    id          = Column(Integer, primary_key=True, index=True)
+    device_id   = Column(Integer, ForeignKey("devices.id", ondelete="CASCADE"), nullable=False)
+    reading_type= Column(String(50), nullable=False)
+    value       = Column(Float, nullable=False)
+    timestamp   = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    location    = Column(String(100))
+
     device = relationship("Device", back_populates="sensor_readings")
-    location = Column(String(100), nullable=True)
+
+
 class DosingOperation(Base):
     __tablename__ = "dosing_operations"
 
-    id = Column(Integer, primary_key=True, index=True)
-    device_id = Column(Integer, ForeignKey("devices.id", ondelete="CASCADE"))
-    operation_id = Column(String(100), unique=True, nullable=False)
-    actions = Column(JSON, nullable=False)
-    status = Column(String(50), nullable=False)
-    timestamp = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)) 
+    id          = Column(Integer, primary_key=True, index=True)
+    device_id   = Column(Integer, ForeignKey("devices.id", ondelete="CASCADE"), nullable=False)
+    operation_id= Column(String(100), unique=True, nullable=False)
+    actions     = Column(JSON, nullable=False)
+    status      = Column(String(50), nullable=False)
+    timestamp   = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
     device = relationship("Device", back_populates="dosing_operations")
+
+
+# -------------------------------------------------------------------
+# PLANTS & ANALYSIS
+# -------------------------------------------------------------------
 
 class Plant(Base):
     __tablename__ = "plants"
 
-    id = Column(Integer, primary_key=True, index=True)
-    name = Column(String(100), nullable=False)
-    type = Column(String(100), nullable=False)
-    growth_stage = Column(String(50), nullable=False)
+    id           = Column(Integer, primary_key=True, index=True)
+    name         = Column(String(100), nullable=False)
+    type         = Column(String(100), nullable=False)
+    growth_stage = Column(String(50),  nullable=False)
     seeding_date = Column(DateTime(timezone=True), nullable=False)
-    region = Column(String(100), nullable=False)
-    location = Column(String(100), nullable = False)
-    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
-    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
-    
-    
+    region       = Column(String(100), nullable=False)
+    location     = Column(String(100), nullable=False)
+    created_at   = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at   = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
+
+
 class SupplyChainAnalysis(Base):
     __tablename__ = "supply_chain_analysis"
 
-    id = Column(Integer, primary_key=True, index=True)
-    origin = Column(String(100), nullable=False)
-    destination = Column(String(100), nullable=False)
-    produce_type = Column(String(50), nullable=False)
-    weight_kg = Column(Float, nullable=False)
-    transport_mode = Column(String(50), default="railway")
-
-    distance_km = Column(Float, nullable=False)
-    cost_per_kg = Column(Float, nullable=False)
-    total_cost = Column(Float, nullable=False)
+    id                   = Column(Integer, primary_key=True, index=True)
+    origin               = Column(String(100), nullable=False)
+    destination          = Column(String(100), nullable=False)
+    produce_type         = Column(String(50),  nullable=False)
+    weight_kg            = Column(Float, nullable=False)
+    transport_mode       = Column(String(50), server_default="railway", nullable=False)
+    distance_km          = Column(Float, nullable=False)
+    cost_per_kg          = Column(Float, nullable=False)
+    total_cost           = Column(Float, nullable=False)
     estimated_time_hours = Column(Float, nullable=False)
-
-    market_price_per_kg = Column(Float, nullable=False)
-    net_profit_per_kg = Column(Float, nullable=False)
+    market_price_per_kg  = Column(Float, nullable=False)
+    net_profit_per_kg    = Column(Float, nullable=False)
     final_recommendation = Column(String(200), nullable=False)
+    created_at           = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at           = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
 
-    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
-    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
+    conversation_logs = relationship(
+        "ConversationLog", back_populates="analysis", cascade="all, delete-orphan"
+    )
+
 
 class ConversationLog(Base):
     __tablename__ = "conversation_logs"
-    
-    id = Column(Integer, primary_key=True, index=True)
-    analysis_id = Column(Integer, ForeignKey("supply_chain_analysis.id"), nullable=True)
+
+    id           = Column(Integer, primary_key=True, index=True)
+    analysis_id  = Column(Integer, ForeignKey("supply_chain_analysis.id", ondelete="SET NULL"))
     conversation = Column(JSON, nullable=False)
+    created_at   = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+    analysis = relationship("SupplyChainAnalysis", back_populates="conversation_logs")
+
+
+# -------------------------------------------------------------------
+# SUBSCRIPTIONS & BILLING
+# -------------------------------------------------------------------
+
+class SubscriptionPlan(Base):
+    __tablename__ = "subscription_plans"
+
+    id            = Column(Integer, primary_key=True, index=True)
+    name          = Column(String(128), nullable=False)
+    device_types  = Column(JSON, nullable=False)    # e.g. ["dosing_unit"]
+    duration_days = Column(Integer, nullable=False)  # 28 to 730
+    price_cents   = Column(Integer, nullable=False)
+    created_by    = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=False)
+    created_at    = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+    activation_keys = relationship("ActivationKey", back_populates="plan", cascade="all, delete-orphan")
+    subscriptions   = relationship("Subscription", back_populates="plan", cascade="all, delete-orphan")
+    payment_orders  = relationship("PaymentOrder", back_populates="plan", cascade="all, delete-orphan")
+
+
+class ActivationKey(Base):
+    __tablename__ = "activation_keys"
+
+    id                  = Column(Integer, primary_key=True, index=True)
+    key                 = Column(String(64), unique=True, nullable=False, index=True)
+    device_type         = Column(SQLEnum(DeviceType, name="activation_device_type"), nullable=False)
+    plan_id             = Column(Integer, ForeignKey("subscription_plans.id", ondelete="CASCADE"), nullable=False)
+    created_by          = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=False)
+    created_at          = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    redeemed            = Column(Boolean, default=False, nullable=False)
+    redeemed_device_id  = Column(Integer, ForeignKey("devices.id", ondelete="SET NULL"))
+    redeemed_user_id    = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"))
+    allowed_device_id   = Column(Integer, ForeignKey("devices.id", ondelete="SET NULL"))
+
+    plan             = relationship("SubscriptionPlan", back_populates="activation_keys")
+    creator          = relationship("User", foreign_keys=[created_by])
+    redeemed_device  = relationship("Device", foreign_keys=[redeemed_device_id])
+    redeemed_user    = relationship("User", foreign_keys=[redeemed_user_id])
+    allowed_device   = relationship("Device", foreign_keys=[allowed_device_id], backref="allowed_activation_keys")
+
+
+class Subscription(Base):
+    __tablename__ = "subscriptions"
+
+    id         = Column(Integer, primary_key=True, index=True)
+    user_id    = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    device_id  = Column(Integer, ForeignKey("devices.id", ondelete="CASCADE"), nullable=False)
+    plan_id    = Column(Integer, ForeignKey("subscription_plans.id", ondelete="SET NULL"), nullable=False)
+    start_date = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    end_date   = Column(DateTime(timezone=True), nullable=False)
+    active     = Column(Boolean, default=True, nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
-class User(Base):
-    __tablename__ = "users"
-    id = Column(Integer, primary_key=True, index=True)
-    email = Column(String(128), unique=True, nullable=False)
-    hashed_password = Column(String(256), nullable=False)
-    role = Column(String(50), nullable=False, default="user")
-    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
-    farms = relationship("Farm", back_populates="user", cascade="all, delete-orphan")
-    profile = relationship("UserProfile", back_populates="user", uselist=False, cascade="all, delete-orphan")
-    
-class Farm(Base):
-    __tablename__ = "farms"
+    user   = relationship("User", back_populates="subscriptions")
+    device = relationship("Device", back_populates="subscriptions")
+    plan   = relationship("SubscriptionPlan", back_populates="subscriptions")
 
-    id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
-    name = Column(String(128), nullable=False)
-    location = Column(String(256), nullable=True)
-    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
-    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
 
-    # Relationships
-    devices = relationship("Device", back_populates="farm", cascade="all, delete-orphan")
-    user = relationship("User", back_populates="farms")
+class PaymentStatus(PyEnum):
+    PENDING    = "pending"
+    PROCESSING = "processing"
+    COMPLETED  = "completed"
+    FAILED     = "failed"
+
+
+class PaymentOrder(Base):
+    __tablename__ = "payment_orders"
+
+    id                 = Column(Integer, primary_key=True, index=True)
+    user_id            = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    device_id          = Column(Integer, ForeignKey("devices.id", ondelete="CASCADE"), nullable=False)
+    plan_id            = Column(Integer, ForeignKey("subscription_plans.id", ondelete="SET NULL"), nullable=False)
+    amount_cents       = Column(Integer, nullable=False)
+    status             = Column(
+                             SQLEnum(PaymentStatus, name="payment_status"),
+                             default=PaymentStatus.PENDING,
+                             nullable=False,
+                         )
+    upi_transaction_id = Column(String(64))
+    created_at         = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at         = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
+
+    user   = relationship("User", back_populates="payment_orders")
+    device = relationship("Device", back_populates="payment_orders")
+    plan   = relationship("SubscriptionPlan", back_populates="payment_orders")
+
+
+# -------------------------------------------------------------------
+# CAMERAS & DETECTIONS
+# -------------------------------------------------------------------
 
 class Camera(Base):
     __tablename__ = "cameras"
 
     id              = Column(String(64), primary_key=True, index=True)
     name            = Column(String(120), nullable=False)
-    is_online       = Column(Boolean, default=False)
-    last_seen       = Column(DateTime(timezone=True), nullable=True)
-    frames_received = Column(Integer, default=0)
-    clips_count     = Column(Integer, default=0)
-    last_clip_time  = Column(DateTime(timezone=True), nullable=True)
-    storage_used    = Column(Float, default=0.0)  # MB
-    settings        = Column(JSON, nullable=True)
+    is_online       = Column(Boolean, default=False, nullable=False)
+    last_seen       = Column(DateTime(timezone=True))
+    frames_received = Column(Integer, default=0, nullable=False)
+    clips_count     = Column(Integer, default=0, nullable=False)
+    last_clip_time  = Column(DateTime(timezone=True))
+    storage_used    = Column(Float, default=0.0, nullable=False)  # MB
+    settings        = Column(JSON)
 
-    users = relationship("UserCamera", back_populates="camera", cascade="all, delete-orphan")
+    user_cameras     = relationship("UserCamera", back_populates="camera", cascade="all, delete-orphan")
+    detection_records= relationship("DetectionRecord", back_populates="camera", cascade="all, delete-orphan")
+
 
 class UserCamera(Base):
     __tablename__ = "user_cameras"
 
     id        = Column(Integer, primary_key=True, index=True)
-    user_id   = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"))
-    camera_id = Column(String(64),  ForeignKey("cameras.id", ondelete="CASCADE"))
-    nickname  = Column(String(120), nullable=True)
+    user_id   = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    camera_id = Column(String(64), ForeignKey("cameras.id", ondelete="CASCADE"), nullable=False)
+    nickname  = Column(String(120))
 
     user   = relationship("User", back_populates="cameras")
-    camera = relationship("Camera", back_populates="users")
-
-User.cameras = relationship("UserCamera", back_populates="user", cascade="all, delete-orphan")
-
-class UserProfile(Base):
-    __tablename__ = "user_profiles"
-
-    id = Column(Integer, primary_key=True, index=True)
-    # add FK to users
-    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, unique=True)
-    first_name   = Column(String(50), nullable=True)
-    last_name    = Column(String(50), nullable=True)
-    phone        = Column(String(20), nullable=True)
-    address      = Column(String(256), nullable=True)
-    city         = Column(String(100), nullable=True)
-    state        = Column(String(100), nullable=True)
-    country      = Column(String(100), nullable=True)
-    postal_code  = Column(String(20), nullable=True)
-    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
-    updated_at = Column(DateTime(timezone=True), server_default=func.now(),
-                         onupdate=func.now(), nullable=False)
-
-    user = relationship("User", back_populates="profile")
-
-class ActivationKey(Base):
-    __tablename__ = "activation_keys"
-    id                  = Column(Integer, primary_key=True, index=True)
-    key                 = Column(String(64), unique=True, nullable=False, index=True)
-    device_type         = Column(SQLAlchemyEnum(DeviceType), nullable=False)
-    plan_id             = Column(Integer, ForeignKey("subscription_plans.id"), nullable=False)
-    created_by          = Column(Integer, ForeignKey("users.id"), nullable=False)
-    created_at          = Column(DateTime(timezone=True), server_default=func.now())
-    redeemed            = Column(Boolean, default=False)
-    redeemed_device_id  = Column(Integer, ForeignKey("devices.id"), nullable=True)
-    redeemed_user_id    = Column(Integer, ForeignKey("users.id"), nullable=True)
-    redeemed_at         = Column(DateTime(timezone=True), nullable=True)
-    allowed_device_id   = Column(Integer, ForeignKey("devices.id"), nullable=True)
-    plan = relationship("SubscriptionPlan", backref="activation_keys")
-    allowed_device = relationship(
-        "Device",
-        foreign_keys=[allowed_device_id],
-        backref="allowed_activation_keys",
-    )
-class SubscriptionPlan(Base):
-    __tablename__ = "subscription_plans"
-    id            = Column(Integer, primary_key=True, index=True)
-    name          = Column(String(128), nullable=False)
-    device_types  = Column(JSON, nullable=False)   # e.g. ["dosing_unit"]
-    duration_days = Column(Integer, nullable=False) # 28 to 730
-    price_cents   = Column(Integer, nullable=False)
-    created_by    = Column(Integer, ForeignKey("users.id"), nullable=False)
-    created_at    = Column(DateTime(timezone=True), server_default=func.now())
-
-class Subscription(Base):
-    __tablename__ = "subscriptions"
-    id         = Column(Integer, primary_key=True, index=True)
-    user_id    = Column(Integer, ForeignKey("users.id"), nullable=False)
-    device_id  = Column(Integer, ForeignKey("devices.id"), nullable=False)
-    plan_id    = Column(Integer, ForeignKey("subscription_plans.id"), nullable=False)
-    start_date = Column(DateTime(timezone=True), server_default=func.now())
-    end_date   = Column(DateTime(timezone=True), nullable=False)
-    active     = Column(Boolean, default=True)
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
-
-
-class PaymentStatus(str, Enum):
-    PENDING    = "pending"
-    PROCESSING = "processing"
-    COMPLETED  = "completed"
-    FAILED     = "failed"
-
-class PaymentOrder(Base):
-    __tablename__ = "payment_orders"
-
-    id                 = Column(Integer, primary_key=True, index=True)
-    user_id            = Column(Integer, ForeignKey("users.id"), nullable=False)
-    device_id          = Column(Integer, ForeignKey("devices.id"), nullable=False)
-    plan_id            = Column(Integer, ForeignKey("subscription_plans.id"), nullable=False)
-    amount_cents       = Column(Integer, nullable=False)
-    status             = Column(SQLAlchemyEnum(PaymentStatus), default=PaymentStatus.PENDING, nullable=False)
-    upi_transaction_id = Column(String(64), nullable=True)
-    created_at         = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
-    updated_at         = Column(DateTime(timezone=True), server_default=func.now(),
-                                onupdate=func.now(), nullable=False)
-
-    # Relationships
-    user   = relationship("User", back_populates="payment_orders")
-    device = relationship("Device")
-    plan   = relationship("SubscriptionPlan")
-
-# back-populate in User
-User.payment_orders = relationship(
-     "PaymentOrder",
-     back_populates="user",
-     cascade="all, delete-orphan",
- )
-
+    camera = relationship("Camera", back_populates="user_cameras")
 
 
 class DetectionRecord(Base):
@@ -298,13 +376,10 @@ class DetectionRecord(Base):
     id          = Column(Integer, primary_key=True, index=True)
     camera_id   = Column(String(64), ForeignKey("cameras.id", ondelete="CASCADE"), nullable=False)
     object_name = Column(String(100), nullable=False)
-    timestamp   = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False)
+    timestamp   = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
-# back-populate on Camera
-Camera.detection_records = relationship(
-    "DetectionRecord", back_populates="camera", cascade="all, delete-orphan"
-)
-DetectionRecord.camera = relationship("Camera", back_populates="detection_records")
+    camera = relationship("Camera", back_populates="detection_records")
+
 
 ----- app/__init__.py -----
 # app/__init__.py
@@ -314,11 +389,138 @@ This file marks the directory as a Python package.
 """
 
 
+----- app/simulated_esp.py -----
+# simulated_esp.py
+
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.middleware.cors import CORSMiddleware
+from datetime import datetime
+import uvicorn
+
+# Create the FastAPI app for the simulated ESP device.
+simulated_esp_app = FastAPI(title="Simulated ESP32 Device")
+
+# Allow CORS for all origins (adjust as needed).
+simulated_esp_app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+@simulated_esp_app.get("/discovery")
+async def discovery():
+    """
+    Simulate the discovery endpoint.
+    Returns basic device information.
+    """
+    return {
+        "device_id": "dummy_device",
+        "name": "Simulated ESP Device",
+        "type": "dosing_unit",            # match your DeviceType enum
+         "version": "2.1.0",
+         "status": "online",
+         "ip": "127.0.0.1"  # Simulated IP address
+     }
+
+@simulated_esp_app.post("/pump")
+async def pump(request: Request):
+    """
+    Simulate activating a pump.
+    Expects JSON with "pump" and "amount".
+    Returns a success message.
+    """
+    data = await request.json()
+    pump = data.get("pump")
+    amount = data.get("amount")
+    if pump is None or amount is None:
+        raise HTTPException(status_code=400, detail="Missing pump or amount")
+    return {
+        "message": "Pump started",  # Some tests check for this exact message.
+        "pump": pump,
+        "dose_ml": amount,
+        "timestamp": datetime.utcnow().isoformat()
+    }
+
+@simulated_esp_app.get("/monitor")
+async def monitor():
+    """
+    Simulate returning sensor readings.
+    """
+    return {
+        "device_id": "dummy_device",
+        "type": "dosing_unit",            # keep it consistent
+        "version": "2.1.0",
+        "wifi_connected": True,
+        "ph": 6.8,                        # lowercase keys
+        "tds": 750
+    }
+
+@simulated_esp_app.post("/dose_monitor")
+async def dose_monitor(request: Request):
+    """
+    Simulate a combined dosing and monitoring endpoint.
+    Behaves similar to /pump but returns a different message.
+    """
+    data = await request.json()
+    pump = data.get("pump")
+    amount = data.get("amount")
+    if pump is None or amount is None:
+        raise HTTPException(status_code=400, detail="Missing pump or amount")
+    return {
+        "message": "Combined started",
+        "pump": pump,
+        "dose_ml": amount,
+        "timestamp": datetime.utcnow().isoformat()
+    }
+
+@simulated_esp_app.post("/pump_calibration")
+async def pump_calibration(request: Request):
+    """
+    Simulate pump calibration endpoint.
+    Expects a JSON with a "command" key.
+    """
+    data = await request.json()
+    command = data.get("command")
+    if command == "stop":
+        return {"message": "All pumps off"}
+    elif command == "start":
+        return {"message": "All pumps on"}
+    else:
+        raise HTTPException(status_code=400, detail="Invalid command")
+@simulated_esp_app.get("/state")
+async def state():
+    # simulate 4‑valve statuses
+    return {
+      "device_id": "dummy_valve",
+      "valves": [
+        {"id": 1, "state": "off"},
+        {"id": 2, "state": "off"},
+        {"id": 3, "state": "off"},
+        {"id": 4, "state": "off"},
+      ]
+    }
+
+@simulated_esp_app.post("/toggle")
+async def toggle(request: Request):
+    data = await request.json()
+    valve = data.get("valve_id")
+    if valve not in [1,2,3,4]:
+        raise HTTPException(400, "Invalid valve_id")
+    # just echo back
+    return {"device_id": "dummy_valve", "new_state": "toggled", "valve_id": valve}
+# Add a main section to run the app on port 8080.
+if __name__ == "__main__":
+    uvicorn.run("simulated_esp:simulated_esp_app", host="0.0.0.0", port=8080, reload=True)
+
+
 ----- app/schemas.py -----
-from pydantic import BaseModel, Field, ConfigDict, field_validator, EmailStr
+from enum import Enum
 from typing import Optional, List, Dict
 from datetime import datetime
-from enum import Enum
+
+from pydantic import BaseModel, Field, ConfigDict, field_validator, EmailStr
 
 # -------------------- Device Related Schemas -------------------- #
 
@@ -334,9 +536,11 @@ class PumpConfig(BaseModel):
     chemical_description: Optional[str] = Field(None, max_length=200)
 
     model_config = ConfigDict(from_attributes=True)
+
 class ValveConfig(BaseModel):
     valve_id: int = Field(..., ge=1, le=4)
     name: Optional[str] = Field(None, max_length=50)
+
     model_config = ConfigDict(from_attributes=True)
 
 class DeviceBase(BaseModel):
@@ -346,6 +550,7 @@ class DeviceBase(BaseModel):
     http_endpoint: str = Field(..., max_length=256)
     location_description: Optional[str] = Field(None, max_length=256)
     farm_id: Optional[int] = None
+
     model_config = ConfigDict(from_attributes=True)
     valve_configurations: Optional[List[ValveConfig]] = None
 
@@ -469,8 +674,7 @@ class PlantResponse(PlantBase):
     created_at: datetime
     updated_at: datetime
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 # -------------------- Supply Chain Related Schemas -------------------- #
 
@@ -518,13 +722,12 @@ class DosingCancellationRequest(BaseModel):
 
 # -------------------- User Related Schemas -------------------- #
 
-
 class UserUpdate(BaseModel):
     email: Optional[EmailStr] = None
-    # Production-level user updates include profile fields.
     first_name: Optional[str] = Field(None, max_length=50)
     last_name: Optional[str] = Field(None, max_length=50)
     phone: Optional[str] = Field(None, max_length=20)
+    role: Optional[str] = None
     address: Optional[str] = Field(None, max_length=256)
     city: Optional[str] = Field(None, max_length=100)
     state: Optional[str] = Field(None, max_length=100)
@@ -537,17 +740,17 @@ class UserProfile(BaseModel):
     role: str
     first_name: str = Field(..., max_length=50)
     last_name: str = Field(..., max_length=50)
-    phone: Optional[str] = Field(..., max_length=20)
-    address: Optional[str] = Field(..., max_length=256)
-    city: Optional[str] = Field(..., max_length=100)
-    state: Optional[str] = Field(..., max_length=100)
-    country: Optional[str] = Field(..., max_length=100)
-    postal_code: Optional[str] = Field(..., max_length=20)
+    phone: Optional[str] = Field(None, max_length=20)
+    address: Optional[str] = Field(None, max_length=256)
+    city: Optional[str] = Field(None, max_length=100)
+    state: Optional[str] = Field(None, max_length=100)
+    country: Optional[str] = Field(None, max_length=100)
+    postal_code: Optional[str] = Field(None, max_length=20)
     created_at: datetime
     updated_at: datetime
 
-    class Config:
-        orm_mode = True
+    model_config = ConfigDict(from_attributes=True)
+
 class UserCreate(BaseModel):
     email: EmailStr
     password: str
@@ -562,7 +765,6 @@ class UserCreate(BaseModel):
     name: str = Field(..., max_length=128)
     location: Optional[str] = Field(None, max_length=256)
 
-
 class FarmBase(BaseModel):
     name: str = Field(..., max_length=128)
     location: Optional[str] = Field(None, max_length=256)
@@ -575,8 +777,7 @@ class FarmResponse(FarmBase):
     created_at: datetime
     updated_at: datetime
 
-    class Config:
-        orm_mode = True
+    model_config = ConfigDict(from_attributes=True)
 
 class ValveDeviceCreate(DeviceBase):
     valve_configurations: List[ValveConfig] = Field(..., min_length=1, max_length=4)
@@ -589,26 +790,25 @@ class ValveDeviceCreate(DeviceBase):
         return v
     
 class UserProfileBase(BaseModel):
-    first_name:  Optional[str] = None
-    last_name:   Optional[str] = None
-    phone:       Optional[str] = None
-    address:     Optional[str] = None
-    city:        Optional[str] = None
-    state:       Optional[str] = None
-    country:     Optional[str] = None
+    first_name: Optional[str] = None
+    last_name: Optional[str] = None
+    phone: Optional[str] = None
+    address: Optional[str] = None
+    city: Optional[str] = None
+    state: Optional[str] = None
+    country: Optional[str] = None
     postal_code: Optional[str] = None
 
 class UserProfileCreate(UserProfileBase):
     pass
 
 class UserProfileResponse(UserProfileBase):
-    id:         int
-    user_id:    int
+    id: int
+    user_id: int
     created_at: datetime
     updated_at: datetime
 
-    class Config:
-        orm_mode = True
+    model_config = ConfigDict(from_attributes=True)
 
 class UserResponse(BaseModel):
     id: int
@@ -616,8 +816,8 @@ class UserResponse(BaseModel):
     role: str
     created_at: datetime
     profile: Optional[UserProfileResponse] = None
-    class Config:
-        orm_mode = True
+
+    model_config = ConfigDict(from_attributes=True)
 
 class SubscriptionPlanCreate(BaseModel):
     name: str
@@ -634,8 +834,7 @@ class SubscriptionResponse(BaseModel):
     end_date: datetime
     active: bool
 
-    class Config:
-        orm_mode = True
+    model_config = ConfigDict(from_attributes=True)
 
 class ActivationKeyResponse(BaseModel):
     activation_key: str
@@ -649,40 +848,34 @@ class SubscriptionPlanResponse(BaseModel):
     created_by: int
     created_at: datetime
 
-    class Config:
-        orm_mode = True
-from enum import Enum
-
-class PaymentStatus(str, Enum):
-    PENDING    = "pending"
-    PROCESSING = "processing"
-    COMPLETED  = "completed"
-    FAILED     = "failed"
+    model_config = ConfigDict(from_attributes=True)
 
 class CreatePaymentRequest(BaseModel):
     device_id: int
-    plan_id:   int
+    plan_id: int
 
 class ConfirmPaymentRequest(BaseModel):
     upi_transaction_id: str = Field(..., max_length=64)
 
+class PaymentStatus(str, Enum):
+    PENDING = "pending"
+    PROCESSING = "processing"
+    COMPLETED = "completed"
+    FAILED = "failed"
+
 class PaymentOrderResponse(BaseModel):
-    id:                 int
-    user_id:            int
-    device_id:          int
-    plan_id:            int
-    amount_cents:       int
-    status:             PaymentStatus
+    id: int
+    user_id: int
+    device_id: int
+    plan_id: int
+    amount_cents: int
+    status: PaymentStatus
     upi_transaction_id: Optional[str]
-    qr_code_url:        Optional[str]
-    created_at:         datetime
-    updated_at:         datetime
+    qr_code_url: Optional[str]
+    created_at: datetime
+    updated_at: datetime
 
-    class Config:
-        orm_mode = True
-
-from datetime import datetime
-from typing import List
+    model_config = ConfigDict(from_attributes=True)
 
 class DetectionRange(BaseModel):
     object_name: str
@@ -696,90 +889,76 @@ class CameraReportResponse(BaseModel):
 
 ----- app/main.py -----
 # app/main.py
+
 import os
 import time
 import logging
 import asyncio
-from pathlib import Path
 from datetime import datetime, timezone
-from app.utils.camera_queue import camera_queue
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI, HTTPException, Request, status
-from fastapi import BackgroundTasks, Query, Depends
-from sqlalchemy.ext.asyncio import AsyncSession
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.sessions import SessionMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import JSONResponse
 from fastapi.templating import Jinja2Templates
-from contextlib import asynccontextmanager
 import uvicorn
 
-from app.core.config import (
-    ENVIRONMENT, OFFLINE_TIMEOUT, ALLOWED_ORIGINS,
-    SESSION_KEY, API_V1_STR
-)
-from app.core.database import init_db, AsyncSessionLocal, get_db, engine, Base
+from app.core.config import ENVIRONMENT, ALLOWED_ORIGINS, SESSION_KEY, API_V1_STR
+from app.core.database import engine, Base, get_db, check_db_connection
+
 from app.routers import (
-    devices_router, dosing_router, config_router,
-    farms_router, plants_router, supply_chain_router,
-    cloud_router, users_router, admin_users_router,
-    auth_router, device_comm_router,
-    admin_router, cameras_router, subscriptions_router, admin_subscriptions_router
+    auth_router,
+    users_router,
+    admin_users_router,
+    subscriptions_router,
+    admin_subscriptions_router,
+    devices_router,
+    dosing_router,
+    config_router,
+    farms_router,
+    plants_router,
+    supply_chain_router,
+    cloud_router,
+    admin_router,
+    device_comm_router,
+    cameras_router,
 )
+
 from app.routers.cameras import upload_day_frame, upload_night_frame
 from app.utils.camera_tasks import offline_watcher
-from app.routers.cameras import _process_upload
-from app.core.database import get_db
-# Logging setup
+from app.utils.camera_queue import camera_queue
+
+# ─── Logging Setup ─────────────────────────────────────────────────────────────
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
 logger = logging.getLogger(__name__)
 
-# Application lifespan for migrations & startup
+# ─── Application Lifespan ──────────────────────────────────────────────────────
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    logger.info("Starting Hydroleaf API - ensuring database schema...")
-    # Verify Alembic config
-    if not Path("alembic.ini").is_file() or not Path("alembic").is_dir():
-        raise RuntimeError(
-            "Alembic configuration missing: please run `alembic init alembic` and set up migrations."
-        )
-
-    # 1) Run Alembic migrations
-    try:
-        await asyncio.to_thread(init_db)
-        logger.info("Alembic migrations complete")
-    except Exception as e:
-        logger.error(f"Migration step failed: {e}")
-        raise
-
-    # 2) Auto-create any missing tables
-    try:
-        async with engine.begin() as conn:
-            await conn.run_sync(Base.metadata.create_all)
-        logger.info("SQLAlchemy metadata.create_all complete")
-    except Exception as e:
-        logger.error(f"Auto-create tables failed: {e}")
-        raise
-
-    # Mark startup complete
+    logger.info("Starting Hydroleaf API — creating/updating schema via SQLAlchemy")
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
+    logger.info("Schema creation complete")
     app.state.start_time = time.time()
     yield
     logger.info("Shutting down Hydroleaf API")
 
-# Instantiate app
+# ─── Instantiate FastAPI ──────────────────────────────────────────────────────
 app = FastAPI(
     title="Hydroleaf API",
     version=os.getenv("API_VERSION", "1.0.0"),
     docs_url=f"{API_V1_STR}/docs",
     redoc_url=None,
     openapi_url=f"{API_V1_STR}/openapi.json",
-    lifespan=lifespan
+    lifespan=lifespan,
 )
 
-# Middleware
+# ─── Middleware ────────────────────────────────────────────────────────────────
 app.add_middleware(SessionMiddleware, secret_key=SESSION_KEY)
 app.add_middleware(
     CORSMiddleware,
@@ -789,10 +968,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
-
 templates = Jinja2Templates(directory="app/templates")
 
-# --- Logging middleware (fixed) ---
+# ─── Request Logging Middleware ───────────────────────────────────────────────
 @app.middleware("http")
 async def log_requests(request: Request, call_next):
     start = time.time()
@@ -808,7 +986,7 @@ async def log_requests(request: Request, call_next):
         logger.error(f"Unhandled error during request: {exc}", exc_info=True)
         raise
 
-# Health endpoints
+# ─── Health Endpoints ─────────────────────────────────────────────────────────
 @app.get(f"{API_V1_STR}/health")
 async def health_check():
     uptime = time.time() - app.state.start_time
@@ -822,13 +1000,7 @@ async def health_check():
 
 @app.get(f"{API_V1_STR}/health/database")
 async def database_health():
-    now = datetime.now(timezone.utc)
-    try:
-        session = await get_db().__anext__()
-        await session.close()
-    except Exception as e:
-        return {"status": "error", "detail": str(e)}
-    return {"status": "ok", "timestamp": now}
+    return await check_db_connection()
 
 @app.get(f"{API_V1_STR}/health/system")
 async def system_health():
@@ -838,23 +1010,13 @@ async def system_health():
         "system": sys,
         "database": db,
         "timestamp": datetime.now(timezone.utc),
-        "api_version": app.version,
-        "environment": ENVIRONMENT,
     }
 
-# Camera upload endpoints (override default router paths)
-app.add_api_route(
-    "/upload/{camera_id}/day",
-    upload_day_frame,
-    methods=["POST"]
-)
-app.add_api_route(
-    "/upload/{camera_id}/night",
-    upload_night_frame,
-    methods=["POST"]
-)
+# ─── Override Camera Upload Endpoints ─────────────────────────────────────────
+app.add_api_route("/upload/{camera_id}/day", upload_day_frame, methods=["POST"])
+app.add_api_route("/upload/{camera_id}/night", upload_night_frame, methods=["POST"])
 
-# Exception handlers
+# ─── Exception Handlers ───────────────────────────────────────────────────────
 @app.exception_handler(HTTPException)
 async def http_exc_handler(request: Request, exc: HTTPException):
     return JSONResponse(
@@ -878,55 +1040,46 @@ async def exc_handler(request: Request, exc: Exception):
         },
     )
 
-# Include routers
-app.include_router(admin_users_router, prefix=f"{API_V1_STR}/admin/users", tags=["admin-users"])
-app.include_router(auth_router, prefix=f"{API_V1_STR}/auth", tags=["auth"])
-app.include_router(devices_router, prefix=f"{API_V1_STR}/devices", tags=["devices"])
-app.include_router(dosing_router, prefix=f"{API_V1_STR}/dosing", tags=["dosing"])
-app.include_router(config_router, prefix=f"{API_V1_STR}/config", tags=["config"])
-app.include_router(plants_router, prefix=f"{API_V1_STR}/plants", tags=["plants"])
-app.include_router(farms_router, prefix=f"{API_V1_STR}/farms", tags=["farms"])
-app.include_router(supply_chain_router, prefix=f"{API_V1_STR}/supply_chain", tags=["supply_chain"])
-app.include_router(cloud_router, prefix=f"{API_V1_STR}/cloud", tags=["cloud"])
-app.include_router(admin_router, prefix="/admin", tags=["admin"])
-app.include_router(device_comm_router, prefix=f"{API_V1_STR}/device_comm", tags=["device_comm"])
-app.include_router(cameras_router, prefix=f"{API_V1_STR}/cameras", tags=["cameras"])
-app.include_router(subscriptions_router, prefix=f"{API_V1_STR}/subscriptions", tags=["subscriptions"])
-app.include_router(admin_subscriptions_router, prefix="/admin/subscriptions", tags=["admin-subscriptions"])# Startup tasks
+# ─── Include Routers ──────────────────────────────────────────────────────────
+
+# routers that declare their own prefixes internally:
+app.include_router(auth_router,            prefix=f"{API_V1_STR}/auth")
+app.include_router(users_router)                                  # already @router(prefix="/api/v1/users")
+app.include_router(admin_users_router)                            # already @router(prefix="/admin/users")
+app.include_router(subscriptions_router)                          # already @router(prefix="/api/v1/subscriptions")
+app.include_router(admin_subscriptions_router)                    # already @router(prefix="/admin")
+
+# the rest use main.py prefixes:
+app.include_router(devices_router,       prefix=f"{API_V1_STR}/devices",       tags=["devices"])
+app.include_router(dosing_router,        prefix=f"{API_V1_STR}/dosing",        tags=["dosing"])
+app.include_router(config_router,        prefix=f"{API_V1_STR}/config",        tags=["config"])
+app.include_router(plants_router,        prefix=f"{API_V1_STR}/plants",        tags=["plants"])
+app.include_router(farms_router,         prefix=f"{API_V1_STR}/farms",         tags=["farms"])
+app.include_router(supply_chain_router,  prefix=f"{API_V1_STR}/supply_chain",  tags=["supply_chain"])
+app.include_router(cloud_router,         prefix=f"{API_V1_STR}/cloud",         tags=["cloud"])
+app.include_router(admin_router,         prefix="/admin",                      tags=["admin"])
+app.include_router(device_comm_router,   prefix=f"{API_V1_STR}/device_comm",   tags=["device_comm"])
+app.include_router(cameras_router,       prefix=f"{API_V1_STR}/cameras",       tags=["cameras"])
+
+# ─── Startup Tasks ───────────────────────────────────────────────────────────
 @app.on_event("startup")
 async def startup_tasks():
     asyncio.create_task(
         offline_watcher(
-            db_factory=AsyncSessionLocal,
-            interval_seconds=OFFLINE_TIMEOUT / 2,
+            db_factory=get_db,
+            interval_seconds=30,
         )
     )
-    asyncio.create_task(offline_watcher(db_factory=AsyncSessionLocal, interval_seconds=OFFLINE_TIMEOUT/2))
-    # 2) start YOLO detection workers
     camera_queue.start_workers()
-@app.post("/upload", summary="Legacy camera firmware: send a frame")
-async def legacy_camera_upload(
-    request: Request,
-    background_tasks: BackgroundTasks,
-    camera_id: str = Query(..., description="Camera ID"),
-    db: AsyncSession = Depends(get_db),
-):
-    # firmware signals night mode by header X-Night: true
-    day_flag = request.headers.get("X-Night", "").lower() != "true"
-    try:
-        return await _process_upload(camera_id, request, background_tasks, db, day_flag=day_flag)
-    except HTTPException:
-        raise
-    except Exception as exc:
-        raise HTTPException(status_code=500, detail=f"Upload failed: {exc}")
-# Run server
+
+# ─── Main Entrypoint ──────────────────────────────────────────────────────────
 if __name__ == "__main__":
     uvicorn.run(
         "app.main:app",
         host="0.0.0.0",
-        port=int(os.getenv("PORT", 8000)),
+        port=int(os.getenv("PORT", 3000)),
         log_level=os.getenv("LOG_LEVEL", "info"),
-        reload=os.getenv("DEBUG", "false").lower() == "true"
+        reload=os.getenv("DEBUG", "false").lower() == "true",
     )
 
 
@@ -955,7 +1108,7 @@ async def get_current_user(token: str = Depends(oauth2_scheme), db=Depends(get_d
                 detail="Invalid authentication credentials"
             )
         result = await db.execute(select(User).where(User.id == user_id))
-        user = result.scalar_one_or_none()
+        user = result.unique().scalar_one_or_none()
         if user is None:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
@@ -1038,7 +1191,7 @@ def get_password_hash(password):
 async def login(form_data: OAuth2PasswordRequestForm = Depends(), db=Depends(get_db)):
     # Retrieve user by email
     result = await db.execute(select(User).where(User.email == form_data.username))
-    user = result.scalar_one_or_none()
+    user = result.unique().scalar_one_or_none()
     if not user or not verify_password(form_data.password, user.hashed_password):
         raise HTTPException(status_code=400, detail="Invalid credentials")
     
@@ -1054,7 +1207,7 @@ async def login(form_data: OAuth2PasswordRequestForm = Depends(), db=Depends(get
 async def signup(user_create: UserCreate, db=Depends(get_db)):
     # Check if email exists
     result = await db.execute(select(User).where(User.email == user_create.email))
-    if result.scalar_one_or_none():
+    if result.unique().scalar_one_or_none():
         raise HTTPException(status_code=400, detail="Email already registered")
     
     hashed_pw = get_password_hash(user_create.password)
@@ -1077,6 +1230,7 @@ async def signup(user_create: UserCreate, db=Depends(get_db)):
     db.add(profile)
     await db.commit()
     await db.refresh(profile)
+    await db.refresh(user)
     return user
 
 
@@ -1444,7 +1598,7 @@ from typing import List
 import datetime
 import os
 import jwt
-
+from sqlalchemy.orm import joinedload
 from app.models import User
 from app.core.database import get_db
 from app.dependencies import get_current_admin
@@ -1455,14 +1609,26 @@ router = APIRouter(prefix="/admin/users", tags=["admin", "users"])
 @router.get("/", response_model=List[UserResponse])
 async def list_users(
     db: AsyncSession = Depends(get_db),
-    admin: User = Depends(get_current_admin)
+    admin: User = Depends(get_current_admin),
 ):
     """
-    Admin-only endpoint to list all users.
+    Admin-only endpoint to list all users (including their devices).
     """
-    result = await db.execute(select(User))
+    # 1) construct the query
+    stmt = select(User).options(joinedload(User.devices))
+
+    # 2) execute it
+    result = await db.execute(stmt)
+
+    # 3) collapse duplicate User rows (one per device)
+    result = result.unique()
+
+    # 4) extract the User objects
     users = result.scalars().all()
+
     return users
+
+    
 
 @router.get("/{user_id}", response_model=UserResponse)
 async def get_user(
@@ -2049,7 +2215,7 @@ from app.models import Farm, User
 from app.schemas import FarmCreate, FarmResponse
 from app.dependencies import get_current_user
 
-router = APIRouter(prefix="/api/v1/farms", tags=["farms"])
+router = APIRouter(tags=["farms"])
 
 @router.post("/", response_model=FarmResponse)
 async def create_farm(farm: FarmCreate, db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
@@ -2975,6 +3141,7 @@ PROJECT_NAME = os.getenv("PROJECT_NAME", "Hydroleaf")
 SESSION_KEY = os.getenv("SESSION_KEY", "Hydroleaf_session")
 
 ----- app/core/database.py -----
+import asyncio
 import logging
 from typing import Dict, List, AsyncGenerator
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
@@ -3010,12 +3177,9 @@ Base = declarative_base()
 
 from alembic.config import Config
 from alembic import command
-async def init_db():
-    alembic_cfg = Config("alembic.ini")
-    command.upgrade(alembic_cfg, "head")
 
 async def get_db() -> AsyncGenerator[AsyncSession, None]:
-    """Get database session"""
+    """Yield a database session."""
     async with AsyncSessionLocal() as session:
         try:
             yield session
@@ -3026,45 +3190,27 @@ async def check_db_connection() -> Dict:
     """Check SQLite database connection and status"""
     try:
         async with AsyncSessionLocal() as session:
-            # Test basic connectivity
             result = await session.execute(text("SELECT 1"))
-            value = result.scalar()
-            
-            # Get table information
+            _ = result.scalar()
             tables_result = await session.execute(
                 text("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'")
             )
             existing_tables = [row[0] for row in tables_result.fetchall()]
-            
-            # Expected tables
-            expected_tables = [
-                'devices',
-                'dosing_profiles',
-                'sensor_readings',
-                'dosing_operations'
-            ]
-            
-            missing_tables = set(expected_tables) - set(existing_tables)
-            
+            expected = ['devices','dosing_profiles','sensor_readings','dosing_operations']
+            missing = set(expected) - set(existing_tables)
             return {
                 "status": "connected",
                 "type": "sqlite",
                 "tables": {
                     "existing": existing_tables,
-                    "missing": list(missing_tables),
-                    "status": "complete" if not missing_tables else "incomplete"
+                    "missing": list(missing),
+                    "status": "complete" if not missing else "incomplete"
                 },
                 "error": None
             }
-            
     except Exception as e:
         logger.error(f"Database connection check failed: {e}")
-        return {
-            "status": "error",
-            "type": "sqlite",
-            "tables": None,
-            "error": str(e)
-        }
+        return {"status": "error", "type": "sqlite", "tables": None, "error": str(e)}
 
 async def get_table_stats() -> Dict:
     """Get row counts for SQLite tables"""

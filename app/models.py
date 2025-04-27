@@ -1,292 +1,370 @@
 # app/models.py
 
-from sqlalchemy import Column, Integer, String, Float, DateTime, Boolean, ForeignKey, JSON, Enum as SQLAlchemyEnum
-from sqlalchemy.orm import relationship
-from sqlalchemy.sql import func
 from datetime import datetime, timezone
+from enum import Enum as PyEnum
+
+from sqlalchemy import (
+    Column,
+    Integer,
+    String,
+    Float,
+    DateTime,
+    Boolean,
+    ForeignKey,
+    JSON,
+    func,
+    Enum as SQLEnum,
+)
+from sqlalchemy.orm import relationship
+
 from app.core.database import Base
 from app.schemas import DeviceType
-from enum import Enum
+
+
+# -------------------------------------------------------------------
+# USERS & PROFILES
+# -------------------------------------------------------------------
+
+class User(Base):
+    __tablename__ = "users"
+
+    id              = Column(Integer, primary_key=True, index=True)
+    email           = Column(String(128), unique=True, nullable=False, index=True)
+    hashed_password = Column(String(256), nullable=False)
+    role            = Column(String(50), nullable=False, default="user")
+    created_at      = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at      = Column(
+                         DateTime(timezone=True),
+                         server_default=func.now(),
+                         onupdate=func.now(),
+                         nullable=False,
+                     )
+
+    # one‐to‐one
+    profile      = relationship(
+                       "UserProfile",
+                       back_populates="user",
+                       uselist=False,
+                       cascade="all, delete-orphan",
+                       lazy="joined",
+                   )
+    # one‐to‐many
+    farms        = relationship(
+                       "Farm",
+                       back_populates="user",
+                       cascade="all, delete-orphan",
+                       lazy="joined",
+                   )
+    devices      = relationship("Device", back_populates="user", cascade="all, delete-orphan")
+    subscriptions = relationship("Subscription", back_populates="user", cascade="all, delete-orphan")
+    payment_orders = relationship("PaymentOrder", back_populates="user", cascade="all, delete-orphan")
+    cameras      = relationship("UserCamera", back_populates="user", cascade="all, delete-orphan")
+
+
+class UserProfile(Base):
+    __tablename__ = "user_profiles"
+
+    id          = Column(Integer, primary_key=True, index=True)
+    user_id     = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, unique=True)
+    first_name  = Column(String(50))
+    last_name   = Column(String(50))
+    phone       = Column(String(20))
+    address     = Column(String(256))
+    city        = Column(String(100))
+    state       = Column(String(100))
+    country     = Column(String(100))
+    postal_code = Column(String(20))
+    created_at  = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at  = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
+
+    user = relationship("User", back_populates="profile")
+
+
+# -------------------------------------------------------------------
+# FARMS
+# -------------------------------------------------------------------
+
+class Farm(Base):
+    __tablename__ = "farms"
+
+    id          = Column(Integer, primary_key=True, index=True)
+    user_id     = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    name        = Column(String(128), nullable=False)
+    location    = Column(String(256))
+    created_at  = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at  = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
+
+    user    = relationship("User", back_populates="farms")
+    devices = relationship("Device", back_populates="farm", cascade="all, delete-orphan")
+
+
+# -------------------------------------------------------------------
+# DEVICES & PROFILES
+# -------------------------------------------------------------------
+
 class Device(Base):
     __tablename__ = "devices"
 
-    id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
-    farm_id = Column(Integer, ForeignKey("farms.id"), nullable=True)
-    mac_id = Column(String(64), unique=True, nullable=False)
-    name = Column(String(128), nullable=False)
-    type = Column(SQLAlchemyEnum(DeviceType), nullable=False)
-    http_endpoint = Column(String(256), nullable=False, unique=True)
-    location_description = Column(String(256))
-    is_active = Column(Boolean, default=True)
-    last_seen = Column(DateTime(timezone=True), nullable=True)
-    firmware_version = Column(String(32), nullable=True, server_default="0.0.0")
-    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
-    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
-    farm = relationship("Farm", back_populates="devices")
-    # JSON fields
-    pump_configurations = Column(JSON, nullable=True)
-    sensor_parameters = Column(JSON, nullable=True)
-    valve_configurations = Column(JSON, nullable=True)
-    # Relationships
-    dosing_profiles = relationship("DosingProfile", back_populates="device", cascade="all, delete-orphan")
-    sensor_readings = relationship("SensorReading", back_populates="device", cascade="all, delete-orphan")
-    dosing_operations = relationship("DosingOperation", back_populates="device", cascade="all, delete-orphan")
+    id                  = Column(Integer, primary_key=True, index=True)
+    user_id             = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    farm_id             = Column(Integer, ForeignKey("farms.id", ondelete="SET NULL"), nullable=True)
+    mac_id              = Column(String(64), unique=True, nullable=False, index=True)
+    name                = Column(String(128), nullable=False)
+    type                = Column(SQLEnum(DeviceType, name="device_type"), nullable=False)
+    http_endpoint       = Column(String(256), nullable=False)
+    location_description= Column(String(256))
+    is_active           = Column(Boolean, nullable=False, default=True)
+    last_seen           = Column(DateTime(timezone=True))
+    firmware_version    = Column(String(32), nullable=False, server_default="0.0.0")
+    created_at          = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at          = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
+
+    # JSON blobs
+    pump_configurations = Column(JSON)
+    sensor_parameters   = Column(JSON)
+    valve_configurations= Column(JSON)
+
+    # relationships
+    user               = relationship("User", back_populates="devices")
+    farm               = relationship("Farm", back_populates="devices")
+    dosing_profiles    = relationship("DosingProfile", back_populates="device", cascade="all, delete-orphan")
+    sensor_readings    = relationship("SensorReading", back_populates="device", cascade="all, delete-orphan")
+    dosing_operations  = relationship("DosingOperation", back_populates="device", cascade="all, delete-orphan")
+    subscriptions      = relationship("Subscription", back_populates="device", cascade="all, delete-orphan")
+    payment_orders     = relationship("PaymentOrder", back_populates="device", cascade="all, delete-orphan")
+    tasks              = relationship("Task", back_populates="device", cascade="all, delete-orphan")
+
+
 class DosingProfile(Base):
     __tablename__ = "dosing_profiles"
 
-    id = Column(Integer, primary_key=True, index=True)
-    device_id = Column(Integer, ForeignKey("devices.id", ondelete="CASCADE"))
-    plant_name = Column(String(100), nullable=False)
-    plant_type = Column(String(100), nullable=False)
-    growth_stage = Column(String(50), nullable=False)
-    seeding_date = Column(DateTime(timezone=True), nullable=False)
-    target_ph_min = Column(Float, nullable=False)
-    target_ph_max = Column(Float, nullable=False)
+    id             = Column(Integer, primary_key=True, index=True)
+    device_id      = Column(Integer, ForeignKey("devices.id", ondelete="CASCADE"), nullable=False)
+    plant_name     = Column(String(100), nullable=False)
+    plant_type     = Column(String(100), nullable=False)
+    growth_stage   = Column(String(50), nullable=False)
+    seeding_date   = Column(DateTime(timezone=True), nullable=False)
+    target_ph_min  = Column(Float, nullable=False)
+    target_ph_max  = Column(Float, nullable=False)
     target_tds_min = Column(Float, nullable=False)
     target_tds_max = Column(Float, nullable=False)
-    dosing_schedule = Column(JSON, nullable=False)
-    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
-    # Fix: Set updated_at with a default value so it is never None.
-    updated_at = Column(
-        DateTime(timezone=True),
-        server_default=func.now(),
-        onupdate=func.now(),
-        nullable=False
-    )
+    dosing_schedule= Column(JSON, nullable=False)
+    created_at     = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at     = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
 
-    # Relationships
     device = relationship("Device", back_populates="dosing_profiles")
+
 
 class Task(Base):
     __tablename__ = "tasks"
-    id = Column(Integer, primary_key=True, index=True)
-    device_id = Column(String, index=True, nullable=False)  # mac_id of the device
-    type = Column(String)  # e.g., 'pump', 'reset'
-    parameters = Column(JSON)
-    status = Column(String, default="pending")  
-    created_at = Column(
-        DateTime(timezone=True),
-        server_default=func.now(),
-        nullable=False
-    )
 
-    def to_dict(self):
-        return {
-            "type": self.type,
-            **self.parameters
-        }
+    id           = Column(Integer, primary_key=True, index=True)
+    device_mac_id= Column(String(64), ForeignKey("devices.mac_id", ondelete="CASCADE"), nullable=False, index=True)
+    type         = Column(String(50), nullable=False)
+    parameters   = Column(JSON)
+    status       = Column(String(50), nullable=False, default="pending")
+    created_at   = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+    device = relationship("Device", back_populates="tasks")
+
 
 class SensorReading(Base):
     __tablename__ = "sensor_readings"
 
-    id = Column(Integer, primary_key=True, index=True)
-    device_id = Column(Integer, ForeignKey("devices.id", ondelete="CASCADE"))
-    reading_type = Column(String(50), nullable=False)
-    value = Column(Float, nullable=False)
-    timestamp = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+    id          = Column(Integer, primary_key=True, index=True)
+    device_id   = Column(Integer, ForeignKey("devices.id", ondelete="CASCADE"), nullable=False)
+    reading_type= Column(String(50), nullable=False)
+    value       = Column(Float, nullable=False)
+    timestamp   = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    location    = Column(String(100))
+
     device = relationship("Device", back_populates="sensor_readings")
-    location = Column(String(100), nullable=True)
+
+
 class DosingOperation(Base):
     __tablename__ = "dosing_operations"
 
-    id = Column(Integer, primary_key=True, index=True)
-    device_id = Column(Integer, ForeignKey("devices.id", ondelete="CASCADE"))
-    operation_id = Column(String(100), unique=True, nullable=False)
-    actions = Column(JSON, nullable=False)
-    status = Column(String(50), nullable=False)
-    timestamp = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)) 
+    id          = Column(Integer, primary_key=True, index=True)
+    device_id   = Column(Integer, ForeignKey("devices.id", ondelete="CASCADE"), nullable=False)
+    operation_id= Column(String(100), unique=True, nullable=False)
+    actions     = Column(JSON, nullable=False)
+    status      = Column(String(50), nullable=False)
+    timestamp   = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
     device = relationship("Device", back_populates="dosing_operations")
+
+
+# -------------------------------------------------------------------
+# PLANTS & ANALYSIS
+# -------------------------------------------------------------------
 
 class Plant(Base):
     __tablename__ = "plants"
 
-    id = Column(Integer, primary_key=True, index=True)
-    name = Column(String(100), nullable=False)
-    type = Column(String(100), nullable=False)
-    growth_stage = Column(String(50), nullable=False)
+    id           = Column(Integer, primary_key=True, index=True)
+    name         = Column(String(100), nullable=False)
+    type         = Column(String(100), nullable=False)
+    growth_stage = Column(String(50),  nullable=False)
     seeding_date = Column(DateTime(timezone=True), nullable=False)
-    region = Column(String(100), nullable=False)
-    location = Column(String(100), nullable = False)
-    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
-    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
-    
-    
+    region       = Column(String(100), nullable=False)
+    location     = Column(String(100), nullable=False)
+    created_at   = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at   = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
+
+
 class SupplyChainAnalysis(Base):
     __tablename__ = "supply_chain_analysis"
 
-    id = Column(Integer, primary_key=True, index=True)
-    origin = Column(String(100), nullable=False)
-    destination = Column(String(100), nullable=False)
-    produce_type = Column(String(50), nullable=False)
-    weight_kg = Column(Float, nullable=False)
-    transport_mode = Column(String(50), default="railway")
-
-    distance_km = Column(Float, nullable=False)
-    cost_per_kg = Column(Float, nullable=False)
-    total_cost = Column(Float, nullable=False)
+    id                   = Column(Integer, primary_key=True, index=True)
+    origin               = Column(String(100), nullable=False)
+    destination          = Column(String(100), nullable=False)
+    produce_type         = Column(String(50),  nullable=False)
+    weight_kg            = Column(Float, nullable=False)
+    transport_mode       = Column(String(50), server_default="railway", nullable=False)
+    distance_km          = Column(Float, nullable=False)
+    cost_per_kg          = Column(Float, nullable=False)
+    total_cost           = Column(Float, nullable=False)
     estimated_time_hours = Column(Float, nullable=False)
-
-    market_price_per_kg = Column(Float, nullable=False)
-    net_profit_per_kg = Column(Float, nullable=False)
+    market_price_per_kg  = Column(Float, nullable=False)
+    net_profit_per_kg    = Column(Float, nullable=False)
     final_recommendation = Column(String(200), nullable=False)
+    created_at           = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at           = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
 
-    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
-    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
+    conversation_logs = relationship(
+        "ConversationLog", back_populates="analysis", cascade="all, delete-orphan"
+    )
+
 
 class ConversationLog(Base):
     __tablename__ = "conversation_logs"
-    
-    id = Column(Integer, primary_key=True, index=True)
-    analysis_id = Column(Integer, ForeignKey("supply_chain_analysis.id"), nullable=True)
+
+    id           = Column(Integer, primary_key=True, index=True)
+    analysis_id  = Column(Integer, ForeignKey("supply_chain_analysis.id", ondelete="SET NULL"))
     conversation = Column(JSON, nullable=False)
+    created_at   = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+    analysis = relationship("SupplyChainAnalysis", back_populates="conversation_logs")
+
+
+# -------------------------------------------------------------------
+# SUBSCRIPTIONS & BILLING
+# -------------------------------------------------------------------
+
+class SubscriptionPlan(Base):
+    __tablename__ = "subscription_plans"
+
+    id            = Column(Integer, primary_key=True, index=True)
+    name          = Column(String(128), nullable=False)
+    device_types  = Column(JSON, nullable=False)    # e.g. ["dosing_unit"]
+    duration_days = Column(Integer, nullable=False)  # 28 to 730
+    price_cents   = Column(Integer, nullable=False)
+    created_by    = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=False)
+    created_at    = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+    activation_keys = relationship("ActivationKey", back_populates="plan", cascade="all, delete-orphan")
+    subscriptions   = relationship("Subscription", back_populates="plan", cascade="all, delete-orphan")
+    payment_orders  = relationship("PaymentOrder", back_populates="plan", cascade="all, delete-orphan")
+
+
+class ActivationKey(Base):
+    __tablename__ = "activation_keys"
+
+    id                  = Column(Integer, primary_key=True, index=True)
+    key                 = Column(String(64), unique=True, nullable=False, index=True)
+    device_type         = Column(SQLEnum(DeviceType, name="activation_device_type"), nullable=False)
+    plan_id             = Column(Integer, ForeignKey("subscription_plans.id", ondelete="CASCADE"), nullable=False)
+    created_by          = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=False)
+    created_at          = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    redeemed            = Column(Boolean, default=False, nullable=False)
+    redeemed_device_id  = Column(Integer, ForeignKey("devices.id", ondelete="SET NULL"))
+    redeemed_user_id    = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"))
+    allowed_device_id   = Column(Integer, ForeignKey("devices.id", ondelete="SET NULL"))
+
+    plan             = relationship("SubscriptionPlan", back_populates="activation_keys")
+    creator          = relationship("User", foreign_keys=[created_by])
+    redeemed_device  = relationship("Device", foreign_keys=[redeemed_device_id])
+    redeemed_user    = relationship("User", foreign_keys=[redeemed_user_id])
+    allowed_device   = relationship("Device", foreign_keys=[allowed_device_id], backref="allowed_activation_keys")
+
+
+class Subscription(Base):
+    __tablename__ = "subscriptions"
+
+    id         = Column(Integer, primary_key=True, index=True)
+    user_id    = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    device_id  = Column(Integer, ForeignKey("devices.id", ondelete="CASCADE"), nullable=False)
+    plan_id    = Column(Integer, ForeignKey("subscription_plans.id", ondelete="SET NULL"), nullable=False)
+    start_date = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    end_date   = Column(DateTime(timezone=True), nullable=False)
+    active     = Column(Boolean, default=True, nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
-class User(Base):
-    __tablename__ = "users"
-    id = Column(Integer, primary_key=True, index=True)
-    email = Column(String(128), unique=True, nullable=False)
-    hashed_password = Column(String(256), nullable=False)
-    role = Column(String(50), nullable=False, default="user")
-    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
-    farms = relationship("Farm", back_populates="user", cascade="all, delete-orphan")
-    profile = relationship("UserProfile", back_populates="user", uselist=False, cascade="all, delete-orphan")
-    
-class Farm(Base):
-    __tablename__ = "farms"
+    user   = relationship("User", back_populates="subscriptions")
+    device = relationship("Device", back_populates="subscriptions")
+    plan   = relationship("SubscriptionPlan", back_populates="subscriptions")
 
-    id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
-    name = Column(String(128), nullable=False)
-    location = Column(String(256), nullable=True)
-    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
-    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
 
-    # Relationships
-    devices = relationship("Device", back_populates="farm", cascade="all, delete-orphan")
-    user = relationship("User", back_populates="farms")
+class PaymentStatus(PyEnum):
+    PENDING    = "pending"
+    PROCESSING = "processing"
+    COMPLETED  = "completed"
+    FAILED     = "failed"
+
+
+class PaymentOrder(Base):
+    __tablename__ = "payment_orders"
+
+    id                 = Column(Integer, primary_key=True, index=True)
+    user_id            = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    device_id          = Column(Integer, ForeignKey("devices.id", ondelete="CASCADE"), nullable=False)
+    plan_id            = Column(Integer, ForeignKey("subscription_plans.id", ondelete="SET NULL"), nullable=False)
+    amount_cents       = Column(Integer, nullable=False)
+    status             = Column(
+                             SQLEnum(PaymentStatus, name="payment_status"),
+                             default=PaymentStatus.PENDING,
+                             nullable=False,
+                         )
+    upi_transaction_id = Column(String(64))
+    created_at         = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at         = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
+
+    user   = relationship("User", back_populates="payment_orders")
+    device = relationship("Device", back_populates="payment_orders")
+    plan   = relationship("SubscriptionPlan", back_populates="payment_orders")
+
+
+# -------------------------------------------------------------------
+# CAMERAS & DETECTIONS
+# -------------------------------------------------------------------
 
 class Camera(Base):
     __tablename__ = "cameras"
 
     id              = Column(String(64), primary_key=True, index=True)
     name            = Column(String(120), nullable=False)
-    is_online       = Column(Boolean, default=False)
-    last_seen       = Column(DateTime(timezone=True), nullable=True)
-    frames_received = Column(Integer, default=0)
-    clips_count     = Column(Integer, default=0)
-    last_clip_time  = Column(DateTime(timezone=True), nullable=True)
-    storage_used    = Column(Float, default=0.0)  # MB
-    settings        = Column(JSON, nullable=True)
+    is_online       = Column(Boolean, default=False, nullable=False)
+    last_seen       = Column(DateTime(timezone=True))
+    frames_received = Column(Integer, default=0, nullable=False)
+    clips_count     = Column(Integer, default=0, nullable=False)
+    last_clip_time  = Column(DateTime(timezone=True))
+    storage_used    = Column(Float, default=0.0, nullable=False)  # MB
+    settings        = Column(JSON)
 
-    users = relationship("UserCamera", back_populates="camera", cascade="all, delete-orphan")
+    user_cameras     = relationship("UserCamera", back_populates="camera", cascade="all, delete-orphan")
+    detection_records= relationship("DetectionRecord", back_populates="camera", cascade="all, delete-orphan")
+
 
 class UserCamera(Base):
     __tablename__ = "user_cameras"
 
     id        = Column(Integer, primary_key=True, index=True)
-    user_id   = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"))
-    camera_id = Column(String(64),  ForeignKey("cameras.id", ondelete="CASCADE"))
-    nickname  = Column(String(120), nullable=True)
+    user_id   = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    camera_id = Column(String(64), ForeignKey("cameras.id", ondelete="CASCADE"), nullable=False)
+    nickname  = Column(String(120))
 
     user   = relationship("User", back_populates="cameras")
-    camera = relationship("Camera", back_populates="users")
-
-User.cameras = relationship("UserCamera", back_populates="user", cascade="all, delete-orphan")
-
-class UserProfile(Base):
-    __tablename__ = "user_profiles"
-
-    id = Column(Integer, primary_key=True, index=True)
-    # add FK to users
-    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, unique=True)
-    first_name   = Column(String(50), nullable=True)
-    last_name    = Column(String(50), nullable=True)
-    phone        = Column(String(20), nullable=True)
-    address      = Column(String(256), nullable=True)
-    city         = Column(String(100), nullable=True)
-    state        = Column(String(100), nullable=True)
-    country      = Column(String(100), nullable=True)
-    postal_code  = Column(String(20), nullable=True)
-    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
-    updated_at = Column(DateTime(timezone=True), server_default=func.now(),
-                         onupdate=func.now(), nullable=False)
-
-    user = relationship("User", back_populates="profile")
-
-class ActivationKey(Base):
-    __tablename__ = "activation_keys"
-    id                  = Column(Integer, primary_key=True, index=True)
-    key                 = Column(String(64), unique=True, nullable=False, index=True)
-    device_type         = Column(SQLAlchemyEnum(DeviceType), nullable=False)
-    plan_id             = Column(Integer, ForeignKey("subscription_plans.id"), nullable=False)
-    created_by          = Column(Integer, ForeignKey("users.id"), nullable=False)
-    created_at          = Column(DateTime(timezone=True), server_default=func.now())
-    redeemed            = Column(Boolean, default=False)
-    redeemed_device_id  = Column(Integer, ForeignKey("devices.id"), nullable=True)
-    redeemed_user_id    = Column(Integer, ForeignKey("users.id"), nullable=True)
-    redeemed_at         = Column(DateTime(timezone=True), nullable=True)
-    allowed_device_id   = Column(Integer, ForeignKey("devices.id"), nullable=True)
-    plan = relationship("SubscriptionPlan", backref="activation_keys")
-    allowed_device = relationship(
-        "Device",
-        foreign_keys=[allowed_device_id],
-        backref="allowed_activation_keys",
-    )
-class SubscriptionPlan(Base):
-    __tablename__ = "subscription_plans"
-    id            = Column(Integer, primary_key=True, index=True)
-    name          = Column(String(128), nullable=False)
-    device_types  = Column(JSON, nullable=False)   # e.g. ["dosing_unit"]
-    duration_days = Column(Integer, nullable=False) # 28 to 730
-    price_cents   = Column(Integer, nullable=False)
-    created_by    = Column(Integer, ForeignKey("users.id"), nullable=False)
-    created_at    = Column(DateTime(timezone=True), server_default=func.now())
-
-class Subscription(Base):
-    __tablename__ = "subscriptions"
-    id         = Column(Integer, primary_key=True, index=True)
-    user_id    = Column(Integer, ForeignKey("users.id"), nullable=False)
-    device_id  = Column(Integer, ForeignKey("devices.id"), nullable=False)
-    plan_id    = Column(Integer, ForeignKey("subscription_plans.id"), nullable=False)
-    start_date = Column(DateTime(timezone=True), server_default=func.now())
-    end_date   = Column(DateTime(timezone=True), nullable=False)
-    active     = Column(Boolean, default=True)
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
-
-
-class PaymentStatus(str, Enum):
-    PENDING    = "pending"
-    PROCESSING = "processing"
-    COMPLETED  = "completed"
-    FAILED     = "failed"
-
-class PaymentOrder(Base):
-    __tablename__ = "payment_orders"
-
-    id                 = Column(Integer, primary_key=True, index=True)
-    user_id            = Column(Integer, ForeignKey("users.id"), nullable=False)
-    device_id          = Column(Integer, ForeignKey("devices.id"), nullable=False)
-    plan_id            = Column(Integer, ForeignKey("subscription_plans.id"), nullable=False)
-    amount_cents       = Column(Integer, nullable=False)
-    status             = Column(SQLAlchemyEnum(PaymentStatus), default=PaymentStatus.PENDING, nullable=False)
-    upi_transaction_id = Column(String(64), nullable=True)
-    created_at         = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
-    updated_at         = Column(DateTime(timezone=True), server_default=func.now(),
-                                onupdate=func.now(), nullable=False)
-
-    # Relationships
-    user   = relationship("User", back_populates="payment_orders")
-    device = relationship("Device")
-    plan   = relationship("SubscriptionPlan")
-
-# back-populate in User
-User.payment_orders = relationship(
-     "PaymentOrder",
-     back_populates="user",
-     cascade="all, delete-orphan",
- )
-
+    camera = relationship("Camera", back_populates="user_cameras")
 
 
 class DetectionRecord(Base):
@@ -295,10 +373,6 @@ class DetectionRecord(Base):
     id          = Column(Integer, primary_key=True, index=True)
     camera_id   = Column(String(64), ForeignKey("cameras.id", ondelete="CASCADE"), nullable=False)
     object_name = Column(String(100), nullable=False)
-    timestamp   = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False)
+    timestamp   = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
-# back-populate on Camera
-Camera.detection_records = relationship(
-    "DetectionRecord", back_populates="camera", cascade="all, delete-orphan"
-)
-DetectionRecord.camera = relationship("Camera", back_populates="detection_records")
+    camera = relationship("Camera", back_populates="detection_records")

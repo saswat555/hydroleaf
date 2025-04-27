@@ -6,7 +6,7 @@ from typing import List
 import datetime
 import os
 import jwt
-
+from sqlalchemy.orm import joinedload
 from app.models import User
 from app.core.database import get_db
 from app.dependencies import get_current_admin
@@ -17,14 +17,26 @@ router = APIRouter(prefix="/admin/users", tags=["admin", "users"])
 @router.get("/", response_model=List[UserResponse])
 async def list_users(
     db: AsyncSession = Depends(get_db),
-    admin: User = Depends(get_current_admin)
+    admin: User = Depends(get_current_admin),
 ):
     """
-    Admin-only endpoint to list all users.
+    Admin-only endpoint to list all users (including their devices).
     """
-    result = await db.execute(select(User))
+    # 1) construct the query
+    stmt = select(User).options(joinedload(User.devices))
+
+    # 2) execute it
+    result = await db.execute(stmt)
+
+    # 3) collapse duplicate User rows (one per device)
+    result = result.unique()
+
+    # 4) extract the User objects
     users = result.scalars().all()
+
     return users
+
+    
 
 @router.get("/{user_id}", response_model=UserResponse)
 async def get_user(
