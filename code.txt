@@ -1030,12 +1030,28 @@ templates = Jinja2Templates(directory="app/templates")
 async def log_requests(request: Request, call_next):
     start = time.time()
     try:
+        # ── NEW: who is calling? ───────────────────────────────────────
+        client_ip = request.headers.get("x-forwarded-for", request.client.host)
+        device_id = request.query_params.get("device_id")  # may be None
+
         response = await call_next(request)
         latency = time.time() - start
+
+        # neat one‑liner: METHOD PATH • ip=… • device_id=… • code •  ms
+        logger.info(
+            "%s %s • ip=%s • device_id=%s • %d • %.1f ms",
+            request.method,
+            request.url.path,
+            client_ip,
+            device_id or "-",
+            response.status_code,
+            latency * 1000,
+        )
+
         response.headers.update({
-            "X-Process-Time": f"{latency:.3f}",
-            "X-API-Version": app.version,
-        })
+             "X-Process-Time": f"{latency:.3f}",
+             "X-API-Version": app.version,
+         })
         return response
     except Exception as exc:
         logger.error(f"Unhandled error during request: {exc}", exc_info=True)
@@ -3011,9 +3027,10 @@ async def list_my_devices(
     return result.scalars().all()
 
 ----- app/routers/device_comm.py -----
-from fastapi import APIRouter, Body, Depends, HTTPException, Path, Query, Request, Path as PathParam
+from fastapi import APIRouter, Body, Depends, HTTPException, Path, Query, Request, Path as PathParam, logger
 from fastapi.responses import FileResponse
 import httpx
+from requests import request
 import semver
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -3058,7 +3075,14 @@ async def check_for_update(
 
 
 @router.get("/update/pull", summary="Download the latest firmware")
-async def pull_firmware(device_id: str = Query(..., description="Device or Camera ID")):
+async def pull_firmware(
+    request: Request,                                           
+    device_id: str = Query(..., description="Device or Camera ID")):
+    logger.info(
+        "Firmware pull • device_id=%s • ip=%s",
+        device_id,
+        request.headers.get("x-forwarded-for", request.client.host),
+    )
     if device_id.startswith("CAM_"):
         if not CAM_FW.exists():
             raise HTTPException(404, "Camera firmware not found")
@@ -3174,6 +3198,7 @@ async def heartbeat(request: Request, db: AsyncSession = Depends(get_db)):
     mac = payload.get("device_id")
     dtype = payload.get("type")
     ver = payload.get("version")
+    logger.info("Heartbeat from %s  •  IP=%s", mac, request.headers.get("x‑forwarded‑for", request.client.host))
 
     # Update last_seen & firmware_version
     device = await db.scalar(select(Device).where(Device.mac_id == mac))

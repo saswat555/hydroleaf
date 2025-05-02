@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>🌱 HydroLeaf – Admin Console</title>
+
+  <!-- Bootstrap -->
+  <link
+    rel="stylesheet"
+    href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css"
+  />
+  <style>
+    body { background:#f7f9fc }
+    .rounded-soft { border-radius:1.25rem }
+    #videoContainer { max-height:75vh; overflow:hidden }
+    #feed, #liveVideo { width:100%; background:#000; object-fit:contain }
+    .clip-row:hover { background:#f0f4ff; cursor:pointer }
+    .drawer { max-height:60vh; overflow:auto }
+  </style>
+</head>
+<body class="p-4">
+  <div class="container-xl">
+    <h1 class="display-6 mb-4">🌱 HydroLeaf – Admin Console</h1>
+
+    <!-- 1. connection / auth -->
+    <div class="row g-3 mb-4">
+      <div class="col-md-4">
+        <label class="form-label">Cloud base‑URL</label>
+        <input type="url" id="baseUrl" class="form-control rounded-soft"
+               placeholder="https://cloud.hydroleaf.in">
+      </div>
+      <div class="col-md-4">
+        <label class="form-label">Admin JWT / API‑Key</label>
+        <input type="text" id="apiToken" class="form-control rounded-soft"
+               placeholder="my‑secret‑token">
+      </div>
+      <div class="col-md-4 d-flex align-items-end gap-2">
+        <button id="saveCfg" class="btn btn-primary flex-fill">Save & Test</button>
+      </div>
+    </div>
+
+    <!-- 2. camera picker & live‑controls -->
+    <div class="row g-3 align-items-end mb-4">
+      <div class="col-md-4">
+        <label class="form-label">Choose camera</label>
+        <select id="cameraSelect" class="form-select rounded-soft"></select>
+      </div>
+      <div class="col-md-8 d-flex gap-2">
+        <button id="startBtn"   class="btn btn-success flex-fill">▶️ Start feed</button>
+        <button id="stopBtn"    class="btn btn-warning flex-fill">⏹ Stop feed</button>
+        <button id="refreshBtn" class="btn btn-secondary flex-fill">🔄 Refresh list</button>
+        <button id="clipsBtn"   class="btn btn-info flex-fill">🎞️ Clips</button>
+      </div>
+    </div>
+
+    <!-- 3. live view -->
+    <div id="videoContainer" class="rounded-soft shadow position-relative">
+      <img id="feed" alt="Live MJPEG feed">
+      <!-- HLS <video> will be injected here if needed -->
+    </div>
+
+    <!-- 4. drawer – clips list -->
+    <div id="clipsDrawer" class="drawer mt-4 d-none">
+      <h5 class="mb-3">Stored clips</h5>
+      <table class="table table-sm align-middle">
+        <thead><tr>
+          <th>Time&nbsp;(UTC)</th><th>Size&nbsp;MB</th><th class="text-end">Actions</th>
+        </tr></thead>
+        <tbody id="clipsTbody"></tbody>
+      </table>
+      <div id="noClips" class="text-muted">No clips for this camera yet.</div>
+    </div>
+  </div>
+
+  <!-- deps -->
+  <script src="https://cdn.jsdelivr.net/npm/axios@1.6.7/dist/axios.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/hls.js@1.5.0/dist/hls.min.js"></script>
+  <script>
+    /* ---------- simple local‑storage config ---------- */
+    const cfg = {
+      get baseUrl() { return localStorage.getItem('hl_baseUrl') || 'https://cloud.hydroleaf.in' },
+      set baseUrl(v) { localStorage.setItem('hl_baseUrl', v) },
+      get token()   { return localStorage.getItem('hl_token') || '' },
+      set token(v)  { localStorage.setItem('hl_token', v) }
+    };
+    const el = id => document.getElementById(id);
+
+    el('baseUrl').value = cfg.baseUrl;
+    el('apiToken').value = cfg.token;
+
+    /* ---------- event hooks ---------- */
+    el('saveCfg').onclick    = async () => {                // store → test
+      cfg.baseUrl = el('baseUrl').value.trim().replace(/\/$/, '');
+      cfg.token   = el('apiToken').value.trim();
+      await loadCameras();
+    };
+    el('refreshBtn').onclick = loadCameras;
+    el('startBtn').onclick   = startFeed;
+    el('stopBtn').onclick    = stopFeed;
+    el('clipsBtn').onclick   = toggleClipsDrawer;
+
+    let hls;    // Hls.js instance
+
+    /* ---------- camera list ---------- */
+    async function loadCameras() {
+      el('cameraSelect').innerHTML = '<option disabled selected>Loading…</option>';
+      try {
+        const { data } = await axios.get(`${cfg.baseUrl}/api/v1/devices?type=camera`, {
+          headers: authHdr()
+        });
+        // fallback if ?type=... filter isn’t implemented yet:
+        const cams = Array.isArray(data) ? data.filter(d => d.type === 'camera') : [];
+        el('cameraSelect').innerHTML = cams.length
+          ? cams.map(c => `<option value="${c.id}">${c.name || c.id}</option>`).join('')
+          : '<option disabled selected>No cameras</option>';
+      } catch (err) {
+        console.error(err);
+        alert('Could not fetch camera list – see console');
+      }
+    }
+
+    /* ---------- live‑view helpers ---------- */
+    function authHdr() {
+      return cfg.token ? { Authorization: `Bearer ${cfg.token}` } : {};
+    }
+    function startFeed() {
+      const camId = el('cameraSelect').value;
+      if (!camId) return alert('Select a camera first');
+      const hlsUrl = `${cfg.baseUrl}/api/v1/stream/${camId}/index.m3u8`;
+      if (Hls.isSupported()) {
+        replaceWithVideo();
+        hls?.destroy();
+        hls = new Hls();
+        hls.loadSource(hlsUrl);
+        hls.attachMedia(el('liveVideo'));
+        el('liveVideo').play();
+      } else {
+        // fallback MJPEG
+        const imgUrl = `${cfg.baseUrl}/stream/${camId}` + (cfg.token ? `?token=${cfg.token}` : '');
+        el('feed').src = imgUrl;
+        el('feed').style.display = 'block';
+        removeVideo();
+      }
+    }
+    function stopFeed() {
+      hls?.destroy();
+      removeVideo();
+      el('feed').src = '';
+    }
+    function replaceWithVideo() {
+      let v = document.querySelector('#liveVideo');
+      if (!v) {
+        v = document.createElement('video');
+        v.id = 'liveVideo';
+        v.className = 'w-100';
+        v.controls = true;
+        el('feed').style.display = 'none';
+        el('videoContainer').appendChild(v);
+      }
+    }
+    function removeVideo() {
+      const v = document.querySelector('#liveVideo');
+      if (v) v.remove();
+      el('feed').style.display = 'block';
+    }
+
+    /* ---------- clips drawer ---------- */
+    async function toggleClipsDrawer() {
+      const drawer = el('clipsDrawer');
+      drawer.classList.toggle('d-none');
+      if (!drawer.classList.contains('d-none')) loadClips();
+    }
+    async function loadClips() {
+      const camId = el('cameraSelect').value;
+      if (!camId) return alert('Select a camera first');
+      el('clipsTbody').innerHTML = '';
+      el('noClips').style.display = 'none';
+      try {
+        const { data } = await axios.get(`${cfg.baseUrl}/api/clips/${camId}`, {
+          headers: authHdr()
+        });
+        if (!data.length) {
+          el('noClips').style.display = 'block';
+          return;
+        }
+        data.forEach(cp => addClipRow(camId, cp));
+      } catch (err) {
+        console.error(err);
+        alert('Failed to load clip list');
+      }
+    }
+    function addClipRow(camId, clip) {
+      const tr = document.createElement('tr');
+      tr.className = 'clip-row';
+      tr.innerHTML = `
+        <td>${new Date(clip.datetime).toLocaleString()}</td>
+        <td>${clip.size_mb}</td>
+        <td class="text-end">
+          <button class="btn btn-sm btn-outline-primary me-1">Play</button>
+          <button class="btn btn-sm btn-outline-danger">Delete</button>
+        </td>`;
+      const [playBtn, delBtn] = tr.querySelectorAll('button');
+      playBtn.onclick = () => playClip(camId, clip.filename);
+      delBtn.onclick  = () => deleteClip(camId, clip.filename, tr);
+      el('clipsTbody').appendChild(tr);
+    }
+
+    function playClip(camId, file) {
+      const url = `${cfg.baseUrl}/clips/${camId}/${file}`;
+      const w = window.open('');
+      w.document.write(`<title>${file}</title><video controls autoplay src="${url}" style="width:100%"></video>`);
+    }
+
+    async function deleteClip(camId, file, rowEl) {
+      if (!confirm(`Delete clip ${file}?`)) return;
+      try {
+        await axios.delete(`${cfg.baseUrl}/clips/${camId}/${file}`, { headers: authHdr() });
+        rowEl.remove();
+      } catch (err) {
+        console.error(err);
+        alert('Delete failed (see console)');
+      }
+    }
+
+    // initialise on load
+    loadCameras();
+  </script>
+</body>
+</html>
