@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Body, Depends, HTTPException, Path, Query, Request, Path as PathParam, logger
 from fastapi.responses import FileResponse
 import httpx
+from requests import request
 import semver
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -45,7 +46,15 @@ async def check_for_update(
 
 
 @router.get("/update/pull", summary="Download the latest firmware")
-async def pull_firmware(device_id: str = Query(..., description="Device or Camera ID")):
+async def pull_firmware(
+    request: Request,                                           # ✦ add
+    device_id: str = Query(..., description="Device or Camera ID")
+):
+    logger.info(
+        "Firmware pull • device_id=%s • ip=%s",
+        device_id,
+        request.headers.get("x-forwarded-for", request.client.host),
+    )
     if device_id.startswith("CAM_"):
         if not CAM_FW.exists():
             raise HTTPException(404, "Camera firmware not found")
