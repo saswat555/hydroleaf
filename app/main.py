@@ -85,12 +85,28 @@ templates = Jinja2Templates(directory="app/templates")
 async def log_requests(request: Request, call_next):
     start = time.time()
     try:
+        # ── NEW: who is calling? ───────────────────────────────────────
+        client_ip = request.headers.get("x-forwarded-for", request.client.host)
+        device_id = request.query_params.get("device_id")  # may be None
+
         response = await call_next(request)
         latency = time.time() - start
+
+        # neat one‑liner: METHOD PATH • ip=… • device_id=… • code •  ms
+        logger.info(
+            "%s %s • ip=%s • device_id=%s • %d • %.1f ms",
+            request.method,
+            request.url.path,
+            client_ip,
+            device_id or "-",
+            response.status_code,
+            latency * 1000,
+        )
+
         response.headers.update({
-            "X-Process-Time": f"{latency:.3f}",
-            "X-API-Version": app.version,
-        })
+             "X-Process-Time": f"{latency:.3f}",
+             "X-API-Version": app.version,
+         })
         return response
     except Exception as exc:
         logger.error(f"Unhandled error during request: {exc}", exc_info=True)

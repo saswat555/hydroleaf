@@ -47,9 +47,8 @@ async def check_for_update(
 
 @router.get("/update/pull", summary="Download the latest firmware")
 async def pull_firmware(
-    request: Request,                                           # ✦ add
-    device_id: str = Query(..., description="Device or Camera ID")
-):
+    request: Request,                                           
+    device_id: str = Query(..., description="Device or Camera ID")):
     logger.info(
         "Firmware pull • device_id=%s • ip=%s",
         device_id,
