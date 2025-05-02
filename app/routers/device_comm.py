@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Body, Depends, HTTPException, Path, Query, Request
+from fastapi import APIRouter, Body, Depends, HTTPException, Path, Query, Request, Path as PathParam
 from fastapi.responses import FileResponse
 import httpx
 import semver
@@ -13,8 +13,8 @@ from app.core.database import get_db
 from app.dependencies import get_current_device
 from app.models import Device, Task
 from app.schemas import DeviceType, SimpleDosingCommand
-from pathlib import Path
-CAM_FW = Path("firmware/camera/firmware.bin")
+from pathlib import Path as FilePath 
+CAM_FW = FilePath("firmware/camera/firmware.bin")
 router = APIRouter(prefix="/api/v1/device_comm", tags=["device_comm"])
 
 
@@ -76,7 +76,7 @@ async def valve_event(
 
 @router.get("/valve/{device_id}/state", summary="Fetch current valve states")
 async def get_valve_state(
-    device_id: str = Path(..., description="MAC ID of the valve controller"),
+    device_id: str = PathParam(..., description="MAC ID of the valve controller"),
     db: AsyncSession = Depends(get_db),
 ):
     device = await db.get(Device, device_id)
@@ -91,7 +91,7 @@ async def get_valve_state(
 
 @router.post("/valve/{device_id}/toggle", summary="Toggle a single valve")
 async def toggle_valve(
-    device_id: str = Path(..., description="MAC ID of the valve controller"),
+    device_id: str = PathParam(..., description="MAC ID of the valve controller"),
     body: dict = Body(..., media_type="application/json"),
     db: AsyncSession = Depends(get_db),
 ):

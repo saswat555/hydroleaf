@@ -4,11 +4,12 @@ import json
 import os
 import ipaddress
 import asyncio
+from pathlib import Path as FsPath 
 import socket
 from typing import List
 import httpx
 import logging
-from fastapi import APIRouter, HTTPException, Depends, Query, Request,  WebSocket
+from fastapi import APIRouter, HTTPException, Depends, Query, Request,  WebSocket, Path as PathParam
 from fastapi.responses import JSONResponse, StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
@@ -221,7 +222,7 @@ async def list_devices(db: AsyncSession = Depends(get_db)):
     return result.scalars().all()
 
 @router.get("/{device_id}", response_model=DeviceResponse, summary="Get device details")
-async def get_device(device_id: int, db: AsyncSession = Depends(get_db)):
+async def get_device(device_id: str = PathParam(..., description="MAC ID of the valve controller"), db: AsyncSession = Depends(get_db)):
     result = await db.execute(select(Device).where(Device.id == device_id))
     device = result.scalar_one_or_none()
     if not device:

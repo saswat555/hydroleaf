@@ -76,7 +76,7 @@ class DosingAction(BaseModel):
     reasoning: str
 
 class DosingProfileBase(BaseModel):
-    device_id: int
+    device_id: str  
     plant_name: str = Field(..., max_length=100)
     plant_type: str = Field(..., max_length=100)
     growth_stage: str = Field(..., max_length=50)
@@ -98,7 +98,7 @@ class DosingProfileResponse(DosingProfileBase):
     updated_at: datetime
 
 class DosingOperation(BaseModel):
-    device_id: int
+    device_id: str  
     operation_id: str
     actions: List[DosingAction]
     status: str

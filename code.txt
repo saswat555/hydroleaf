@@ -5,8 +5,8 @@
 
 from datetime import datetime, timezone
 from enum import Enum as PyEnum
+import uuid
 
-from pyparsing import Enum
 from sqlalchemy import (
     Column,
     Integer,
@@ -16,11 +16,10 @@ from sqlalchemy import (
     Boolean,
     ForeignKey,
     JSON,
-    func,
-    Enum as SQLEnum,
+    func
 )
 from sqlalchemy.orm import relationship
-
+from sqlalchemy import Enum as Enum 
 from app.core.database import Base
 from app.schemas import DeviceType
 
@@ -28,6 +27,9 @@ from app.schemas import DeviceType
 # -------------------------------------------------------------------
 # USERS & PROFILES
 # -------------------------------------------------------------------
+
+def _uuid() -> str:
+    return uuid.uuid4().hex 
 
 class User(Base):
     __tablename__ = "users"
@@ -109,12 +111,12 @@ class Farm(Base):
 class Device(Base):
     __tablename__ = "devices"
 
-    id                  = Column(Integer, primary_key=True, index=True)
+    id   = Column(String(32), primary_key=True, default=_uuid)
     user_id             = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
     farm_id             = Column(Integer, ForeignKey("farms.id", ondelete="SET NULL"), nullable=True)
     mac_id              = Column(String(64), unique=True, nullable=False, index=True)
     name                = Column(String(128), nullable=False)
-    type                = Column(SQLEnum(DeviceType, name="device_type"), nullable=False)
+    type                = Column(Enum(DeviceType, name="device_type"), nullable=False)
     http_endpoint       = Column(String(256), nullable=False)
     location_description= Column(String(256))
     is_active           = Column(Boolean, nullable=False, default=True)
@@ -143,7 +145,7 @@ class DosingProfile(Base):
     __tablename__ = "dosing_profiles"
 
     id             = Column(Integer, primary_key=True, index=True)
-    device_id      = Column(Integer, ForeignKey("devices.id", ondelete="CASCADE"), nullable=False)
+    device_id      = Column(String(32), ForeignKey("devices.id", ondelete="CASCADE"), nullable=False)
     plant_name     = Column(String(100), nullable=False)
     plant_type     = Column(String(100), nullable=False)
     growth_stage   = Column(String(50), nullable=False)
@@ -164,7 +166,10 @@ class DeviceCommand(Base):
     __tablename__ = "device_commands"
     id            = Column(Integer, primary_key=True)
     device_id     = Column(String, index=True)
-    action        = Column(Enum("restart","update", name="cmd_action"))
+    action = Column(
+        Enum("restart", "update", name="cmd_action", native_enum=False),
+        nullable=False,
+    )
     parameters    = Column(JSON, nullable=True)     # e.g. {"url": "..."}
     issued_at     = Column(DateTime, default=datetime.utcnow)
     dispatched    = Column(Boolean, default=False)
@@ -186,7 +191,7 @@ class SensorReading(Base):
     __tablename__ = "sensor_readings"
 
     id          = Column(Integer, primary_key=True, index=True)
-    device_id   = Column(Integer, ForeignKey("devices.id", ondelete="CASCADE"), nullable=False)
+    device_id = Column(String(32), ForeignKey("devices.id", ondelete="CASCADE"), nullable=False)
     reading_type= Column(String(50), nullable=False)
     value       = Column(Float, nullable=False)
     timestamp   = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
@@ -199,7 +204,7 @@ class DosingOperation(Base):
     __tablename__ = "dosing_operations"
 
     id          = Column(Integer, primary_key=True, index=True)
-    device_id   = Column(Integer, ForeignKey("devices.id", ondelete="CASCADE"), nullable=False)
+    device_id   = Column(String(32), ForeignKey("devices.id", ondelete="CASCADE"), nullable=False)
     operation_id= Column(String(100), unique=True, nullable=False)
     actions     = Column(JSON, nullable=False)
     status      = Column(String(50), nullable=False)
@@ -286,15 +291,15 @@ class ActivationKey(Base):
 
     id                  = Column(Integer, primary_key=True, index=True)
     key                 = Column(String(64), unique=True, nullable=False, index=True)
-    device_type         = Column(SQLEnum(DeviceType, name="activation_device_type"), nullable=False)
+    device_type         = Column(Enum(DeviceType, name="activation_device_type"), nullable=False)
     plan_id             = Column(Integer, ForeignKey("subscription_plans.id", ondelete="CASCADE"), nullable=False)
     created_by          = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=False)
     created_at          = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     redeemed            = Column(Boolean, default=False, nullable=False)
     redeemed_at         = Column(DateTime(timezone=True), nullable=True)
-    redeemed_device_id  = Column(Integer, ForeignKey("devices.id", ondelete="SET NULL"))
+    redeemed_device_id  = Column(String(32), ForeignKey("devices.id", ondelete="SET NULL"))
     redeemed_user_id    = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"))
-    allowed_device_id   = Column(Integer, ForeignKey("devices.id", ondelete="SET NULL"))
+    allowed_device_id   = Column(String(32), ForeignKey("devices.id", ondelete="SET NULL"))
 
     plan             = relationship("SubscriptionPlan", back_populates="activation_keys")
     creator          = relationship("User", foreign_keys=[created_by])
@@ -308,7 +313,7 @@ class Subscription(Base):
 
     id         = Column(Integer, primary_key=True, index=True)
     user_id    = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
-    device_id  = Column(Integer, ForeignKey("devices.id", ondelete="CASCADE"), nullable=False)
+    device_id = Column(String(32), ForeignKey("devices.id", ondelete="CASCADE"), nullable=False)
     plan_id    = Column(Integer, ForeignKey("subscription_plans.id", ondelete="SET NULL"), nullable=False)
     start_date = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     end_date   = Column(DateTime(timezone=True), nullable=False)
@@ -332,11 +337,11 @@ class PaymentOrder(Base):
 
     id                 = Column(Integer, primary_key=True, index=True)
     user_id            = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
-    device_id          = Column(Integer, ForeignKey("devices.id", ondelete="CASCADE"), nullable=False)
+    device_id          = Column(String(32), ForeignKey("devices.id", ondelete="CASCADE"), nullable=False)
     plan_id            = Column(Integer, ForeignKey("subscription_plans.id", ondelete="SET NULL"), nullable=False)
     amount_cents       = Column(Integer, nullable=False)
     status             = Column(
-                             SQLEnum(PaymentStatus, name="payment_status"),
+                             Enum(PaymentStatus, name="payment_status"),
                              default=PaymentStatus.PENDING,
                              nullable=False,
                          )
@@ -644,7 +649,7 @@ class DosingAction(BaseModel):
     reasoning: str
 
 class DosingProfileBase(BaseModel):
-    device_id: int
+    device_id: str  
     plant_name: str = Field(..., max_length=100)
     plant_type: str = Field(..., max_length=100)
     growth_stage: str = Field(..., max_length=50)
@@ -666,7 +671,7 @@ class DosingProfileResponse(DosingProfileBase):
     updated_at: datetime
 
 class DosingOperation(BaseModel):
-    device_id: int
+    device_id: str  
     operation_id: str
     actions: List[DosingAction]
     status: str
@@ -2684,11 +2689,12 @@ import json
 import os
 import ipaddress
 import asyncio
+from pathlib import Path as FsPath 
 import socket
 from typing import List
 import httpx
 import logging
-from fastapi import APIRouter, HTTPException, Depends, Query, Request,  WebSocket
+from fastapi import APIRouter, HTTPException, Depends, Query, Request,  WebSocket, Path as PathParam
 from fastapi.responses import JSONResponse, StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
@@ -2901,7 +2907,7 @@ async def list_devices(db: AsyncSession = Depends(get_db)):
     return result.scalars().all()
 
 @router.get("/{device_id}", response_model=DeviceResponse, summary="Get device details")
-async def get_device(device_id: int, db: AsyncSession = Depends(get_db)):
+async def get_device(device_id: str = PathParam(..., description="MAC ID of the valve controller"), db: AsyncSession = Depends(get_db)):
     result = await db.execute(select(Device).where(Device.id == device_id))
     device = result.scalar_one_or_none()
     if not device:
@@ -3005,7 +3011,7 @@ async def list_my_devices(
     return result.scalars().all()
 
 ----- app/routers/device_comm.py -----
-from fastapi import APIRouter, Body, Depends, HTTPException, Path, Query, Request
+from fastapi import APIRouter, Body, Depends, HTTPException, Path, Query, Request, Path as PathParam
 from fastapi.responses import FileResponse
 import httpx
 import semver
@@ -3020,8 +3026,8 @@ from app.core.database import get_db
 from app.dependencies import get_current_device
 from app.models import Device, Task
 from app.schemas import DeviceType, SimpleDosingCommand
-from pathlib import Path
-CAM_FW = Path("firmware/camera/firmware.bin")
+from pathlib import Path as FilePath 
+CAM_FW = FilePath("firmware/camera/firmware.bin")
 router = APIRouter(prefix="/api/v1/device_comm", tags=["device_comm"])
 
 
@@ -3083,7 +3089,7 @@ async def valve_event(
 
 @router.get("/valve/{device_id}/state", summary="Fetch current valve states")
 async def get_valve_state(
-    device_id: str = Path(..., description="MAC ID of the valve controller"),
+    device_id: str = PathParam(..., description="MAC ID of the valve controller"),
     db: AsyncSession = Depends(get_db),
 ):
     device = await db.get(Device, device_id)
@@ -3098,7 +3104,7 @@ async def get_valve_state(
 
 @router.post("/valve/{device_id}/toggle", summary="Toggle a single valve")
 async def toggle_valve(
-    device_id: str = Path(..., description="MAC ID of the valve controller"),
+    device_id: str = PathParam(..., description="MAC ID of the valve controller"),
     body: dict = Body(..., media_type="application/json"),
     db: AsyncSession = Depends(get_db),
 ):

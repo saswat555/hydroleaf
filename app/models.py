@@ -2,8 +2,8 @@
 
 from datetime import datetime, timezone
 from enum import Enum as PyEnum
+import uuid
 
-from pyparsing import Enum
 from sqlalchemy import (
     Column,
     Integer,
@@ -13,11 +13,10 @@ from sqlalchemy import (
     Boolean,
     ForeignKey,
     JSON,
-    func,
-    Enum as SQLEnum,
+    func
 )
 from sqlalchemy.orm import relationship
-
+from sqlalchemy import Enum as Enum 
 from app.core.database import Base
 from app.schemas import DeviceType
 
@@ -25,6 +24,9 @@ from app.schemas import DeviceType
 # -------------------------------------------------------------------
 # USERS & PROFILES
 # -------------------------------------------------------------------
+
+def _uuid() -> str:
+    return uuid.uuid4().hex 
 
 class User(Base):
     __tablename__ = "users"
@@ -106,12 +108,12 @@ class Farm(Base):
 class Device(Base):
     __tablename__ = "devices"
 
-    id                  = Column(Integer, primary_key=True, index=True)
+    id   = Column(String(32), primary_key=True, default=_uuid)
     user_id             = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
     farm_id             = Column(Integer, ForeignKey("farms.id", ondelete="SET NULL"), nullable=True)
     mac_id              = Column(String(64), unique=True, nullable=False, index=True)
     name                = Column(String(128), nullable=False)
-    type                = Column(SQLEnum(DeviceType, name="device_type"), nullable=False)
+    type                = Column(Enum(DeviceType, name="device_type"), nullable=False)
     http_endpoint       = Column(String(256), nullable=False)
     location_description= Column(String(256))
     is_active           = Column(Boolean, nullable=False, default=True)
@@ -140,7 +142,7 @@ class DosingProfile(Base):
     __tablename__ = "dosing_profiles"
 
     id             = Column(Integer, primary_key=True, index=True)
-    device_id      = Column(Integer, ForeignKey("devices.id", ondelete="CASCADE"), nullable=False)
+    device_id      = Column(String(32), ForeignKey("devices.id", ondelete="CASCADE"), nullable=False)
     plant_name     = Column(String(100), nullable=False)
     plant_type     = Column(String(100), nullable=False)
     growth_stage   = Column(String(50), nullable=False)
@@ -161,7 +163,10 @@ class DeviceCommand(Base):
     __tablename__ = "device_commands"
     id            = Column(Integer, primary_key=True)
     device_id     = Column(String, index=True)
-    action        = Column(Enum("restart","update", name="cmd_action"))
+    action = Column(
+        Enum("restart", "update", name="cmd_action", native_enum=False),
+        nullable=False,
+    )
     parameters    = Column(JSON, nullable=True)     # e.g. {"url": "..."}
     issued_at     = Column(DateTime, default=datetime.utcnow)
     dispatched    = Column(Boolean, default=False)
@@ -183,7 +188,7 @@ class SensorReading(Base):
     __tablename__ = "sensor_readings"
 
     id          = Column(Integer, primary_key=True, index=True)
-    device_id   = Column(Integer, ForeignKey("devices.id", ondelete="CASCADE"), nullable=False)
+    device_id = Column(String(32), ForeignKey("devices.id", ondelete="CASCADE"), nullable=False)
     reading_type= Column(String(50), nullable=False)
     value       = Column(Float, nullable=False)
     timestamp   = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
@@ -196,7 +201,7 @@ class DosingOperation(Base):
     __tablename__ = "dosing_operations"
 
     id          = Column(Integer, primary_key=True, index=True)
-    device_id   = Column(Integer, ForeignKey("devices.id", ondelete="CASCADE"), nullable=False)
+    device_id   = Column(String(32), ForeignKey("devices.id", ondelete="CASCADE"), nullable=False)
     operation_id= Column(String(100), unique=True, nullable=False)
     actions     = Column(JSON, nullable=False)
     status      = Column(String(50), nullable=False)
@@ -283,15 +288,15 @@ class ActivationKey(Base):
 
     id                  = Column(Integer, primary_key=True, index=True)
     key                 = Column(String(64), unique=True, nullable=False, index=True)
-    device_type         = Column(SQLEnum(DeviceType, name="activation_device_type"), nullable=False)
+    device_type         = Column(Enum(DeviceType, name="activation_device_type"), nullable=False)
     plan_id             = Column(Integer, ForeignKey("subscription_plans.id", ondelete="CASCADE"), nullable=False)
     created_by          = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=False)
     created_at          = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     redeemed            = Column(Boolean, default=False, nullable=False)
     redeemed_at         = Column(DateTime(timezone=True), nullable=True)
-    redeemed_device_id  = Column(Integer, ForeignKey("devices.id", ondelete="SET NULL"))
+    redeemed_device_id  = Column(String(32), ForeignKey("devices.id", ondelete="SET NULL"))
     redeemed_user_id    = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"))
-    allowed_device_id   = Column(Integer, ForeignKey("devices.id", ondelete="SET NULL"))
+    allowed_device_id   = Column(String(32), ForeignKey("devices.id", ondelete="SET NULL"))
 
     plan             = relationship("SubscriptionPlan", back_populates="activation_keys")
     creator          = relationship("User", foreign_keys=[created_by])
@@ -305,7 +310,7 @@ class Subscription(Base):
 
     id         = Column(Integer, primary_key=True, index=True)
     user_id    = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
-    device_id  = Column(Integer, ForeignKey("devices.id", ondelete="CASCADE"), nullable=False)
+    device_id = Column(String(32), ForeignKey("devices.id", ondelete="CASCADE"), nullable=False)
     plan_id    = Column(Integer, ForeignKey("subscription_plans.id", ondelete="SET NULL"), nullable=False)
     start_date = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     end_date   = Column(DateTime(timezone=True), nullable=False)
@@ -329,11 +334,11 @@ class PaymentOrder(Base):
 
     id                 = Column(Integer, primary_key=True, index=True)
     user_id            = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
-    device_id          = Column(Integer, ForeignKey("devices.id", ondelete="CASCADE"), nullable=False)
+    device_id          = Column(String(32), ForeignKey("devices.id", ondelete="CASCADE"), nullable=False)
     plan_id            = Column(Integer, ForeignKey("subscription_plans.id", ondelete="SET NULL"), nullable=False)
     amount_cents       = Column(Integer, nullable=False)
     status             = Column(
-                             SQLEnum(PaymentStatus, name="payment_status"),
+                             Enum(PaymentStatus, name="payment_status"),
                              default=PaymentStatus.PENDING,
                              nullable=False,
                          )
