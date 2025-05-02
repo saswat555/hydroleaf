@@ -1,0 +1,409 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Rap Analysis Tool</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Arial, sans-serif;
+            background-color: #f5f6fa;
+            color: #2d3436;
+            line-height: 1.6;
+        }
+
+        .container {
+            display: flex;
+            min-height: 100vh;
+        }
+
+        .main-content {
+            flex: 1;
+            padding: 30px;
+            max-width: calc(100% - 300px);
+            transition: max-width 0.3s ease;
+        }
+
+        .main-content.expanded {
+            max-width: 100%;
+        }
+
+        h1 {
+            color: #2d3436;
+            margin-bottom: 20px;
+            font-size: 2.2em;
+            font-weight: 600;
+        }
+
+        #lyricsInput {
+            width: 100%;
+            height: 200px;
+            padding: 15px;
+            border: none;
+            border-radius: 8px;
+            background-color: #fff;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+            resize: vertical;
+            font-size: 1em;
+            margin-bottom: 20px;
+        }
+
+        #controls {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            margin-bottom: 20px;
+            padding: 15px;
+            background-color: #fff;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+        }
+
+        #controls label {
+            font-weight: 500;
+        }
+
+        #contextSpan {
+            flex: 1;
+            margin: 0 10px;
+        }
+
+        #analyzeBtn {
+            padding: 10px 20px;
+            background-color: #0984e3;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: background-color 0.3s ease;
+        }
+
+        #analyzeBtn:hover {
+            background-color: #0652dd;
+        }
+
+        #analysisOutput {
+            background-color: #fff;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+            margin-bottom: 20px;
+        }
+
+        #networkDiagram {
+            width: 100%;
+            height: 500px;
+            background-color: #fff;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+        }
+
+        .interpretation {
+            margin: 15px 0;
+            padding: 15px;
+            background-color: #f8f9fa;
+            border-radius: 6px;
+        }
+
+        .highlight {
+            background-color: #fdcb6e;
+            padding: 2px 6px;
+            border-radius: 4px;
+        }
+
+        /* Sidebar Styles */
+        .sidebar {
+            width: 300px;
+            background-color: #2d3436;
+            color: white;
+            padding: 20px;
+            position: fixed;
+            right: 0;
+            top: 0;
+            height: 100vh;
+            transform: translateX(100%);
+            transition: transform 0.3s ease;
+        }
+
+        .sidebar.open {
+            transform: translateX(0);
+        }
+
+        .sidebar-toggle {
+            position: fixed;
+            right: 20px;
+            top: 20px;
+            width: 40px;
+            height: 40px;
+            background-color: #2d3436;
+            color: white;
+            border: none;
+            border-radius: 50%;
+            cursor: pointer;
+            z-index: 1000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .color-option {
+            margin: 15px 0;
+        }
+
+        .color-option label {
+            display: block;
+            margin-bottom: 5px;
+        }
+
+        .color-option input[type="color"] {
+            width: 100%;
+            height: 40px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="main-content">
+            <h1>Rap Analysis Tool</h1>
+            <textarea id="lyricsInput" placeholder="Paste your rap lyrics here..."></textarea>
+            <div id="controls">
+                <label for="contextSpan">Context Span:</label>
+                <input type="range" id="contextSpan" min="1" max="5" value="2">
+                <span id="spanValue">2</span>
+                <button id="analyzeBtn" onclick="analyzeLyrics()">Analyze</button>
+            </div>
+            <div id="analysisOutput"></div>
+            <div id="networkDiagram"></div>
+        </div>
+        
+        <button class="sidebar-toggle" onclick="toggleSidebar()">🎨</button>
+        <div class="sidebar" id="sidebar">
+            <h2 style="margin-bottom: 20px;">Color Settings</h2>
+            <div class="color-option">
+                <label>Node Color</label>
+                <input type="color" id="nodeColor" value="#0984e3">
+            </div>
+            <div class="color-option">
+                <label>Edge Color</label>
+                <input type="color" id="edgeColor" value="#dfe6e9">
+            </div>
+            <div class="color-option">
+                <label>Background Color</label>
+                <input type="color" id="bgColor" value="#ffffff">
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/cytoscape/3.21.2/cytoscape.min.js"></script>
+    <script>
+        let cy;
+
+        const literaryDevices = {
+            metaphor: ['like', 'as', 'is'],
+            alliteration: ['repeating consonant sounds'],
+            rhyme: ['end rhyme', 'internal rhyme'],
+            imagery: ['visual', 'sensory'],
+            pun: ['wordplay', 'double meaning']
+        };
+
+        function analyzeLyrics() {
+            const lyrics = document.getElementById('lyricsInput').value;
+            const contextSpan = parseInt(document.getElementById('contextSpan').value);
+            const lines = lyrics.split('\n').filter(line => line.trim() !== '');
+            
+            const analysis = performAnalysis(lines, contextSpan);
+            displayAnalysis(analysis);
+            renderNetworkDiagram(analysis);
+        }
+
+        function performAnalysis(lines, contextSpan) {
+            const analysis = [];
+            const wordConnections = new Map();
+
+            lines.forEach((line, index) => {
+                const words = line.toLowerCase().split(/\s+/);
+                const interpretations = [];
+
+                for (let i = 0; i < words.length; i++) {
+                    const word = words[i];
+                    const context = getContext(words, i, contextSpan);
+                    
+                    if (!wordConnections.has(word)) {
+                        wordConnections.set(word, new Set());
+                    }
+                    context.forEach(ctxWord => {
+                        if (ctxWord !== word) {
+                            wordConnections.get(word).add(ctxWord);
+                        }
+                    });
+
+                    const devices = detectLiteraryDevices(word, context);
+                    if (devices.length > 0) {
+                        interpretations.push({
+                            word,
+                            context,
+                            devices,
+                            interpretations: generateInterpretations(word, context, devices)
+                        });
+                    }
+                }
+
+                if (interpretations.length > 0) {
+                    analysis.push({
+                        line,
+                        index,
+                        interpretations
+                    });
+                }
+            });
+
+            return { analysis, wordConnections };
+        }
+
+        function getContext(words, index, span) {
+            const start = Math.max(0, index - span);
+            const end = Math.min(words.length, index + span + 1);
+            return words.slice(start, end);
+        }
+
+        function detectLiteraryDevices(word, context) {
+            const devices = [];
+            if (context.includes('like') || context.includes('as')) devices.push('metaphor');
+            if (word[0] === context[0]?.[0]) devices.push('alliteration');
+            if (word.length > 2 && context.some(w => w.endsWith(word.slice(-2)))) devices.push('rhyme');
+            return devices;
+        }
+
+        function generateInterpretations(word, context, devices) {
+            const interpretations = [];
+            devices.forEach(device => {
+                switch(device) {
+                    case 'metaphor':
+                        interpretations.push(`"${word}" might be comparing something indirectly`);
+                        interpretations.push(`"${word}" could symbolize a deeper meaning`);
+                        break;
+                    case 'alliteration':
+                        interpretations.push(`"${word}" enhances sound pattern`);
+                        interpretations.push(`"${word}" emphasizes rhythm`);
+                        break;
+                    case 'rhyme':
+                        interpretations.push(`"${word}" creates musical flow`);
+                        interpretations.push(`"${word}" connects ideas through sound`);
+                        break;
+                }
+            });
+            return interpretations;
+        }
+
+        function displayAnalysis({ analysis }) {
+            const output = document.getElementById('analysisOutput');
+            output.innerHTML = '<h2 style="margin-bottom: 15px;">Analysis Results</h2>';
+
+            analysis.forEach(({ line, interpretations }) => {
+                let html = `<div class="interpretation"><strong>Line:</strong> ${line}<br>`;
+                interpretations.forEach(({ word, context, devices, interpretations: interps }) => {
+                    html += `<div style="margin-top: 10px;">
+                        <strong>Word:</strong> <span class="highlight">${word}</span><br>
+                        <strong>Context:</strong> ${context.join(' ')}<br>
+                        <strong>Devices:</strong> ${devices.join(', ')}<br>
+                        <strong>Interpretations:</strong>
+                        <ul>${interps.map(i => `<li>${i}</li>`).join('')}</ul>
+                    </div>`;
+                });
+                html += '</div>';
+                output.innerHTML += html;
+            });
+        }
+
+        function renderNetworkDiagram({ wordConnections }) {
+            const elements = [];
+            wordConnections.forEach((connections, word) => {
+                elements.push({
+                    data: { id: word, label: word }
+                });
+                connections.forEach(connectedWord => {
+                    elements.push({
+                        data: {
+                            source: word,
+                            target: connectedWord
+                        }
+                    });
+                });
+            });
+
+            cy = cytoscape({
+                container: document.getElementById('networkDiagram'),
+                elements: elements,
+                style: [
+                    {
+                        selector: 'node',
+                        style: {
+                            'background-color': document.getElementById('nodeColor').value,
+                            'label': 'data(label)',
+                            'color': '#fff',
+                            'text-valign': 'center',
+                            'text-halign': 'center',
+                            'width': 80,
+                            'height': 80,
+                            'font-size': '14px',
+                            'text-wrap': 'wrap',
+                            'text-max-width': 70
+                        }
+                    },
+                    {
+                        selector: 'edge',
+                        style: {
+                            'width': 2,
+                            'line-color': document.getElementById('edgeColor').value,
+                            'curve-style': 'bezier'
+                        }
+                    }
+                ],
+                layout: {
+                    name: 'cose',
+                    animate: false,
+                    nodeRepulsion: 1000000,
+                    idealEdgeLength: 100
+                }
+            });
+
+            document.getElementById('networkDiagram').style.backgroundColor = 
+                document.getElementById('bgColor').value;
+        }
+
+        function toggleSidebar() {
+            const sidebar = document.getElementById('sidebar');
+            const mainContent = document.querySelector('.main-content');
+            sidebar.classList.toggle('open');
+            mainContent.classList.toggle('expanded');
+        }
+
+        // Event Listeners
+        document.getElementById('contextSpan').addEventListener('input', function() {
+            document.getElementById('spanValue').textContent = this.value;
+        });
+
+        ['nodeColor', 'edgeColor', 'bgColor'].forEach(id => {
+            document.getElementById(id).addEventListener('change', function() {
+                if (cy) {
+                    if (id === 'nodeColor') {
+                        cy.style().selector('node').style('background-color', this.value).update();
+                    } else if (id === 'edgeColor') {
+                        cy.style().selector('edge').style('line-color', this.value).update();
+                    } else if (id === 'bgColor') {
+                        document.getElementById('networkDiagram').style.backgroundColor = this.value;
+                    }
+                }
+            });
+        });
+    </script>
+</body>
+</html>

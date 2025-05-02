@@ -24,7 +24,7 @@ from app.schemas import (
 )
 from app.dependencies import get_current_admin
 from app.core.database import get_db
-from app.models import Base, CameraToken
+from app.models import Base, CameraToken, User
 from sqlalchemy import Column, Integer, String, DateTime
 from app.models import CloudKey
 logger = logging.getLogger(__name__)
@@ -103,14 +103,13 @@ async def dosing_cancel(request: DosingCancellationRequest):
     "/admin/generate_cloud_key",
     dependencies=[Depends(get_current_admin)],
 )
-async def generate_cloud_key(db: AsyncSession = Depends(get_db)):
-    """
-    Mint a **new** cloud key and make it the active one.
-
-    Older keys remain in the table (audit trail) but are no longer accepted.
-    """
+@router.post("/admin/generate_cloud_key")
+async def generate_cloud_key(
+    db: AsyncSession = Depends(get_db),
+    admin: User = Depends(get_current_admin),   # ← get the actual admin user
+    ):
     new_key = secrets.token_hex(16)
-    cloud_key = CloudKey(key=new_key, created_by=get_current_admin.id)
+    cloud_key = CloudKey(key=new_key, created_by=admin.id)
     db.add(cloud_key)
     await db.commit()
     logger.info("New cloud key generated: %s", new_key)
