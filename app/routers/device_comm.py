@@ -54,7 +54,7 @@ async def pull_firmware(
         device_id,
         request.headers.get("x-forwarded-for", request.client.host),
     )
-    if device_id.startswith("CAM_"):
+    if device_id.startswith("CAM_") or device_id.lower().startswith("camera"):
         if not CAM_FW.exists():
             raise HTTPException(404, "Camera firmware not found")
         return FileResponse(CAM_FW, media_type="application/octet-stream",
