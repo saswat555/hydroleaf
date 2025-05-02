@@ -6,7 +6,7 @@ from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.future import select
-from app.models import ActivationKey, Device, Subscription, SubscriptionPlan, User
+from app.models import ActivationKey, CameraToken, Device, Subscription, SubscriptionPlan, User
 from app.core.database import get_db
 bearer_scheme = HTTPBearer() 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login")
@@ -76,3 +76,15 @@ async def get_current_device(
     if device.type.value not in plan.device_types:
         raise HTTPException(status_code=403, detail="Plan does not cover this device type")
     return device
+
+async def verify_camera_token(
+        
+    creds: HTTPAuthorizationCredentials = Depends(HTTPBearer()),
+    db = Depends(get_db),
+):
+    result = await db.execute(select(CameraToken)
+        .where(CameraToken.token == creds.credentials))
+    row = result.scalar_one_or_none()
+    if not row:
+        raise HTTPException(401, "Invalid camera token")
+    return row.camera_id

@@ -24,7 +24,7 @@ from app.schemas import (
 )
 from app.dependencies import get_current_admin
 from app.core.database import get_db
-from app.models import Base
+from app.models import Base, CameraToken
 from sqlalchemy import Column, Integer, String, DateTime
 from app.models import CloudKey
 logger = logging.getLogger(__name__)
@@ -62,6 +62,7 @@ async def authenticate_cloud(
         )
 
     token = secrets.token_hex(16)  # (replace with JWT if needed)
+    db.add(CameraToken(camera_id=payload.device_id, token=token))
     logger.info(
         "Device %s authenticated OK – issued token %s", payload.device_id, token
     )
@@ -109,7 +110,8 @@ async def generate_cloud_key(db: AsyncSession = Depends(get_db)):
     Older keys remain in the table (audit trail) but are no longer accepted.
     """
     new_key = secrets.token_hex(16)
-    db.add(CloudKey(key=new_key))
+    cloud_key = CloudKey(key=new_key, created_by=get_current_admin.id)
+    db.add(cloud_key)
     await db.commit()
     logger.info("New cloud key generated: %s", new_key)
     return {"cloud_key": new_key}

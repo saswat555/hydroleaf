@@ -8,11 +8,13 @@ import numpy as np
 import cv2
 from fastapi import APIRouter, Depends, Request, BackgroundTasks, HTTPException
 from fastapi.responses import FileResponse, StreamingResponse, JSONResponse
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import CAM_EVENT_GAP_SECONDS, DATA_ROOT, RAW_DIR, CLIPS_DIR, BOUNDARY
 from app.core.database import get_db
-from app.models import Camera, DetectionRecord, User
+from app.dependencies import get_current_user, verify_camera_token
+from app.models import Camera, DetectionRecord, DeviceCommand, User
 from app.schemas import CameraReportResponse, DetectionRange
 from app.utils.camera_tasks import encode_and_cleanup
 from app.utils.camera_queue import camera_queue
@@ -88,7 +90,7 @@ async def _process_upload(
     )
     return {"ok": True, "ts": ts, "mode": "day" if day_flag else "night"}
 
-@router.post("/upload/{camera_id}/day")
+@router.post("/upload/{camera_id}/day", dependencies=[Depends(verify_camera_token)])
 async def upload_day_frame(
     camera_id: str, request: Request,
     background_tasks: BackgroundTasks,
@@ -104,7 +106,7 @@ async def upload_night_frame(
 ) -> dict:
     return await _process_upload(camera_id, request, background_tasks, db, day_flag=False)
 
-@router.get("/stream/{camera_id}")
+@router.get("/stream/{camera_id}", dependencies=[Depends(get_current_user)])
 def mjpeg_stream(camera_id: str):
     cam_dir = Path(DATA_ROOT) / camera_id
     if not cam_dir.exists():
@@ -166,6 +168,19 @@ def cam_status(camera_id: str, db=Depends(get_db)):
         raise HTTPException(404, "Camera not registered")
     return {"is_online": cam.is_online, "last_seen": cam.last_seen}
 
+@router.get("/commands/{camera_id}", dependencies=[Depends(verify_camera_token)])
+async def next_command(camera_id: str, db: AsyncSession = Depends(get_db)):
+    cmd = await db.scalar(
+        select(DeviceCommand)
+        .where(DeviceCommand.device_id == camera_id, DeviceCommand.dispatched == False)
+        .order_by(DeviceCommand.issued_at)
+        .limit(1)
+    )
+    if not cmd:
+        return {"command": None}
+    cmd.dispatched = True
+    await db.commit()
+    return {"command": cmd.action, "parameters": cmd.parameters or {}}
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Below: internal helpers for day & night enhancement
@@ -226,7 +241,7 @@ async def get_camera_report(camera_id: str, db: AsyncSession = Depends(get_db)):
     where consecutive detections within CAM_EVENT_GAP_SECONDS are merged.
     """
     q      = await db.execute(
-        np.select(DetectionRecord)
+        select(DetectionRecord)
         .where(DetectionRecord.camera_id == camera_id)
         .order_by(DetectionRecord.timestamp)
     )

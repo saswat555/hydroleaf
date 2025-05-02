@@ -13,7 +13,8 @@ from app.core.database import get_db
 from app.dependencies import get_current_device
 from app.models import Device, Task
 from app.schemas import DeviceType, SimpleDosingCommand
-
+from pathlib import Path
+CAM_FW = Path("firmware/camera/firmware.bin")
 router = APIRouter(prefix="/api/v1/device_comm", tags=["device_comm"])
 
 
@@ -44,18 +45,12 @@ async def check_for_update(
 
 
 @router.get("/update/pull", summary="Download the latest firmware")
-async def pull_firmware(
-    device_id: str = Query(..., description="MAC ID of this device")
-):
-    firmware_path = "firmware/firmware.bin"
-    if not os.path.exists(firmware_path):
-        raise HTTPException(status_code=404, detail="Firmware file not found.")
-    return FileResponse(
-        firmware_path,
-        media_type="application/octet-stream",
-        filename="firmware.bin"
-    )
-
+async def pull_firmware(device_id: str = Query(..., description="Device or Camera ID")):
+    if device_id.startswith("CAM_"):
+        if not CAM_FW.exists():
+            raise HTTPException(404, "Camera firmware not found")
+        return FileResponse(CAM_FW, media_type="application/octet-stream",
+                            filename="firmware.bin")
 
 class ValveEventPayload(BaseModel):
     device_id: str

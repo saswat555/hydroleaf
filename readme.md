@@ -1,198 +1,252 @@
-**Hydroleaf API Documentation**  
-
-**Overview**  
-Hydroleaf is a production‑grade FastAPI backend for managing hydroponic and aquaponic IoT devices, sensors, dosing operations, and AI‑driven supply‑chain analyses. It provides modular routers for authentication, user and admin management, device discovery/registration, real‑time sensor monitoring, dosing execution (including LLM‑powered plans), plant profiling, supply‑chain optimization, camera integrations, and device communication.
+# Hydroleaf Platform – Comprehensive Technical Documentation
 
 ---
 
-## Table of Contents
-1. [Logical Flow](#logical-flow)  
-2. [Prerequisites & Setup](#prerequisites--setup)  
-3. [Configuration & Environment](#configuration--environment)  
-4. [Database & Migrations](#database--migrations)  
-5. [Running the Server](#running-the-server)  
-6. [API Endpoints](#api-endpoints)  
-   - [Health](#health)  
-   - [Authentication](#authentication)  
-   - [User Management](#user-management)  
-   - [Admin Management](#admin-management)  
-   - [Subscription & Activation](#subscription--activation)  
-   - [Farms](#farms)  
-   - [Device Discovery & Registration](#device-discovery--registration)  
-   - [Device Communication](#device-communication)  
-   - [Dosing](#dosing)  
-   - [Configuration](#configuration)  
-   - [Plants](#plants)  
-   - [Supply Chain Analysis](#supply-chain-analysis)  
-   - [Camera Streaming & Upload](#camera-streaming--upload)  
-   - [Heartbeat](#heartbeat)
+## 1. Purpose & Scope
+
+Hydroleaf is an end‑to‑end, cloud‑connected agriculture platform.  It combines:
+
+* **FastAPI backend** – multi‑tenant REST API, PostgreSQL, async I/O.
+* **Embedded firmware** – ESP32‑CAM (Smart‑Cam), ESP32 (Smart Dosing Unit) and ESP8266 (Valve Controller).
+* **Front‑end / Portal** – (out‑of‑scope for this document).
+
+This document covers the **backend application**, **device protocol**, **database schema**, and **operational flows**.  Source listings are omitted – the focus is behaviour, contracts, and integration guidelines.
 
 ---
 
-## Logical Flow
-1. **User Signup/Login** → Obtain JWT.  
-2. **Farm Creation** → Associate farms to users.  
-3. **Device Registration** → Register dosing units, sensors, or valve controllers with hardware discovery.  
-4. **Activation Key / Subscription** → Redeem activation key for device capability and billing.  
-5. **Sensor Monitoring & Dosing Execution**:
-   - Fetch live readings (`/devices/sensoreading/{id}`).  
-   - Execute dosing via HTTP endpoints (`/dosing/execute/{id}`) or LLM‑driven plans (`/dosing/llm-request`).  
-6. **Configuration & Profiles** → Manage dosing profiles under `/config`.  
-7. **Plant Management** → CRUD plant profiles and trigger dosing per plant.  
-8. **Supply Chain Optimization** → Analyze transport costs with LLM support.  
-9. **Camera Integration** → Upload day/night frames, stream MJPEG, list clips.  
-10. **Device Communication & Heartbeat** → Poll pending tasks, OTA firmware updates, and status via `/device_comm` and `/heartbeat`.
+## 2. High‑Level Architecture
 
----
-
-## Prerequisites & Setup
-- **Python 3.12+**  
-- **SQLite** (default) or **PostgreSQL**  
-- **Ollama** (optional, for LLM calls)  
-- **Serper API Key** for supply‑chain searches  
-- **.env** file in `app/` with required secrets and endpoints
-
-### Virtual Environment
-```bash
-python3 -m venv env
-source env/bin/activate      # Linux / Mac
-# or
-env\Scripts\Activate.ps1    # Windows PowerShell
+```
+┌──────────────┐        JWT / OAuth2       ┌──────────────┐
+│  Web / App   │  ───────────────────────▶ │ FastAPI API  │
+│   Clients    │    REST (JSON)           │  (backend)   │
+└──────────────┘                           └─────┬────────┘
+                                                │ SQLAlchemy (async)    
+                                                ▼
+                                         ┌──────────────┐
+                                         │ PostgreSQL   │
+                                         └──────────────┘
+                                                ▲
+                              OTA, SSE, JSON    │
+┌──────────────┐  HTTP+Bearer    ┌──────────────┴──────────────┐   
+│   Devices    │ ──────────────▶ │  Device / Camera services   │
+│ (ESP boards) │                 │  (discovery, pumps, OTA…)   │
+└──────────────┘                 └─────────────────────────────┘
 ```
 
-### Install Dependencies
-```bash
-pip install -r requirements.txt
+Key points:
+
+* **Single API service** (stateless); database migrations handled via SQLAlchemy bootstrap in dev / Alembic in prod.
+* **Async device communication** – plain HTTP on local network or routed through the cloud.
+* **Two deployment modes** configurable via `DEPLOYMENT_MODE`:
+
+  * **LAN** – devices discovered by scanning a /24 subnet.
+  * **CLOUD** – devices call‑home; backend stores their static endpoints.
+* **Edge‑auth** – devices authenticate with short‑lived **JWT** obtained via a one‑time **Cloud Key**.
+
+---
+
+## 3. Database Schema (PostgreSQL)
+
+### 3.1 Core Tables
+
+| Table               | Purpose                           | Key Columns                                    |
+| ------------------- | --------------------------------- | ---------------------------------------------- |
+| `users`             | Account & login                   | `email`, `hashed_password`, `role`             |
+| `user_profiles`     | Extended profile (1‑to‑1)         | contact & address fields                       |
+| `farms`             | User‑owned collections of devices | `name`, `location`                             |
+| `devices`           | Physical hardware (any type)      | `mac_id`, `type`, `http_endpoint`, `is_active` |
+| `dosing_profiles`   | Crop‑specific nutrient strategy   | pH/TDS targets, schedule JSON                  |
+| `sensor_readings`   | Time‑series snapshots             | `reading_type`, `value`, `timestamp`           |
+| `dosing_operations` | Executed dosing runs              | `operation_id`, `actions`, `status`            |
+| `tasks`             | Asynchronous commands for devices | `parameters`, `status`                         |
+
+### 3.2 Commerce & Licensing
+
+| Table                | Purpose                                                           |
+| -------------------- | ----------------------------------------------------------------- |
+| `subscription_plans` | SKU – price & allowed device types                                |
+| `activation_keys`    | Pre‑paid keys tying a plan to a device                            |
+| `subscriptions`      | Active entitlement (user × device × plan)                         |
+| `payment_orders`     | UPI‑based purchase flow – QR code stored in `app/static/qr_codes` |
+
+### 3.3 Camera & CV
+
+| Table               | Purpose                                     |
+| ------------------- | ------------------------------------------- |
+| `cameras`           | Physical ESP32‑CAM units                    |
+| `detection_records` | YOLO‑based object sightings                 |
+| `camera_tokens`     | Short‑lived bearer tokens for upload/stream |
+
+(See `app/models.py` for full list of relationships.)
+
+---
+
+## 4. Authentication & Authorisation
+
+* **End‑user login** – `/api/v1/auth/login` (OAuth2‑Password) returns JWT (`access_token`).
+* **Device login** – `/api/v1/cloud/authenticate` accepts `{device_id, cloud_key}` and issues a 32‑byte token stored in `camera_tokens`.
+* **Admin‑only routes** decorated with `Depends(get_current_admin)` (role == `superadmin`).
+
+JWT payload:
+
+```json
+{
+  "user_id": 123,
+  "role": "user|admin|superadmin",
+  "exp": 1714752000
+}
 ```
 
 ---
 
-## Configuration & Environment
-Copy `.env.example` to `.env` and set values:
-```ini
-ENVIRONMENT=development
-DEBUG=True
-PORT=8000
-DATABASE_URL=sqlite+aiosqlite:///./Hydroleaf.db
-SECRET_KEY=your-secret
-SESSION_KEY=your-session-key
-SERPER_API_KEY=...
-OLLAMA_URL=http://localhost:11434/api/generate
-USE_OLLAMA=false
-ALLOWED_ORIGINS=your-domain.com
-UPI_PAYEE_ADDRESS=your-upi-id@bank
+## 5. REST API Surface (v1)
+
+### 5.1 Users & Profiles
+
+| Method | Path               | Description             |
+| ------ | ------------------ | ----------------------- |
+| `GET`  | `/api/v1/users/me` | Current profile         |
+| `PUT`  | `/api/v1/users/me` | Update permitted fields |
+
+### 5.2 Devices
+
+| Method | Path                           | Notes                                       |
+| ------ | ------------------------------ | ------------------------------------------- |
+| `POST` | `/api/v1/devices/dosing`       | Register ESP32 dosing unit                  |
+| `POST` | `/api/v1/devices/sensor`       | Generic pH/TDS or env sensor                |
+| `POST` | `/api/v1/devices/valve`        | 4‑way valve controller                      |
+| `GET`  | `/api/v1/devices`              | List all                                    |
+| `GET`  | `/api/v1/devices/my`           | Only user’s **active + subscribed** devices |
+| `GET`  | `/api/v1/devices/{id}`         | Details                                     |
+| `GET`  | `/api/v1/devices/{id}/version` | Firmware version fetched via HTTP probe     |
+
+### 5.3 Dosing Workflow
+
+| Step | Endpoint                                        | Remarks                               |
+| ---- | ----------------------------------------------- | ------------------------------------- |
+| 1    | `POST /api/v1/dosing/llm-request?device_id=...` | Build prompt → LLM → execute plan     |
+| 2    | `POST /api/v1/dosing/cancel/{device_id}`        | Abort mid‑run via `/pump_calibration` |
+| 3    | `GET  /api/v1/dosing/history/{device_id}`       | Completed operations                  |
+
+### 5.4 Subscription & Billing
+
+| Method | Path                                    | Purpose                                 |
+| ------ | --------------------------------------- | --------------------------------------- |
+| `POST` | `/api/v1/payments/create`               | Generates order + UPI QR PNG            |
+| `POST` | `/api/v1/payments/confirm/{order_id}`   | User submits UPI TXN ID                 |
+| `POST` | `/admin/payments/approve/{order_id}`    | Admin marks COMPL → subscription row    |
+| `POST` | `/admin/generate_device_activation_key` | Mint key locked to device & plan        |
+| `POST` | `/api/v1/subscriptions/redeem`          | User redeems key, device becomes active |
+
+### 5.5 Camera Service
+
+| Path                | Use‑case                                    |
+| ------------------- | ------------------------------------------- |
+| `/upload/{cam}/day` | JPEG frame upload (Bearer token)            |
+| `/stream/{cam}`     | Live MJPEG (authenticated)                  |
+| `/api/report/{cam}` | Object‑detection ranges merged by event gap |
+
+(Additional endpoints: clip list, still capture, status.)
+
+---
+
+## 6. Device HTTP Contract
+
+### 6.1 Common
+
+* **Discovery** `GET /discovery` → `{device_id,type,version,status,ip}`.
+* **Firmware check** performed by device via
+  `GET /api/v1/device_comm/update?device_id=MAC`.
+
+### 6.2 Dosing Unit
+
+| Endpoint                 | Body              | Result                         |             |
+| ------------------------ | ----------------- | ------------------------------ | ----------- |
+| `POST /pump`             | `{pump, amount}`  | Runs pump for *amount ms*      |             |
+| `POST /dose_monitor`     | pump + amount     | Same + returns averaged pH/TDS |             |
+| `POST /pump_calibration` | \`{command\:start | stop}\`                        | Bulk ON/OFF |
+| `GET  /monitor`          | —                 | `{ph, tds}` rolling average    |             |
+
+### 6.3 Valve Controller
+
+| Endpoint       | Body         | Notes                      |
+| -------------- | ------------ | -------------------------- |
+| `GET /state`   | —            | Array of `{id,state}`      |
+| `POST /toggle` | `{valve_id}` | Toggles & echoes new state |
+
+### 6.4 Smart‑Cam
+
+\| Upload  | `POST /upload/{cam_id}/{day|night}` – JPEG binary |
+\| Token   | Sent in `Authorization: Bearer <token>` header |
+\| OTA     | Device GETs `/api/v1/device_comm/update/pull?device_id=CAM_ID` (binary) |
+
+---
+
+## 7. Firmware Update (OTA) Flow
+
+1. Device heartbeat (`/device_comm/heartbeat`) reports current `version`.
+2. Backend compares to latest semantic version in `/firmware/<type>/<ver>/firmware.bin`.
+3. If `update_available`, device calls the `…/pull` URL and streams the binary into `Update` API.
+4. Successful flash reboots automatically.
+
+---
+
+## 8. Finite State of a Device
+
+```
+UNREGISTERED ──┬─► REGISTERED (inactive) ──┬─► ACTIVE
+               │                           │   ▲
+               │                           ▼   │
+               └─► OFFLINE (missed heartbeat) ◄─┘
 ```
 
----
-
-## Database & Migrations
-Hydroleaf uses Alembic plus SQLAlchemy metadata creation.  
-Ensure `alembic.ini` and `alembic/` exist.  
-On startup, migrations run automatically; or:
-```bash
-alembic upgrade head
-```
+* **REGISTERED** – row exists in `devices` but no paid plan.
+* **ACTIVE** – `subscriptions.active=true` and within date window.
+* **OFFLINE** – background watcher sets `is_online` false after `OFFLINE_TIMEOUT`.
 
 ---
 
-## Running the Server
-```bash
-uvicorn app.main:app --reload --host 0.0.0.0 --port ${PORT}
-```
+## 9. Environment & Configuration
+
+| Variable          | Default      | Meaning                                 |
+| ----------------- | ------------ | --------------------------------------- |
+| `DATABASE_URL`    | *none*       | `postgresql+asyncpg://…` (mandatory)    |
+| `DEPLOYMENT_MODE` | `LAN`        | LAN scanning vs cloud‑static            |
+| `LAN_SUBNET`      | auto‑derived | e.g. `192.168.1.0/24`                   |
+| `USE_OLLAMA`      | `true`       | LLM backend (Ollama vs OpenAI)          |
+| `SERPER_API_KEY`  | —            | Google Serper for web‑augmented prompts |
+| `SECRET_KEY`      | —            | JWT signing                             |
 
 ---
 
-## API Endpoints
-### Health
-- **GET** `/api/v1/health` → System status  
-- **GET** `/api/v1/health/database` → DB connectivity  
-- **GET** `/api/v1/health/system` → Full health report
+## 10. Operational Tasks
 
-### Authentication (`/api/v1/auth`)
-- **POST** `/login` (form-data): `username`, `password` → `{ access_token, token_type }`  
-- **POST** `/signup` (JSON `UserCreate`) → `UserResponse`
+* **Bootstrap local DB** – on first start `Base.metadata.create_all()` protected by PostgreSQL advisory lock `0x6A7971`.
+* **Workers**
 
-### User Management
-- **GET** `/api/v1/users/me` → `UserResponse` (JWT required)  
-- **PUT** `/api/v1/users/me` (JSON `UserUpdate`) → updates profile
-
-### Admin Management (`/admin/users`)
-- **GET** `/admin/users/` → List all users  
-- **GET** `/admin/users/{id}` → Single user  
-- **PUT** `/admin/users/{id}` (JSON `UserUpdate`) → Update email/role  
-- **DELETE** `/admin/users/{id}` → Delete user  
-- **POST** `/admin/users/impersonate/{id}` → JWT for impersonation
-
-### Subscription & Activation (`/admin` & `/api/v1/subscriptions`)
-- **POST** `/admin/generate_device_activation_key` → `{ activation_key }`  
-- **POST** `/api/v1/subscriptions/redeem?activation_key=&device_id=` → `SubscriptionResponse`  
-- **GET** `/api/v1/subscriptions/plans` → List available plans
-
-### Farms (`/api/v1/farms`)
-- **POST** `/` (JSON `FarmCreate`) → `FarmResponse`  
-- **GET** `/` → List user farms  
-- **GET** `/{farm_id}` → Single farm  
-- **DELETE** `/{farm_id}` → Remove farm
-
-### Device Discovery & Registration (`/api/v1/devices`)
-- **GET** `/discover-all` → SSE discovery progress  
-- **GET** `/discover?ip=` → Single device discovery  
-- **POST** `/dosing` (JSON `DosingDeviceCreate`) → Register dosing unit  
-- **POST** `/sensor` (JSON `SensorDeviceCreate`) → Register sensor  
-- **POST** `/valve` (JSON `ValveDeviceCreate`) → Register valve controller  
-- **GET** `/sensoreading/{device_id}` → Real‑time sensor data  
-- **GET** `/` → List all devices  
-- **GET** `/{device_id}` → Device details  
-- **GET** `/device/{id}/version` → Firmware version
-
-### Device Communication (`/api/v1/device_comm`)
-- **GET** `/pending_tasks?device_id=` → List pending pump tasks  
-- **GET** `/update?device_id=` → Check OTA availability  
-- **GET** `/update/pull?device_id=` → Download firmware  
-- **POST** `/tasks?device_id=` (JSON `SimpleDosingCommand`) → Enqueue pump task  
-- **POST** `/valve_event` (JSON payload) → Log valve event  
-- **GET** `/valve/{device_id}/state` → Current valve states  
-- **POST** `/valve/{device_id}/toggle` (JSON `{ valve_id }`) → Toggle valve  
-- **POST** `/heartbeat` → Device heartbeat & OTA info (JWT required)
-
-### Dosing (`/api/v1/dosing`)
-- **POST** `/execute/{device_id}` → Trigger direct dosing  
-- **POST** `/cancel/{device_id}` → Cancel dosing  
-- **GET** `/history/{device_id}` → Retrieve dosing history  
-- **POST** `/profile` (JSON `DosingProfileCreate`) → Create dosing profile  
-- **POST** `/llm-request?device_id=` (JSON `LlmDosingRequest`) → LLM‑powered dosing  
-- **POST** `/llm-plan?device_id=` (JSON `llmPlaningRequest`) → LLM‑driven growth plan  
-- **POST** `/unified-dosing` (JSON `DosingProfileServiceRequest`) → Auto‑profile via sensor+LLM
-
-### Configuration (`/api/v1/config`)
-- **GET** `/system-info` → Version & device counts  
-- **POST** `/dosing-profile` → Create profile alias  
-- **GET** `/dosing-profiles/{device_id}` → List profiles  
-- **DELETE** `/dosing-profiles/{profile_id}` → Remove profile
-
-### Plants (`/plants`)
-- **GET** `/plants` → All plant profiles  
-- **GET** `/plants/{id}` → Single plant  
-- **POST** `/` (JSON `PlantCreate`) → New plant  
-- **DELETE** `/plants/{id}` → Delete plant  
-- **POST** `/execute-dosing/{plant_id}` → Auto‑dose per plant
-
-### Supply Chain Analysis (`/supply_chain`)
-- **POST** `/` (JSON `TransportRequest`) → `SupplyChainAnalysisResponse`
-
-### Camera Streaming & Upload (`/api/v1/cameras`)
-- **POST** `/upload/{camera_id}/day` → Upload day frame  
-- **POST** `/upload/{camera_id}/night` → Upload night frame  
-- **GET** `/stream/{camera_id}` → MJPEG live stream  
-- **GET** `/still/{camera_id}` → Latest frame  
-- **GET** `/api/clips/{camera_id}` → List MP4 clips  
-- **GET** `/clips/{camera_id}/{clip_name}` → Download clip  
-- **GET** `/api/status/{camera_id}` → Online status
-
-### Heartbeat (`/heartbeat`)
-- **POST** `/heartbeat` → Device heartbeat & registry update
+  * Camera detection `CameraQueue` (Ultralytics YOLO) – N workers.
+  * `offline_watcher` – flips camera `is_online` & cleans frames/clips.
+* **Health** – `/api/v1/health` (`system`, `database`, `uptime`).
 
 ---
 
-**Happy deploying & growing!**
+## 11. Testing Aids
 
+* `app/simulated_esp.py` – single FastAPI server emulating all device routes on port 8080.
+* `device code/**/code.ino` – production firmware reference; compile & flash with **Arduino IDE 2.x**.
+
+---
+
+## 12. Extensibility & TODO
+
+* **Migrations** – Integrate Alembic; current create‑all not prod‑safe.
+* **RBAC** – Expand roles beyond `user / superadmin`.
+* **Metrics** – Expose Prometheus under `/metrics`.
+* **WebSockets** – Replace SSE for progressive discovery.
+* **Retry/Back‑off** – Device controller to implement exponential retry on transient errors.
+* **Unit test coverage** – Add PyTest with HTTPX & pytest‑asyncio.
+
+---
+
+*Document last updated: 2 May 2025*

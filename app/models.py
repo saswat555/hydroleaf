@@ -3,6 +3,7 @@
 from datetime import datetime, timezone
 from enum import Enum as PyEnum
 
+from pyparsing import Enum
 from sqlalchemy import (
     Column,
     Integer,
@@ -154,6 +155,16 @@ class DosingProfile(Base):
 
     device = relationship("Device", back_populates="dosing_profiles")
 
+# app/models.py
+
+class DeviceCommand(Base):
+    __tablename__ = "device_commands"
+    id            = Column(Integer, primary_key=True)
+    device_id     = Column(String, index=True)
+    action        = Column(Enum("restart","update", name="cmd_action"))
+    parameters    = Column(JSON, nullable=True)     # e.g. {"url": "..."}
+    issued_at     = Column(DateTime, default=datetime.utcnow)
+    dispatched    = Column(Boolean, default=False)
 
 class Task(Base):
     __tablename__ = "tasks"
@@ -277,6 +288,7 @@ class ActivationKey(Base):
     created_by          = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=False)
     created_at          = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     redeemed            = Column(Boolean, default=False, nullable=False)
+    redeemed_at         = Column(DateTime(timezone=True), nullable=True)
     redeemed_device_id  = Column(Integer, ForeignKey("devices.id", ondelete="SET NULL"))
     redeemed_user_id    = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"))
     allowed_device_id   = Column(Integer, ForeignKey("devices.id", ondelete="SET NULL"))
@@ -380,6 +392,16 @@ class DetectionRecord(Base):
 
 class CloudKey(Base):
     __tablename__ = "cloud_keys"
-    id         = Column(Integer, primary_key=True)
-    key        = Column(String(64), nullable=False)        # only one row needed
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    id           = Column(Integer, primary_key=True)
+    key          = Column(String(64), unique=True, index=True, nullable=False)
+    created_by   = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    created_at   = Column(DateTime(timezone=True), server_default=func.now())
+
+    creator      = relationship("User", foreign_keys=[created_by])
+
+
+class CameraToken(Base):
+    __tablename__ = "camera_tokens"
+    camera_id = Column(String(64), primary_key=True)
+    token     = Column(String(64), nullable=False)
+    issued_at = Column(DateTime(timezone=True), server_default=func.now())

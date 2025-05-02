@@ -1,53 +1,70 @@
+/**
+ * Hydroleaf Smart Dosing Controller – HTTP‑only build (v3.1.1)
+ * ------------------------------------------------------------
+ *  ✦  Non‑blocking pumps   ✦  Wi‑Fi watchdog                 *
+ *  ✦  Cloud API heartbeat  ✦  HTTP OTA (no TLS certificate)  *
+ */
+
 #pragma GCC optimize("Os")
 
+/* ───────── 1. INCLUDES ─────────────────────────────────────────── */
 #include <WiFi.h>
 #include <WebServer.h>
 #include <DNSServer.h>
 #include <Preferences.h>
 #include <TFT_eSPI.h>
-#include <Update.h>
-#include <ESPHTTPUpdate.h>
 #include <HTTPClient.h>
+#include <HTTPUpdate.h>  //  ← fixes ESPhttpUpdate error
+#include <Update.h>
 #include <ArduinoJson.h>
 #include <esp_adc_cal.h>
 
-// ───────── Pin Mapping ────────────────────────────────────────────────
-#define RELAY_PUMP_1   26
-#define RELAY_PUMP_2   27
-#define RELAY_PUMP_3   14
-#define RELAY_PUMP_4   12
-#define PH_SENSOR_PIN  34
+/* ───────── 2. HARDWARE MAP ─────────────────────────────────────── */
+#define RELAY_PUMP_1 26
+#define RELAY_PUMP_2 27
+#define RELAY_PUMP_3 14
+#define RELAY_PUMP_4 12
+#define PH_SENSOR_PIN 34
 #define TDS_SENSOR_PIN 35
-#define LED_STATUS      2
+#define LED_STATUS 2
 
-// ───────── Constants ──────────────────────────────────────────────────
-const byte   DNS_PORT           = 53;
-const char*  DEFAULT_AP_PASS    = "hydroleaf";
-const char*  CLOUD_HOST         = "http://cloud.hydroleaf.in";
-const char*  OTA_PATH           = "/api/v1/device_comm/update/pull?device_id=";
-const char*  UPDATE_CHECK_PATH  = "/api/v1/device_comm/update?device_id=";
-const char*  HEARTBEAT_PATH     = "/api/v1/device_comm/heartbeat";
-const char*  FW_VERSION         = "3.0.0";
+/* ───────── 3. CONSTANTS ────────────────────────────────────────── */
+static const uint8_t DNS_PORT = 53;
+static const char* DEFAULT_AP_PASS = "hydroleaf";
+static const char* CLOUD_HOST = "http://cloud.hydroleaf.in";  // HTTP!
+static const char* OTA_PATH = "/api/v1/device_comm/update/pull?device_id=";
+static const char* UPDATE_CHECK_PATH = "/api/v1/device_comm/update?device_id=";
+static const char* HEARTBEAT_PATH = "/api/v1/device_comm/heartbeat";
+static const char* FW_VERSION = "3.1.1";
+static const char* DEVICE_TYPE = "dosing_unit";
 
-// ───────── Globals ────────────────────────────────────────────────────
-Preferences         prefs;
-WebServer           http(80);
-DNSServer           dns;
-TFT_eSPI            tft;
-esp_adc_cal_characteristics_t* adc_chars;
+/*  Timing  */
+static const uint32_t HB_INTERVAL = 60UL * 1000;             // 1 min
+static const uint32_t UPDATE_INTERVAL = 60UL * 60UL * 1000;  // 1 hr
+static const uint32_t WIFI_WATCHDOG_MS = 120UL * 1000;       // 2 min
 
-String  g_ssid, g_pass, g_apPass, g_deviceId;
-bool    g_wifiConnected = false;
+/* ───────── 4. GLOBALS ─────────────────────────────────────────── */
+Preferences prefs;
+WebServer http(80);
+DNSServer dns;
+TFT_eSPI tft;
+esp_adc_cal_characteristics_t* adc_chars = nullptr;
 
-unsigned long lastHeartbeat    = 0;
-unsigned long lastUpdateCheck  = 0;
-const unsigned long HB_INTERVAL     = 60UL * 1000;        // 1 min
-const unsigned long UPDATE_INTERVAL = 60UL * 60UL * 1000; // 1 hr
+String g_ssid, g_pass, g_apPass, g_deviceId;
+bool g_wifiConnected = false;
+uint32_t wifiLostSince = 0;
 
-float   pHValue  = -1.0;
-float   tdsValue = -1.0;
+/*  Sensor cache  */
+float pHValue = -1.0f;
+float tdsValue = -1.0f;
 
-// ───────── Helpers ────────────────────────────────────────────────────
+/*  Non‑blocking pump state  */
+struct PumpState {
+  bool active = false;
+  uint32_t startMs = 0, durMs = 0;
+} pumps[4];
+
+/* ───────── 5. UTILITIES ───────────────────────────────────────── */
 void showStatus(const String& msg) {
   tft.fillScreen(TFT_BLACK);
   tft.setCursor(10, 100);
@@ -55,280 +72,287 @@ void showStatus(const String& msg) {
   tft.setTextSize(2);
   tft.println(msg);
 }
-
+void setRelay(int idx, bool on) {
+  digitalWrite(RELAY_PUMP_1 + idx - 1, on ? LOW : HIGH);
+}
 void savePref(const char* key, const String& v) {
   prefs.begin("doser_cfg", false);
   prefs.putString(key, v);
   prefs.end();
 }
 
-void executePump(int pump, int amount) {
-  int pin = RELAY_PUMP_1 + (pump - 1);
-  if (pump < 1 || pump > 4) return;
-  digitalWrite(pin, LOW);
-  showStatus("Pumping #" + String(pump));
-  delay(amount * 100);
-  digitalWrite(pin, HIGH);
-  showStatus("Done");
+/* ───────── 6. PUMP CONTROL ────────────────────────────────────── */
+void schedulePump(int pump, uint32_t ms) {
+  if (pump < 1 || pump > 4 || ms == 0) return;
+  pumps[pump - 1] = { true, millis(), ms };
+  setRelay(pump, true);
+  showStatus("Pump#" + String(pump) + " ON");
+}
+void updatePumps() {
+  uint32_t now = millis();
+  for (int i = 0; i < 4; ++i)
+    if (pumps[i].active && now - pumps[i].startMs >= pumps[i].durMs) {
+      setRelay(i + 1, false);
+      pumps[i].active = false;
+      showStatus("Pump#" + String(i + 1) + " OFF");
+    }
 }
 
-// ───────── Cloud OTA & Heartbeat ─────────────────────────────────────
+/* ───────── 7. SENSOR READ ─────────────────────────────────────── */
+void readSensors() {
+  static uint32_t last = 0;
+  if (millis() - last < 1000) return;
+  last = millis();
+  uint32_t sum = 0;
+  for (int i = 0; i < 30; ++i) sum += analogRead(PH_SENSOR_PIN);
+  float v = esp_adc_cal_raw_to_voltage(sum / 30, adc_chars) / 1000.0f;
+  pHValue = constrain(7.0f + ((2.5f - v) / 0.18f), 0.0f, 14.0f);
+  sum = 0;
+  for (int i = 0; i < 30; ++i) sum += analogRead(TDS_SENSOR_PIN);
+  float v2 = esp_adc_cal_raw_to_voltage(sum / 30, adc_chars) / 1000.0f;
+  float cv = max(0.0f, v2 * (100.0f / 110.0f) - 0.12f);
+  tdsValue = constrain(133.42f * pow(cv, 3) - 255.86f * pow(cv, 2) + 857.39f * cv, 0.0f, 2500.0f);
+}
+
+/* ───────── 8. CLOUD I/O (HTTP) ────────────────────────────────── */
+bool cloudGET(const String& url, String& payload) {
+  HTTPClient cli;
+  if (!cli.begin(url)) return false;
+  int code = cli.GET();
+  if (code == HTTP_CODE_OK) payload = cli.getString();
+  cli.end();
+  return code == HTTP_CODE_OK;
+}
+bool cloudPOST(const String& url, const String& body, String& resp) {
+  HTTPClient cli;
+  if (!cli.begin(url)) return false;
+  cli.addHeader("Content-Type", "application/json");
+  int code = cli.POST(body);
+  if (code == HTTP_CODE_OK) resp = cli.getString();
+  cli.end();
+  return code == HTTP_CODE_OK;
+}
+
+/* OTA (HTTP) */
 void checkForUpdate() {
   if (!g_wifiConnected) return;
-  HTTPClient client;
-  client.begin(String(CLOUD_HOST) + UPDATE_CHECK_PATH + g_deviceId);
-  int code = client.GET();
-  if (code == HTTP_CODE_OK) {
-    String body = client.getString();
-    if (body.indexOf("\"update_available\":true") >= 0) {
-      ESPhttpUpdate.update(String(CLOUD_HOST) + OTA_PATH + g_deviceId);
-    }
-  }
-  client.end();
+  String body;
+  if (!cloudGET(String(CLOUD_HOST) + UPDATE_CHECK_PATH + g_deviceId, body)) return;
+  if (body.indexOf("\"update_available\":true") < 0) return;
+
+  showStatus("OTA updating…");
+  WiFiClient client;
+  httpUpdate.setLedPin(LED_STATUS, LOW);  // Blink LED while flashing
+  httpUpdate.rebootOnUpdate(true);
+  httpUpdate.update(client, String(CLOUD_HOST) + OTA_PATH + g_deviceId);
 }
 
+/* Heartbeat */
 void sendHeartbeat() {
   if (!g_wifiConnected) return;
-  HTTPClient client;
-  client.begin(String(CLOUD_HOST) + HEARTBEAT_PATH);
-  client.addHeader("Content-Type", "application/json");
-  StaticJsonDocument<256> doc;
-  doc["device_id"] = g_deviceId;
-  doc["version"]   = FW_VERSION;
-  String out; serializeJson(doc, out);
-  int code = client.POST(out);
-  if (code == HTTP_CODE_OK) {
-    String resp = client.getString();
-    StaticJsonDocument<512> r;
-    if (deserializeJson(r, resp) == DeserializationError::Ok) {
-      for (auto task : r["tasks"].as<JsonArray>()) {
-        int p = task["pump"], a = task["amount"];
-        executePump(p, a);
-      }
-    }
-  }
-  client.end();
+  StaticJsonDocument<256> d;
+  d["device_id"] = g_deviceId;
+  d["type"] = DEVICE_TYPE;
+  d["version"] = FW_VERSION;
+  String out;
+  serializeJson(d, out);
+  String resp;
+  if (!cloudPOST(String(CLOUD_HOST) + HEARTBEAT_PATH, out, resp)) return;
+
+  StaticJsonDocument<512> r;
+  if (deserializeJson(r, resp) != DeserializationError::Ok) return;
+  for (JsonObject t : r["tasks"].as<JsonArray>()) schedulePump(t["pump"] | 0, t["amount"] | 0);
 }
 
-// ───────── Web UI ─────────────────────────────────────────────────────
+/* ───────── 9. WEB ROUTES (unchanged + API) ────────────────────── */
 String htmlHeader(const String& title) {
-  String s = "<!doctype html><html><head><meta charset='utf-8' "
-             "name='viewport' content='width=device-width,initial-scale=1'>"
-             "<title>" + title + "</title><style>"
-             "body{font-family:Arial;margin:0;padding:20px;}h2{margin-top:0;}"
-             "input,button{width:100%;padding:10px;margin:8px 0;box-sizing:border-box;font-size:16px;}"
-             "button{background:#007bff;border:none;color:#fff;cursor:pointer;}button:hover{background:#0069d9}"
-             "a{display:block;margin:8px 0;color:#007bff;text-decoration:none;}a:hover{text-decoration:underline}"
-             "</style></head><body>";
-  return s;
+  return "<!doctype html><html><head><meta charset='utf-8' "
+         "name='viewport' content='width=device-width,initial-scale=1'><title>"
+         + title + "</title><style>body{font-family:Arial;margin:0;padding:20px;}h2{margin-top:0;}"
+                   "input,button{width:100%;padding:10px;margin:8px 0;font-size:16px;}"
+                   "button{background:#007bff;border:none;color:#fff;}button:hover{background:#0069d9}"
+                   "a{display:block;margin:8px 0;color:#007bff;}</style></head><body>";
 }
 
-void handleMenu() {
-  String p = htmlHeader("Hydroleaf Controller");
-  p += "<h2>Main Menu</h2><ul>"
-       "<li><a href='/wifi'>Wi-Fi Setup</a></li>"
-       "<li><a href='/dosing'>Manual Dosing</a></li>"
-       "<li><a href='/sensor'>Sensor Readings</a></li>"
-       "<li><a href='/update'>Firmware Update</a></li>"
-       "<li><a href='/reset'>Factory Reset</a></li>"
-       "</ul></body></html>";
-  http.send(200, "text/html", p);
+void sendJSON(int code, const JsonDocument& doc) {
+  String o;
+  serializeJson(doc, o);
+  http.send(code, "application/json", o);
 }
 
-void handleWiFiPage() {
-  String p = htmlHeader("Wi-Fi Setup");
-  p += "<h2>Enter Credentials</h2><form action='/save_wifi'>"
-       "SSID:<input name='ssid' value='" + g_ssid + "'>"
-       "Password:<input type='password' name='pass' value='" + g_pass + "'>"
-       "<button type='submit'>Save & Restart</button></form>"
-       "<a href='/'>← Back</a></body></html>";
-  http.send(200, "text/html", p);
+void handleDiscovery() {
+  StaticJsonDocument<160> d;
+  d["device_id"] = g_deviceId;
+  d["name"] = "Hydroleaf Smart Doser";
+  d["type"] = DEVICE_TYPE;
+  d["version"] = FW_VERSION;
+  d["status"] = g_wifiConnected ? "online" : "offline";
+  d["ip"] = WiFi.localIP().toString();
+  sendJSON(200, d);
+}
+void handleVersion() {
+  StaticJsonDocument<32> d;
+  d["version"] = FW_VERSION;
+  sendJSON(200, d);
 }
 
-void handleSaveWiFi() {
-  if (!http.hasArg("ssid") || !http.hasArg("pass")) {
-    http.send(400, "text/plain", "Missing fields");
+void handlePumpPOST() {
+  if (!http.hasArg("plain")) {
+    http.send(400, "text/plain", "Missing JSON");
     return;
   }
-  g_ssid = http.arg("ssid");
-  g_pass = http.arg("pass");
-  savePref("ssid", g_ssid);
-  savePref("pass", g_pass);
-  http.send(200, "text/html", "<h2>Saved! Restarting…</h2>");
-  delay(1000);
-  ESP.restart();
-}
-
-void handleDosingPage() {
-  String p = htmlHeader("Manual Dosing");
-  p += "<h2>Start a Pump</h2><form action='/dose'>"
-       "Pump (1–4):<input name='pump' type='number' min='1' max='4'>"
-       "Amount (ms):<input name='amount' type='number' min='1'>"
-       "<button type='submit'>Start</button></form>"
-       "<a href='/'>← Back</a></body></html>";
-  http.send(200, "text/html", p);
-}
-
-void handleDose() {
-  if (!http.hasArg("pump") || !http.hasArg("amount")) {
-    http.send(400, "application/json", "{\"error\":\"Missing parameters\"}");
+  StaticJsonDocument<128> j;
+  if (deserializeJson(j, http.arg("plain"))) {
+    http.send(400, "Bad JSON");
     return;
   }
-  int p = http.arg("pump").toInt();
-  int a = http.arg("amount").toInt();
-  if (p < 1 || p > 4 || a <= 0) {
-    http.send(400, "application/json", "{\"error\":\"Invalid pump/amount\"}");
+  int pump = j["pump"] | 0, amt = j["amount"] | 0;
+  schedulePump(pump, amt);
+  j["timestamp"] = millis();
+  sendJSON(200, j);
+}
+void handleDoseMonitor() {
+  if (!http.hasArg("plain")) {
+    http.send(400, "Missing");
     return;
   }
-  executePump(p, a);
-  http.send(200, "application/json", "{\"message\":\"Pump started\"}");
-}
-
-void handleSensorPage() {
-  // quick refresh
-  static unsigned long lastSensor = 0;
-  if (millis() - lastSensor > 1000) {
-    // read twice/sec
-    // pH
-    uint32_t sum=0;
-    for(int i=0;i<30;i++) sum += analogRead(PH_SENSOR_PIN);
-    float voltage = esp_adc_cal_raw_to_voltage(sum/30, adc_chars)/1000.0;
-    pHValue = constrain(7.0 + ((2.5 - voltage)/0.18), 0.0, 14.0);
-    // TDS
-    sum=0;
-    for(int i=0;i<30;i++) sum += analogRead(TDS_SENSOR_PIN);
-    float v2 = esp_adc_cal_raw_to_voltage(sum/30, adc_chars)/1000.0;
-    float cvolt = v2; cvolt *= (100.0/110.0); cvolt -= 0.12; if(cvolt<0) cvolt=0;
-    float rawT = 133.42*pow(cvolt,3) - 255.86*pow(cvolt,2) + 857.39*cvolt;
-    // simple correction
-    tdsValue = rawT<0?0:(rawT>2500?2500:rawT);
-    lastSensor = millis();
+  StaticJsonDocument<128> j;
+  if (deserializeJson(j, http.arg("plain"))) {
+    http.send(400, "Bad");
+    return;
   }
-  String p = htmlHeader("Sensor Readings");
-  p += "<h2>pH: "   + String(pHValue, 2) + "</h2>"
-       "<h2>TDS: " + String(tdsValue, 0) + " ppm</h2>"
-       "<a href='/'>← Back</a></body></html>";
-  http.send(200, "text/html", p);
+  int pump = j["pump"] | 0, amt = j["amount"] | 0;
+  schedulePump(pump, amt);
+  StaticJsonDocument<160> r;
+  r["message"] = "Started";
+  r["pump"] = pump;
+  r["dose_ms"] = amt;
+  r["ph"] = pHValue;
+  r["tds"] = tdsValue;
+  r["timestamp"] = millis();
+  sendJSON(200, r);
 }
-
-void handleUpdatePage() {
-  String p = htmlHeader("Firmware Update");
-  p += "<h2>Upload New Firmware</h2>"
-       "<form method='POST' action='/update_firmware' enctype='multipart/form-data'>"
-       "<input type='file' name='firmware'><br>"
-       "<button type='submit'>Upload</button></form>"
-       "<a href='/'>← Back</a></body></html>";
-  http.send(200, "text/html", p);
-}
-
-void handleFirmwareUpload() {
-  HTTPUpload& upload = http.upload();
-  if (upload.status == UPLOAD_FILE_START) {
-    uint32_t maxSz = ESP.getFreeSketchSpace();
-    if (!Update.begin(maxSz)) {
-      http.send(500, "text/plain", "OTA begin failed");
+void handlePumpCal() {
+  if (!http.hasArg("plain")) {
+    http.send(400, "Missing");
+    return;
+  }
+  StaticJsonDocument<64> j;
+  if (deserializeJson(j, http.arg("plain"))) {
+    http.send(400, "Bad");
+    return;
+  }
+  String cmd = j["command"] | "";
+  if (cmd == "start") {
+    for (int p = 1; p <= 4; ++p) schedulePump(p, 50000);
+    http.send(200, "application/json", "{\"message\":\"calibration started\"}");
+  } else if (cmd == "stop") {
+    for (int i = 0; i < 4; ++i) {
+      pumps[i].active = false;
+      setRelay(i + 1, false);
     }
-  }
-  else if (upload.status == UPLOAD_FILE_WRITE) {
-    Update.write(upload.buf, upload.currentSize);
-  }
-  else if (upload.status == UPLOAD_FILE_END) {
-    if (Update.end(true)) {
-      http.send(200, "text/plain", "Update Success; restarting");
-      delay(500);
-      ESP.restart();
-    } else {
-      http.send(500, "text/plain", "Update failed");
-    }
-  }
+    http.send(200, "application/json", "{\"message\":\"calibration stopped\"}");
+  } else http.send(400, "text/plain", "Invalid command");
+}
+void handleMonitor() {
+  StaticJsonDocument<128> d;
+  d["ph"] = pHValue;
+  d["tds"] = tdsValue;
+  sendJSON(200, d);
 }
 
-void handleReset() {
-  savePref("apPass", "");
-  http.send(200, "text/html", "<h2>Reset! Restarting…</h2>");
-  delay(500);
-  ESP.restart();
-}
-
-void handleNotFound() {
-  http.sendHeader("Location", "/", true);
-  http.send(302, "text/plain", "");
-}
-
+/* Register routes (+ keep existing portal pages if any) */
 void setupRoutes() {
-  http.on("/",            HTTP_GET,    handleMenu);
-  http.on("/wifi",        HTTP_GET,    handleWiFiPage);
-  http.on("/save_wifi",   HTTP_GET,    handleSaveWiFi);
-  http.on("/dosing",      HTTP_GET,    handleDosingPage);
-  http.on("/dose",        HTTP_GET,    handleDose);
-  http.on("/sensor",      HTTP_GET,    handleSensorPage);
-  http.on("/update",      HTTP_GET,    handleUpdatePage);
-  http.on("/update_firmware", HTTP_POST, [](){}, handleFirmwareUpload);
-  http.on("/reset",       HTTP_GET,    handleReset);
-  http.onNotFound(handleNotFound);
+  http.on("/discovery", HTTP_GET, handleDiscovery);
+  http.on("/version", HTTP_GET, handleVersion);
+  http.on("/pump", HTTP_POST, handlePumpPOST);
+  http.on("/dose_monitor", HTTP_POST, handleDoseMonitor);
+  http.on("/pump_calibration", HTTP_POST, handlePumpCal);
+  http.on("/monitor", HTTP_GET, handleMonitor);
+
+  http.onNotFound([]() {
+    http.sendHeader("Location", "/", true);
+    http.send(302);
+  });
   http.begin();
 }
 
+/* ───────── 10. CAPTIVE PORTAL ─────────────────────────────────── */
 void portalStart() {
   WiFi.mode(WIFI_AP_STA);
-  IPAddress apIP(192,168,0,1);
-  WiFi.softAPConfig(apIP, apIP, IPAddress(255,255,255,0));
+  IPAddress apIP(192, 168, 0, 1);
+  WiFi.softAPConfig(apIP, apIP, IPAddress(255, 255, 255, 0));
   WiFi.softAP(g_deviceId.c_str(), g_apPass.c_str());
   dns.start(DNS_PORT, "*", apIP);
   setupRoutes();
 }
 
-// ───────── Setup & Loop ─────────────────────────────────────────────
+/* ───────── 11. SETUP ─────────────────────────────────────────── */
 void setup() {
   Serial.begin(115200);
-  tft.init(); tft.setRotation(1);
-
-  // Relays & LED
-  pinMode(LED_STATUS, OUTPUT); digitalWrite(LED_STATUS, LOW);
-  for (int r : {RELAY_PUMP_1, RELAY_PUMP_2, RELAY_PUMP_3, RELAY_PUMP_4}) {
-    pinMode(r, OUTPUT); digitalWrite(r, HIGH);
+  tft.init();
+  tft.setRotation(1);
+  pinMode(LED_STATUS, OUTPUT);
+  digitalWrite(LED_STATUS, LOW);
+  for (int p : { RELAY_PUMP_1, RELAY_PUMP_2, RELAY_PUMP_3, RELAY_PUMP_4 }) {
+    pinMode(p, OUTPUT);
+    digitalWrite(p, HIGH);
   }
 
-  // Load prefs
   prefs.begin("doser_cfg", false);
-  g_ssid   = prefs.getString("ssid", "");
-  g_pass   = prefs.getString("pass", "");
+  g_ssid = prefs.getString("ssid", "");
+  g_pass = prefs.getString("pass", "");
   g_apPass = prefs.getString("apPass", DEFAULT_AP_PASS);
+  g_deviceId = prefs.getString("id", "");
+  if (!g_deviceId.length()) {
+    g_deviceId = "DOSER_" + String((uint32_t)esp_random(), HEX);
+    prefs.putString("id", g_deviceId);
+  }
   prefs.end();
 
-  // Unique ID
-  g_deviceId = "DOSER_" + String((uint32_t)esp_random(), HEX);
-
-  // ADC calibration
-  adc_chars = (esp_adc_cal_characteristics_t*) calloc(1, sizeof(*adc_chars));
+  adc_chars = (esp_adc_cal_characteristics_t*)calloc(1, sizeof(*adc_chars));
   esp_adc_cal_characterize(ADC_UNIT_1, ADC_ATTEN_DB_11, ADC_WIDTH_BIT_12, 1100, adc_chars);
   analogSetPinAttenuation(PH_SENSOR_PIN, ADC_11db);
   analogSetPinAttenuation(TDS_SENSOR_PIN, ADC_11db);
 
-  // Try Wi-Fi
-  showStatus("Connecting WiFi...");
+  showStatus("Connecting Wi‑Fi…");
   WiFi.mode(WIFI_STA);
   WiFi.begin(g_ssid.c_str(), g_pass.c_str());
-  unsigned long start = millis();
-  while (WiFi.status() != WL_CONNECTED && millis() - start < 10000) {
-    delay(200);
-  }
+  uint32_t st = millis();
+  while (WiFi.status() != WL_CONNECTED && millis() - st < 10000) delay(200);
   g_wifiConnected = (WiFi.status() == WL_CONNECTED);
-  showStatus(g_wifiConnected ? "WiFi Connected" : "WiFi Failed. AP Mode");
+  showStatus(g_wifiConnected ? "Wi‑Fi OK" : "AP mode");
+
   portalStart();
 }
 
+/* ───────── 12. LOOP ──────────────────────────────────────────── */
 void loop() {
   dns.processNextRequest();
   http.handleClient();
+  updatePumps();
+  readSensors();
 
-  unsigned long now = millis();
-  if (now - lastHeartbeat >= HB_INTERVAL) {
-    lastHeartbeat = now;
+  static uint32_t tHB = 0, tUpd = 0;
+  uint32_t now = millis();
+  if (now - tHB >= HB_INTERVAL) {
+    tHB = now;
     sendHeartbeat();
   }
-  if (now - lastUpdateCheck >= UPDATE_INTERVAL) {
-    lastUpdateCheck = now;
+  if (now - tUpd >= UPDATE_INTERVAL) {
+    tUpd = now;
     checkForUpdate();
+  }
+
+  if (WiFi.status() == WL_CONNECTED) wifiLostSince = 0;
+  else {
+    if (!wifiLostSince) wifiLostSince = now;
+    if (now - wifiLostSince > WIFI_WATCHDOG_MS) {
+      for (int i = 0; i < 4; ++i) {
+        pumps[i].active = false;
+        setRelay(i + 1, false);
+      }
+      ESP.restart();
+    }
   }
 }

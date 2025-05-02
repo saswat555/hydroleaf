@@ -39,10 +39,10 @@ async def redeem_key(
         raise HTTPException(400, "Key does not match this device type")
 
     # 3) mark the key redeemed
-    ak.redeemed = True
-    ak.redeemed_user_id = current_user.id
+    ak.redeemed       = True
+    ak.redeemed_at    = datetime.utcnow()  # ← now we record when
+    ak.redeemed_user_id   = current_user.id
     ak.redeemed_device_id = device_id
-    ak.redeemed_at = datetime.utcnow()
 
     # 4) create a Subscription
     plan = await db.get(SubscriptionPlan, ak.plan_id)
