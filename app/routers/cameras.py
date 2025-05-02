@@ -83,7 +83,7 @@ async def _process_upload(
     latest_file = base_dir / "latest.jpg"
     # enqueue for async processing
     background_tasks.add_task(
-        lambda cid, fp: asyncio.get_event_loop().create_task(camera_queue.enqueue(cid, Path(fp))),
+        lambda cid, fp: asyncio.run(camera_queue.enqueue(cid, Path(fp))),
         camera_id, str(latest_file)
     )
     return {"ok": True, "ts": ts, "mode": "day" if day_flag else "night"}

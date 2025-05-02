@@ -376,3 +376,10 @@ class DetectionRecord(Base):
     timestamp   = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
     camera = relationship("Camera", back_populates="detection_records")
+
+
+class CloudKey(Base):
+    __tablename__ = "cloud_keys"
+    id         = Column(Integer, primary_key=True)
+    key        = Column(String(64), nullable=False)        # only one row needed
+    created_at = Column(DateTime(timezone=True), server_default=func.now())

@@ -1,142 +1,117 @@
-import asyncio
-import logging
-from typing import Dict, List, AsyncGenerator
-from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
-from sqlalchemy.orm import sessionmaker, declarative_base
-from sqlalchemy import text
-from datetime import datetime
+# app/core/database.py
+"""PostgreSQL‑only async DB layer with *safe multi‑worker bootstrap*.
 
-from app.core.config import DATABASE_URL
+Key points
+----------
+* Refuses to start if `DATABASE_URL` is **not** `postgresql+asyncpg://…`.
+* Uses a **PostgreSQL advisory lock** so only **one worker** runs
+  `metadata.create_all()` – avoids the duplicate‑sequence race you just hit.
+* Exposes:  `engine`, `AsyncSessionLocal`, `Base`, `get_db()` dependency,
+  `init_db()`, `check_db_connection()`, and `cleanup_db()`.
+* In production you should normally run Alembic migrations; the bootstrap
+  helper is for local dev / CI or the very first deploy.
+"""
+from __future__ import annotations
+
+import logging
+from datetime import datetime
+from typing import AsyncGenerator, Dict
+
+from sqlalchemy import text
+from sqlalchemy.engine.url import make_url
+from sqlalchemy.ext.asyncio import (
+    AsyncSession,
+    async_sessionmaker,
+    create_async_engine,
+)
+from sqlalchemy.orm import declarative_base
+
+from app.core.config import DATABASE_URL, DB_POOL_SIZE, DB_MAX_OVERFLOW
 
 logger = logging.getLogger(__name__)
 
-# Create engine for SQLite
+# --------------------------------------------------------------------------- #
+# 1.  Validate DATABASE_URL – we only support Postgres via asyncpg             #
+# --------------------------------------------------------------------------- #
+url = make_url(DATABASE_URL)
+if not url.drivername.startswith("postgresql+asyncpg"):
+    raise RuntimeError(
+        "Hydroleaf is configured for PostgreSQL only.  "
+        f"Invalid driver in DATABASE_URL: {url.drivername}"
+    )
+
+# --------------------------------------------------------------------------- #
+# 2.  Engine & session factory                                                #
+# --------------------------------------------------------------------------- #
 engine = create_async_engine(
     DATABASE_URL,
-    echo=False,
+    pool_size=DB_POOL_SIZE,
+    max_overflow=DB_MAX_OVERFLOW,
     future=True,
-    pool_size=10,
-    max_overflow=20,
     pool_pre_ping=True,
 )
 
-# Create session factory
-AsyncSessionLocal = sessionmaker(
-    engine,
-    class_=AsyncSession,
-    expire_on_commit=False,
+AsyncSessionLocal: async_sessionmaker[AsyncSession] = async_sessionmaker(
+    bind=engine,
+    autoflush=False,
     autocommit=False,
-    autoflush=False
+    expire_on_commit=False,
 )
 
-# Create declarative base
+# Base that every model shares
 Base = declarative_base()
 
-from alembic.config import Config
-from alembic import command
-
+# --------------------------------------------------------------------------- #
+# 3.  FastAPI session dependency                                              #
+# --------------------------------------------------------------------------- #
 async def get_db() -> AsyncGenerator[AsyncSession, None]:
-    """Yield a database session."""
+    """Yield a transactional session and guarantee proper cleanup."""
     async with AsyncSessionLocal() as session:
         try:
             yield session
+            await session.commit()
+        except Exception:  # pragma: no cover
+            await session.rollback()
+            raise
         finally:
             await session.close()
 
-async def check_db_connection() -> Dict:
-    """Check SQLite database connection and status"""
+# --------------------------------------------------------------------------- #
+# 4.  Boot‑time schema helper with advisory lock                              #
+# --------------------------------------------------------------------------- #
+_ADVISORY_KEY = 0x6A7971  # arbitrary constant <= 2^31‑1
+
+async def init_db(create: bool = True) -> None:
+    """Ensure the schema exists (dev / first‑run).
+
+    Uses `pg_advisory_lock` so that when several Uvicorn workers start at the
+    same time **only one** will run `metadata.create_all()`; the others wait
+    for the lock, see that the tables already exist, and move on.
+    """
+    if not create:
+        return  # migrations only, skip auto‑create
+
+    async with engine.begin() as conn:
+        # Acquire global lock (blocks until available)
+        await conn.execute(text("SELECT pg_advisory_lock(:k)").bindparams(k=_ADVISORY_KEY))
+        try:
+            await conn.run_sync(Base.metadata.create_all)
+            logger.info("DB schema ensured (create_all checkfirst)")
+        finally:
+            # Always release lock so hot‑reload works in dev
+            await conn.execute(text("SELECT pg_advisory_unlock(:k)").bindparams(k=_ADVISORY_KEY))
+
+# --------------------------------------------------------------------------- #
+# 5.  Health helpers                                                          #
+# --------------------------------------------------------------------------- #
+async def check_db_connection() -> Dict[str, str]:
     try:
         async with AsyncSessionLocal() as session:
-            result = await session.execute(text("SELECT 1"))
-            _ = result.scalar()
-            tables_result = await session.execute(
-                text("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'")
-            )
-            existing_tables = [row[0] for row in tables_result.fetchall()]
-            expected = ['devices','dosing_profiles','sensor_readings','dosing_operations']
-            missing = set(expected) - set(existing_tables)
-            return {
-                "status": "connected",
-                "type": "sqlite",
-                "tables": {
-                    "existing": existing_tables,
-                    "missing": list(missing),
-                    "status": "complete" if not missing else "incomplete"
-                },
-                "error": None
-            }
-    except Exception as e:
-        logger.error(f"Database connection check failed: {e}")
-        return {"status": "error", "type": "sqlite", "tables": None, "error": str(e)}
+            await session.execute(text("SELECT 1"))
+        return {"status": "connected", "timestamp": datetime.utcnow().isoformat()}
+    except Exception as exc:  # pragma: no cover
+        logger.error("DB health‑check failed", exc_info=True)
+        return {"status": "error", "error": str(exc)}
 
-async def get_table_stats() -> Dict:
-    """Get row counts for SQLite tables"""
-    try:
-        async with AsyncSessionLocal() as session:
-            # Get list of actual tables
-            tables_result = await session.execute(
-                text("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'")
-            )
-            tables = [row[0] for row in tables_result.fetchall()]
-            
-            stats = {}
-            for table in tables:
-                count_result = await session.execute(text(f"SELECT COUNT(*) FROM {table}"))
-                count = count_result.scalar()
-                stats[table] = count
-                
-            return {
-                "status": "success",
-                "counts": stats,
-                "error": None
-            }
-    except Exception as e:
-        logger.error(f"Error getting table statistics: {e}")
-        return {
-            "status": "error",
-            "counts": {},
-            "error": str(e)
-        }
-
-async def get_migration_status() -> Dict:
-    """Get SQLite database migration status"""
-    try:
-        async with AsyncSessionLocal() as session:
-            result = await session.execute(
-                text("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'")
-            )
-            existing_tables = [row[0] for row in result.fetchall()]
-            
-            expected_tables = [
-                'devices',
-                'dosing_profiles',
-                'sensor_readings',
-                'dosing_operations'
-            ]
-            
-            missing_tables = set(expected_tables) - set(existing_tables)
-            
-            return {
-                "status": "ok" if not missing_tables else "incomplete",
-                "existing_tables": existing_tables,
-                "missing_tables": list(missing_tables),
-                "error": None
-            }
-    except Exception as e:
-        logger.error(f"Error checking migration status: {e}")
-        return {
-            "status": "error",
-            "existing_tables": [],
-            "missing_tables": [],
-            "error": str(e)
-        }
-
-async def cleanup_db() -> bool:
-    """Cleanup database connections"""
-    try:
-        await engine.dispose()
-        logger.info("Database connections cleaned up successfully")
-        return True
-    except Exception as e:
-        logger.error(f"Error during database cleanup: {e}")
-        return False
+async def cleanup_db() -> None:
+    await engine.dispose()

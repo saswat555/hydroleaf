@@ -114,7 +114,7 @@ class Device(Base):
     mac_id              = Column(String(64), unique=True, nullable=False, index=True)
     name                = Column(String(128), nullable=False)
     type                = Column(SQLEnum(DeviceType, name="device_type"), nullable=False)
-    http_endpoint       = Column(String(256), unique=True, nullable=False)
+    http_endpoint       = Column(String(256), nullable=False)
     location_description= Column(String(256))
     is_active           = Column(Boolean, nullable=False, default=True)
     last_seen           = Column(DateTime(timezone=True))
@@ -381,6 +381,13 @@ class DetectionRecord(Base):
     camera = relationship("Camera", back_populates="detection_records")
 
 
+class CloudKey(Base):
+    __tablename__ = "cloud_keys"
+    id         = Column(Integer, primary_key=True)
+    key        = Column(String(64), nullable=False)        # only one row needed
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+
 ----- app/__init__.py -----
 # app/__init__.py
 """
@@ -390,18 +397,31 @@ This file marks the directory as a Python package.
 
 
 ----- app/simulated_esp.py -----
-# simulated_esp.py
-
+# simulated_esp_all.py
+"""
+Hydroleaf Simulated Device Server
+Simulates an ESP32-CAM, Dosing Unit, and Valve Controller on a single HTTP endpoint for testing.
+Listens on port 8080 and provides all device-specific API routes.
+"""
+import logging
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from datetime import datetime
-import uvicorn
 
-# Create the FastAPI app for the simulated ESP device.
-simulated_esp_app = FastAPI(title="Simulated ESP32 Device")
+# Configure logging
+tlogging = logging.getLogger("simulator")
+logging.basicConfig(level=logging.INFO)
 
-# Allow CORS for all origins (adjust as needed).
-simulated_esp_app.add_middleware(
+# Instantiate FastAPI app
+app = FastAPI(
+    title="Hydroleaf Simulated ESP32 Devices",
+    version="1.0.0",
+    docs_url="/docs",
+    redoc_url=None,
+)
+
+# Allow all CORS (for testing)
+app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
     allow_credentials=True,
@@ -409,65 +429,51 @@ simulated_esp_app.add_middleware(
     allow_headers=["*"],
 )
 
-@simulated_esp_app.get("/discovery")
+## Discovery Endpoint
+@app.get("/discovery", summary="Simulated device discovery")
 async def discovery():
     """
-    Simulate the discovery endpoint.
-    Returns basic device information.
+    Simulates the /discovery endpoint for all devices.
+    Returns device metadata for registration/discovery.
     """
+    logging.info("/discovery called")
     return {
         "device_id": "dummy_device",
         "name": "Simulated ESP Device",
-        "type": "dosing_unit",            # match your DeviceType enum
-         "version": "2.1.0",
-         "status": "online",
-         "ip": "127.0.0.1"  # Simulated IP address
-     }
+        # For dosing registrations, tests expect "dosing_unit"
+        "type": "dosing_unit",
+        "version": "3.0.0",
+        "status": "online",
+        "ip": "127.0.0.1"
+    }
 
-@simulated_esp_app.post("/pump")
+## Pump Endpoint (Dosing Unit)
+@app.post("/pump", summary="Activate a pump")
 async def pump(request: Request):
-    """
-    Simulate activating a pump.
-    Expects JSON with "pump" and "amount".
-    Returns a success message.
-    """
     data = await request.json()
     pump = data.get("pump")
     amount = data.get("amount")
     if pump is None or amount is None:
+        logging.warning("/pump missing pump or amount")
         raise HTTPException(status_code=400, detail="Missing pump or amount")
+    logging.info(f"/pump called: pump={pump}, amount={amount}")
     return {
-        "message": "Pump started",  # Some tests check for this exact message.
+        "message": "Pump started",
         "pump": pump,
         "dose_ml": amount,
         "timestamp": datetime.utcnow().isoformat()
     }
 
-@simulated_esp_app.get("/monitor")
-async def monitor():
-    """
-    Simulate returning sensor readings.
-    """
-    return {
-        "device_id": "dummy_device",
-        "type": "dosing_unit",            # keep it consistent
-        "version": "2.1.0",
-        "wifi_connected": True,
-        "ph": 6.8,                        # lowercase keys
-        "tds": 750
-    }
-
-@simulated_esp_app.post("/dose_monitor")
+## Combined Dose + Monitor Endpoint
+@app.post("/dose_monitor", summary="Activate pump and monitor")
 async def dose_monitor(request: Request):
-    """
-    Simulate a combined dosing and monitoring endpoint.
-    Behaves similar to /pump but returns a different message.
-    """
     data = await request.json()
     pump = data.get("pump")
     amount = data.get("amount")
     if pump is None or amount is None:
+        logging.warning("/dose_monitor missing pump or amount")
         raise HTTPException(status_code=400, detail="Missing pump or amount")
+    logging.info(f"/dose_monitor called: pump={pump}, amount={amount}")
     return {
         "message": "Combined started",
         "pump": pump,
@@ -475,44 +481,66 @@ async def dose_monitor(request: Request):
         "timestamp": datetime.utcnow().isoformat()
     }
 
-@simulated_esp_app.post("/pump_calibration")
+## Pump Calibration Endpoint
+@app.post("/pump_calibration", summary="Pump calibration command")
 async def pump_calibration(request: Request):
-    """
-    Simulate pump calibration endpoint.
-    Expects a JSON with a "command" key.
-    """
     data = await request.json()
     command = data.get("command")
-    if command == "stop":
-        return {"message": "All pumps off"}
-    elif command == "start":
+    logging.info(f"/pump_calibration called: command={command}")
+    if command == "start":
         return {"message": "All pumps on"}
+    elif command == "stop":
+        return {"message": "All pumps off"}
     else:
         raise HTTPException(status_code=400, detail="Invalid command")
-@simulated_esp_app.get("/state")
-async def state():
-    # simulate 4‑valve statuses
+
+## Sensor Monitor Endpoint
+@app.get("/monitor", summary="Return sensor readings")
+async def monitor():
+    logging.info("/monitor called")
     return {
-      "device_id": "dummy_valve",
-      "valves": [
-        {"id": 1, "state": "off"},
-        {"id": 2, "state": "off"},
-        {"id": 3, "state": "off"},
-        {"id": 4, "state": "off"},
-      ]
+        "device_id": "dummy_device",
+        "type": "dosing_unit",
+        "version": "3.0.0",
+        "wifi_connected": True,
+        # Provide fixed pH and TDS
+        "ph": 6.8,
+        "tds": 750
     }
 
-@simulated_esp_app.post("/toggle")
+## Valve State Endpoint (Valve Controller)
+@app.get("/state", summary="Return valve states")
+async def state():
+    logging.info("/state called")
+    return {
+        "device_id": "dummy_valve",
+        "valves": [
+            {"id": i, "state": "off"} for i in range(1, 5)
+        ]
+    }
+
+## Toggle Valve Endpoint
+@app.post("/toggle", summary="Toggle a valve")
 async def toggle(request: Request):
     data = await request.json()
     valve = data.get("valve_id")
-    if valve not in [1,2,3,4]:
-        raise HTTPException(400, "Invalid valve_id")
-    # just echo back
-    return {"device_id": "dummy_valve", "new_state": "toggled", "valve_id": valve}
-# Add a main section to run the app on port 8080.
+    logging.info(f"/toggle called: valve_id={valve}")
+    if valve not in [1, 2, 3, 4]:
+        raise HTTPException(status_code=400, detail="Invalid valve_id")
+    # Echo back toggled state
+    return {
+        "device_id": "dummy_valve",
+        "valve_id": valve,
+        "new_state": "toggled"
+    }
+
+## Main Entrypoint
+def main():
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8080)
+
 if __name__ == "__main__":
-    uvicorn.run("simulated_esp:simulated_esp_app", host="0.0.0.0", port=8080, reload=True)
+    main()
 
 
 ----- app/schemas.py -----
@@ -1515,78 +1543,120 @@ async def update_my_profile(update: UserUpdate, db=Depends(get_db), current_user
 
 ----- app/routers/cloud.py -----
 # app/routers/cloud.py
-import secrets
+"""
+Cloud-key management & device authentication.
+
+• Every generated key is stored in the `cloud_keys` table (latest row is current).
+• Keys survive process restarts and are shared across all workers.
+• `/authenticate` simply checks the supplied key and returns a random token.
+"""
+
+from __future__ import annotations
+
 import logging
-from fastapi import APIRouter, HTTPException, status, Depends
-from app.schemas import CloudAuthenticationRequest, CloudAuthenticationResponse, DosingCancellationRequest
+import secrets
+from datetime import timezone, datetime
+
+from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy import select, func
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.schemas import (
+    CloudAuthenticationRequest,
+    CloudAuthenticationResponse,
+    DosingCancellationRequest,
+)
 from app.dependencies import get_current_admin
-
+from app.core.database import get_db
+from app.models import Base
+from sqlalchemy import Column, Integer, String, DateTime
+from app.models import CloudKey
 logger = logging.getLogger(__name__)
-
 router = APIRouter()
 
-# For demonstration purposes, we use a fixed cloud key.
-EXPECTED_CLOUD_KEY = ""  # In production, load from environment variables
+# ─────────────────────────────────────────────────────────────────────────────
+# 2.  Helper – fetch the newest key
+# ─────────────────────────────────────────────────────────────────────────────
+async def _get_current_key(db: AsyncSession) -> str | None:
+    row = await db.scalar(
+        select(CloudKey).order_by(CloudKey.id.desc()).limit(1)
+    )
+    return row.key if row else None
 
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 3.  Public endpoints
+# ─────────────────────────────────────────────────────────────────────────────
 @router.post("/authenticate", response_model=CloudAuthenticationResponse)
-async def authenticate_cloud(auth_request: CloudAuthenticationRequest):
+async def authenticate_cloud(
+    payload: CloudAuthenticationRequest,
+    db: AsyncSession = Depends(get_db),
+):
     """
-    Authenticate a device using its cloud key.
-    Returns a token if the provided key is valid.
+    Device → cloud authentication.
+
+    A device posts `{device_id, cloud_key}`.
+    If the key matches the latest one generated by an admin, return a token.
     """
-    if auth_request.cloud_key != EXPECTED_CLOUD_KEY:
+    current_key = await _get_current_key(db)
+    if payload.cloud_key != current_key:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid cloud key"
+            detail="Invalid cloud key",
         )
-    
-    # Generate a token (in production, use JWT or a more secure method)
-    token = secrets.token_hex(16)
-    logger.info(f"Device {auth_request.device_id} authenticated successfully. Token: {token}")
-    return CloudAuthenticationResponse(token=token, message="Authentication successful")
+
+    token = secrets.token_hex(16)  # (replace with JWT if needed)
+    logger.info(
+        "Device %s authenticated OK – issued token %s", payload.device_id, token
+    )
+    return CloudAuthenticationResponse(
+        token=token,
+        message="Authentication successful",
+    )
+
+
+@router.post("/verify_key")
+async def verify_cloud_key(
+    payload: CloudAuthenticationRequest,
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Quick check used by devices/portal: “is this key still valid?”.
+    """
+    if payload.cloud_key == await _get_current_key(db):
+        return {"status": "valid", "message": "Cloud key is valid"}
+    raise HTTPException(status_code=401, detail="Invalid cloud key")
+
 
 @router.post("/dosing_cancel")
 async def dosing_cancel(request: DosingCancellationRequest):
     """
-    Endpoint to receive a dosing cancellation callback.
-    Validates the event type and logs the cancellation.
+    Webhook target for a device reporting a cancelled dosing event.
     """
     if request.event != "dosing_cancelled":
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid event type"
-        )
-    logger.info(f"Dosing cancelled for device {request.device_id}")
-    # Here you can add additional processing (e.g., update DB state)
+        raise HTTPException(400, "Invalid event type")
+    logger.info("Dosing cancelled – device=%s", request.device_id)
     return {"message": "Dosing cancellation received", "device_id": request.device_id}
 
 
-@router.post("/admin/generate_cloud_key", dependencies=[Depends(get_current_admin)])
-async def generate_cloud_key():
+# ─────────────────────────────────────────────────────────────────────────────
+# 4.  Admin endpoints
+# ─────────────────────────────────────────────────────────────────────────────
+@router.post(
+    "/admin/generate_cloud_key",
+    dependencies=[Depends(get_current_admin)],
+)
+async def generate_cloud_key(db: AsyncSession = Depends(get_db)):
     """
-    Admin-only endpoint to generate a new cloud key.
-    This updates the module-level EXPECTED_CLOUD_KEY.
+    Mint a **new** cloud key and make it the active one.
+
+    Older keys remain in the table (audit trail) but are no longer accepted.
     """
     new_key = secrets.token_hex(16)
-    global EXPECTED_CLOUD_KEY
-    EXPECTED_CLOUD_KEY = new_key
-    logger.info(f"New cloud key generated: {new_key}")
+    db.add(CloudKey(key=new_key))
+    await db.commit()
+    logger.info("New cloud key generated: %s", new_key)
     return {"cloud_key": new_key}
-
-
-@router.post("/verify_key")
-async def verify_cloud_key(auth_request: CloudAuthenticationRequest):
-    """
-    Verifies the provided cloud key without generating a token.
-    Returns a success message if the key is valid.
-    """
-    if auth_request.cloud_key == EXPECTED_CLOUD_KEY:
-        return {"status": "valid", "message": "Cloud key is valid"}
-    else:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid cloud key"
-        )
 
 
 ----- app/routers/admin_users.py -----
@@ -2379,7 +2449,7 @@ async def _process_upload(
     latest_file = base_dir / "latest.jpg"
     # enqueue for async processing
     background_tasks.add_task(
-        lambda cid, fp: asyncio.get_event_loop().create_task(camera_queue.enqueue(cid, Path(fp))),
+        lambda cid, fp: asyncio.run(camera_queue.enqueue(cid, Path(fp))),
         camera_id, str(latest_file)
     )
     return {"ok": True, "ts": ts, "mode": "day" if day_flag else "night"}
@@ -3104,185 +3174,215 @@ async def enqueue_pump(
 
 
 ----- app/core/config.py -----
+"""
+Centralised runtime configuration.
+
+• Reads a single `.env` file at project root (already loaded by dotenv).
+• Fails fast if a mandatory variable is missing (e.g. DATABASE_URL).
+• Casts booleans & integers safely.
+• Exposes helpers for feature flags.
+"""
+from __future__ import annotations
+
 import os
+from pathlib import Path
 from dotenv import load_dotenv
 
-# Load any .env file
-load_dotenv()
+# --------------------------------------------------------------------------- #
+# 1.  Load .env early – variables already in the environment win               #
+# --------------------------------------------------------------------------- #
+ENV_FILE = Path(__file__).resolve().parent.parent.parent / ".env"
+load_dotenv(dotenv_path=ENV_FILE, override=False)
 
-# ─── Environment ──────────────────────────────────────────────────────────────
-ENVIRONMENT     = os.getenv("ENVIRONMENT", "development")
-TESTING         = os.getenv("TESTING", "0") == "1"
-DEPLOYMENT_MODE = os.getenv("DEPLOYMENT_MODE", "LAN").upper()  # "LAN" or "CLOUD"
+# --------------------------------------------------------------------------- #
+# 2.  Core settings                                                            #
+# --------------------------------------------------------------------------- #
+def _get_bool(name: str, default: bool = False) -> bool:
+    return os.getenv(name, str(default)).strip().lower() in {"1", "true", "yes", "on"}
 
-# ─── CORS ─────────────────────────────────────────────────────────────────────
-# comma‑separated or "*" for all
-ALLOWED_ORIGINS = os.getenv("ALLOWED_ORIGINS", "*").split(",")
+def _get_int(name: str, default: int) -> int:
+    try:
+        return int(os.getenv(name, default))
+    except ValueError:      # pragma: no cover – bad env var
+        return default
 
-# ─── Database ─────────────────────────────────────────────────────────────────
-# if TESTING and TEST_DATABASE_URL is set, use it; otherwise fallback to DATABASE_URL
-DATABASE_URL      = os.getenv("TEST_DATABASE_URL") if TESTING else os.getenv("DATABASE_URL", "sqlite+aiosqlite:///./Hydroleaf.db")
+ENVIRONMENT      = os.getenv("ENVIRONMENT", "production").lower()
+DEBUG            = _get_bool("DEBUG", ENVIRONMENT != "production")
+TESTING          = _get_bool("TESTING")
+DEPLOYMENT_MODE  = os.getenv("DEPLOYMENT_MODE", "LAN").upper()            # LAN / CLOUD
+ALLOWED_ORIGINS  = [o.strip() for o in os.getenv("ALLOWED_ORIGINS", "*").split(",")]
 
-# ─── Camera storage & tasks ───────────────────────────────────────────────────
-DATA_ROOT      = os.getenv("CAM_DATA_ROOT", "./data")
-RAW_DIR        = os.getenv("CAM_RAW_DIR", "raw")
-CLIPS_DIR      = os.getenv("CAM_CLIPS_DIR", "clips")
-RETENTION_DAYS = int(os.getenv("CAM_RETENTION_DAYS", "2"))
-OFFLINE_TIMEOUT= int(os.getenv("CAM_OFFLINE_TIMEOUT", "45"))
-BOUNDARY       = os.getenv("CAM_BOUNDARY", "frame")
-PROCESSED_DIR            = os.getenv("CAM_PROCESSED_DIR", "processed")
-YOLO_MODEL_PATH          = os.getenv("YOLO_MODEL_PATH", "yolov5s.pt")    # path to weights
-CAM_DETECTION_WORKERS    = int(os.getenv("CAM_DETECTION_WORKERS", "4"))
-CAM_EVENT_GAP_SECONDS    = int(os.getenv("CAM_EVENT_GAP_SECONDS", "2"))  # gap to merge events
+# --------------------------------------------------------------------------- #
+# 3.  Database                                                                 #
+# --------------------------------------------------------------------------- #
+if TESTING:
+    DATABASE_URL = os.getenv("TEST_DATABASE_URL")
+    if not DATABASE_URL:   # in CI you *must* supply a test DB
+        raise RuntimeError("TEST_DATABASE_URL must be set when TESTING=1")
+else:
+    DATABASE_URL = os.getenv("DATABASE_URL")
+    if not DATABASE_URL:
+        raise RuntimeError(
+            "DATABASE_URL is not configured. "
+            "Example: postgresql+asyncpg://user:pass@host:5432/dbname"
+        )
 
-# ─── API ──────────────────────────────────────────────────────────────────────
+# optional pool tuning
+DB_POOL_SIZE      = _get_int("DB_POOL_SIZE", 20)
+DB_MAX_OVERFLOW   = _get_int("DB_MAX_OVERFLOW", 20)
+
+# --------------------------------------------------------------------------- #
+# 4.  Misc feature flags / paths                                              #
+# --------------------------------------------------------------------------- #
+DATA_ROOT                 = os.getenv("CAM_DATA_ROOT", "./data")
+RAW_DIR                   = os.getenv("CAM_RAW_DIR", "raw")
+CLIPS_DIR                 = os.getenv("CAM_CLIPS_DIR", "clips")
+PROCESSED_DIR             = os.getenv("CAM_PROCESSED_DIR", "processed")
+RETENTION_DAYS            = _get_int("CAM_RETENTION_DAYS", 2)
+OFFLINE_TIMEOUT           = _get_int("CAM_OFFLINE_TIMEOUT", 45)
+BOUNDARY                  = os.getenv("CAM_BOUNDARY", "frame")
+YOLO_MODEL_PATH           = os.getenv("YOLO_MODEL_PATH", "yolov5s.pt")
+CAM_DETECTION_WORKERS     = _get_int("CAM_DETECTION_WORKERS", 4)
+CAM_EVENT_GAP_SECONDS     = _get_int("CAM_EVENT_GAP_SECONDS", 2)
+
 API_V1_STR   = os.getenv("API_V1_STR", "/api/v1")
 PROJECT_NAME = os.getenv("PROJECT_NAME", "Hydroleaf")
-SESSION_KEY = os.getenv("SESSION_KEY", "Hydroleaf_session")
+SESSION_KEY  = os.getenv("SESSION_KEY", "Hydroleaf_session")
+
+# Ollama / LLM
+USE_OLLAMA   = _get_bool("USE_OLLAMA", True)
+OLLAMA_HOST  = os.getenv("OLLAMA_HOST", "http://localhost:11434")
+MODEL_NAME_1_5B = os.getenv("MODEL_NAME_1_5B", "deepseek-r1:1.5b")
+MODEL_NAME_7B   = os.getenv("MODEL_NAME_7B", "gemma")
+
+# third-party keys
+SERPER_API_KEY = os.getenv("SERPER_API_KEY", "")
+
+# secrets
+SECRET_KEY = os.getenv("SECRET_KEY")
+if not SECRET_KEY:
+    raise RuntimeError("SECRET_KEY is required for JWT / session signing")
+
 
 ----- app/core/database.py -----
-import asyncio
-import logging
-from typing import Dict, List, AsyncGenerator
-from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
-from sqlalchemy.orm import sessionmaker, declarative_base
-from sqlalchemy import text
-from datetime import datetime
+# app/core/database.py
+"""PostgreSQL‑only async DB layer with *safe multi‑worker bootstrap*.
 
-from app.core.config import DATABASE_URL
+Key points
+----------
+* Refuses to start if `DATABASE_URL` is **not** `postgresql+asyncpg://…`.
+* Uses a **PostgreSQL advisory lock** so only **one worker** runs
+  `metadata.create_all()` – avoids the duplicate‑sequence race you just hit.
+* Exposes:  `engine`, `AsyncSessionLocal`, `Base`, `get_db()` dependency,
+  `init_db()`, `check_db_connection()`, and `cleanup_db()`.
+* In production you should normally run Alembic migrations; the bootstrap
+  helper is for local dev / CI or the very first deploy.
+"""
+from __future__ import annotations
+
+import logging
+from datetime import datetime
+from typing import AsyncGenerator, Dict
+
+from sqlalchemy import text
+from sqlalchemy.engine.url import make_url
+from sqlalchemy.ext.asyncio import (
+    AsyncSession,
+    async_sessionmaker,
+    create_async_engine,
+)
+from sqlalchemy.orm import declarative_base
+
+from app.core.config import DATABASE_URL, DB_POOL_SIZE, DB_MAX_OVERFLOW
 
 logger = logging.getLogger(__name__)
 
-# Create engine for SQLite
+# --------------------------------------------------------------------------- #
+# 1.  Validate DATABASE_URL – we only support Postgres via asyncpg             #
+# --------------------------------------------------------------------------- #
+url = make_url(DATABASE_URL)
+if not url.drivername.startswith("postgresql+asyncpg"):
+    raise RuntimeError(
+        "Hydroleaf is configured for PostgreSQL only.  "
+        f"Invalid driver in DATABASE_URL: {url.drivername}"
+    )
+
+# --------------------------------------------------------------------------- #
+# 2.  Engine & session factory                                                #
+# --------------------------------------------------------------------------- #
 engine = create_async_engine(
     DATABASE_URL,
-    echo=False,
+    pool_size=DB_POOL_SIZE,
+    max_overflow=DB_MAX_OVERFLOW,
     future=True,
-    pool_size=10,
-    max_overflow=20,
     pool_pre_ping=True,
 )
 
-# Create session factory
-AsyncSessionLocal = sessionmaker(
-    engine,
-    class_=AsyncSession,
-    expire_on_commit=False,
+AsyncSessionLocal: async_sessionmaker[AsyncSession] = async_sessionmaker(
+    bind=engine,
+    autoflush=False,
     autocommit=False,
-    autoflush=False
+    expire_on_commit=False,
 )
 
-# Create declarative base
+# Base that every model shares
 Base = declarative_base()
 
-from alembic.config import Config
-from alembic import command
-
+# --------------------------------------------------------------------------- #
+# 3.  FastAPI session dependency                                              #
+# --------------------------------------------------------------------------- #
 async def get_db() -> AsyncGenerator[AsyncSession, None]:
-    """Yield a database session."""
+    """Yield a transactional session and guarantee proper cleanup."""
     async with AsyncSessionLocal() as session:
         try:
             yield session
+            await session.commit()
+        except Exception:  # pragma: no cover
+            await session.rollback()
+            raise
         finally:
             await session.close()
 
-async def check_db_connection() -> Dict:
-    """Check SQLite database connection and status"""
+# --------------------------------------------------------------------------- #
+# 4.  Boot‑time schema helper with advisory lock                              #
+# --------------------------------------------------------------------------- #
+_ADVISORY_KEY = 0x6A7971  # arbitrary constant <= 2^31‑1
+
+async def init_db(create: bool = True) -> None:
+    """Ensure the schema exists (dev / first‑run).
+
+    Uses `pg_advisory_lock` so that when several Uvicorn workers start at the
+    same time **only one** will run `metadata.create_all()`; the others wait
+    for the lock, see that the tables already exist, and move on.
+    """
+    if not create:
+        return  # migrations only, skip auto‑create
+
+    async with engine.begin() as conn:
+        # Acquire global lock (blocks until available)
+        await conn.execute(text("SELECT pg_advisory_lock(:k)").bindparams(k=_ADVISORY_KEY))
+        try:
+            await conn.run_sync(Base.metadata.create_all)
+            logger.info("DB schema ensured (create_all checkfirst)")
+        finally:
+            # Always release lock so hot‑reload works in dev
+            await conn.execute(text("SELECT pg_advisory_unlock(:k)").bindparams(k=_ADVISORY_KEY))
+
+# --------------------------------------------------------------------------- #
+# 5.  Health helpers                                                          #
+# --------------------------------------------------------------------------- #
+async def check_db_connection() -> Dict[str, str]:
     try:
         async with AsyncSessionLocal() as session:
-            result = await session.execute(text("SELECT 1"))
-            _ = result.scalar()
-            tables_result = await session.execute(
-                text("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'")
-            )
-            existing_tables = [row[0] for row in tables_result.fetchall()]
-            expected = ['devices','dosing_profiles','sensor_readings','dosing_operations']
-            missing = set(expected) - set(existing_tables)
-            return {
-                "status": "connected",
-                "type": "sqlite",
-                "tables": {
-                    "existing": existing_tables,
-                    "missing": list(missing),
-                    "status": "complete" if not missing else "incomplete"
-                },
-                "error": None
-            }
-    except Exception as e:
-        logger.error(f"Database connection check failed: {e}")
-        return {"status": "error", "type": "sqlite", "tables": None, "error": str(e)}
+            await session.execute(text("SELECT 1"))
+        return {"status": "connected", "timestamp": datetime.utcnow().isoformat()}
+    except Exception as exc:  # pragma: no cover
+        logger.error("DB health‑check failed", exc_info=True)
+        return {"status": "error", "error": str(exc)}
 
-async def get_table_stats() -> Dict:
-    """Get row counts for SQLite tables"""
-    try:
-        async with AsyncSessionLocal() as session:
-            # Get list of actual tables
-            tables_result = await session.execute(
-                text("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'")
-            )
-            tables = [row[0] for row in tables_result.fetchall()]
-            
-            stats = {}
-            for table in tables:
-                count_result = await session.execute(text(f"SELECT COUNT(*) FROM {table}"))
-                count = count_result.scalar()
-                stats[table] = count
-                
-            return {
-                "status": "success",
-                "counts": stats,
-                "error": None
-            }
-    except Exception as e:
-        logger.error(f"Error getting table statistics: {e}")
-        return {
-            "status": "error",
-            "counts": {},
-            "error": str(e)
-        }
+async def cleanup_db() -> None:
+    await engine.dispose()
 
-async def get_migration_status() -> Dict:
-    """Get SQLite database migration status"""
-    try:
-        async with AsyncSessionLocal() as session:
-            result = await session.execute(
-                text("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'")
-            )
-            existing_tables = [row[0] for row in result.fetchall()]
-            
-            expected_tables = [
-                'devices',
-                'dosing_profiles',
-                'sensor_readings',
-                'dosing_operations'
-            ]
-            
-            missing_tables = set(expected_tables) - set(existing_tables)
-            
-            return {
-                "status": "ok" if not missing_tables else "incomplete",
-                "existing_tables": existing_tables,
-                "missing_tables": list(missing_tables),
-                "error": None
-            }
-    except Exception as e:
-        logger.error(f"Error checking migration status: {e}")
-        return {
-            "status": "error",
-            "existing_tables": [],
-            "missing_tables": [],
-            "error": str(e)
-        }
-
-async def cleanup_db() -> bool:
-    """Cleanup database connections"""
-    try:
-        await engine.dispose()
-        logger.info("Database connections cleaned up successfully")
-        return True
-    except Exception as e:
-        logger.error(f"Error during database cleanup: {e}")
-        return False
 
 ----- app/core/__init__.py -----
 

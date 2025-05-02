@@ -1,15 +1,28 @@
-# simulated_esp.py
-
+# simulated_esp_all.py
+"""
+Hydroleaf Simulated Device Server
+Simulates an ESP32-CAM, Dosing Unit, and Valve Controller on a single HTTP endpoint for testing.
+Listens on port 8080 and provides all device-specific API routes.
+"""
+import logging
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from datetime import datetime
-import uvicorn
 
-# Create the FastAPI app for the simulated ESP device.
-simulated_esp_app = FastAPI(title="Simulated ESP32 Device")
+# Configure logging
+tlogging = logging.getLogger("simulator")
+logging.basicConfig(level=logging.INFO)
 
-# Allow CORS for all origins (adjust as needed).
-simulated_esp_app.add_middleware(
+# Instantiate FastAPI app
+app = FastAPI(
+    title="Hydroleaf Simulated ESP32 Devices",
+    version="1.0.0",
+    docs_url="/docs",
+    redoc_url=None,
+)
+
+# Allow all CORS (for testing)
+app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
     allow_credentials=True,
@@ -17,65 +30,51 @@ simulated_esp_app.add_middleware(
     allow_headers=["*"],
 )
 
-@simulated_esp_app.get("/discovery")
+## Discovery Endpoint
+@app.get("/discovery", summary="Simulated device discovery")
 async def discovery():
     """
-    Simulate the discovery endpoint.
-    Returns basic device information.
+    Simulates the /discovery endpoint for all devices.
+    Returns device metadata for registration/discovery.
     """
+    logging.info("/discovery called")
     return {
         "device_id": "dummy_device",
         "name": "Simulated ESP Device",
-        "type": "dosing_unit",            # match your DeviceType enum
-         "version": "2.1.0",
-         "status": "online",
-         "ip": "127.0.0.1"  # Simulated IP address
-     }
+        # For dosing registrations, tests expect "dosing_unit"
+        "type": "dosing_unit",
+        "version": "3.0.0",
+        "status": "online",
+        "ip": "127.0.0.1"
+    }
 
-@simulated_esp_app.post("/pump")
+## Pump Endpoint (Dosing Unit)
+@app.post("/pump", summary="Activate a pump")
 async def pump(request: Request):
-    """
-    Simulate activating a pump.
-    Expects JSON with "pump" and "amount".
-    Returns a success message.
-    """
     data = await request.json()
     pump = data.get("pump")
     amount = data.get("amount")
     if pump is None or amount is None:
+        logging.warning("/pump missing pump or amount")
         raise HTTPException(status_code=400, detail="Missing pump or amount")
+    logging.info(f"/pump called: pump={pump}, amount={amount}")
     return {
-        "message": "Pump started",  # Some tests check for this exact message.
+        "message": "Pump started",
         "pump": pump,
         "dose_ml": amount,
         "timestamp": datetime.utcnow().isoformat()
     }
 
-@simulated_esp_app.get("/monitor")
-async def monitor():
-    """
-    Simulate returning sensor readings.
-    """
-    return {
-        "device_id": "dummy_device",
-        "type": "dosing_unit",            # keep it consistent
-        "version": "2.1.0",
-        "wifi_connected": True,
-        "ph": 6.8,                        # lowercase keys
-        "tds": 750
-    }
-
-@simulated_esp_app.post("/dose_monitor")
+## Combined Dose + Monitor Endpoint
+@app.post("/dose_monitor", summary="Activate pump and monitor")
 async def dose_monitor(request: Request):
-    """
-    Simulate a combined dosing and monitoring endpoint.
-    Behaves similar to /pump but returns a different message.
-    """
     data = await request.json()
     pump = data.get("pump")
     amount = data.get("amount")
     if pump is None or amount is None:
+        logging.warning("/dose_monitor missing pump or amount")
         raise HTTPException(status_code=400, detail="Missing pump or amount")
+    logging.info(f"/dose_monitor called: pump={pump}, amount={amount}")
     return {
         "message": "Combined started",
         "pump": pump,
@@ -83,41 +82,63 @@ async def dose_monitor(request: Request):
         "timestamp": datetime.utcnow().isoformat()
     }
 
-@simulated_esp_app.post("/pump_calibration")
+## Pump Calibration Endpoint
+@app.post("/pump_calibration", summary="Pump calibration command")
 async def pump_calibration(request: Request):
-    """
-    Simulate pump calibration endpoint.
-    Expects a JSON with a "command" key.
-    """
     data = await request.json()
     command = data.get("command")
-    if command == "stop":
-        return {"message": "All pumps off"}
-    elif command == "start":
+    logging.info(f"/pump_calibration called: command={command}")
+    if command == "start":
         return {"message": "All pumps on"}
+    elif command == "stop":
+        return {"message": "All pumps off"}
     else:
         raise HTTPException(status_code=400, detail="Invalid command")
-@simulated_esp_app.get("/state")
-async def state():
-    # simulate 4‑valve statuses
+
+## Sensor Monitor Endpoint
+@app.get("/monitor", summary="Return sensor readings")
+async def monitor():
+    logging.info("/monitor called")
     return {
-      "device_id": "dummy_valve",
-      "valves": [
-        {"id": 1, "state": "off"},
-        {"id": 2, "state": "off"},
-        {"id": 3, "state": "off"},
-        {"id": 4, "state": "off"},
-      ]
+        "device_id": "dummy_device",
+        "type": "dosing_unit",
+        "version": "3.0.0",
+        "wifi_connected": True,
+        # Provide fixed pH and TDS
+        "ph": 6.8,
+        "tds": 750
     }
 
-@simulated_esp_app.post("/toggle")
+## Valve State Endpoint (Valve Controller)
+@app.get("/state", summary="Return valve states")
+async def state():
+    logging.info("/state called")
+    return {
+        "device_id": "dummy_valve",
+        "valves": [
+            {"id": i, "state": "off"} for i in range(1, 5)
+        ]
+    }
+
+## Toggle Valve Endpoint
+@app.post("/toggle", summary="Toggle a valve")
 async def toggle(request: Request):
     data = await request.json()
     valve = data.get("valve_id")
-    if valve not in [1,2,3,4]:
-        raise HTTPException(400, "Invalid valve_id")
-    # just echo back
-    return {"device_id": "dummy_valve", "new_state": "toggled", "valve_id": valve}
-# Add a main section to run the app on port 8080.
+    logging.info(f"/toggle called: valve_id={valve}")
+    if valve not in [1, 2, 3, 4]:
+        raise HTTPException(status_code=400, detail="Invalid valve_id")
+    # Echo back toggled state
+    return {
+        "device_id": "dummy_valve",
+        "valve_id": valve,
+        "new_state": "toggled"
+    }
+
+## Main Entrypoint
+def main():
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8080)
+
 if __name__ == "__main__":
-    uvicorn.run("simulated_esp:simulated_esp_app", host="0.0.0.0", port=8080, reload=True)
+    main()
