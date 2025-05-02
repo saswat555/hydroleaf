@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Body, Depends, HTTPException, Path, Query, Request, Path as PathParam
+from fastapi import APIRouter, Body, Depends, HTTPException, Path, Query, Request, Path as PathParam, logger
 from fastapi.responses import FileResponse
 import httpx
 import semver
@@ -161,6 +161,7 @@ async def heartbeat(request: Request, db: AsyncSession = Depends(get_db)):
     mac = payload.get("device_id")
     dtype = payload.get("type")
     ver = payload.get("version")
+    logger.info("Heartbeat from %s  •  IP=%s", mac, request.headers.get("x‑forwarded‑for", request.client.host))
 
     # Update last_seen & firmware_version
     device = await db.scalar(select(Device).where(Device.mac_id == mac))
