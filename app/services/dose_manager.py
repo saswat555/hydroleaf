@@ -12,7 +12,7 @@ class DoseManager:
     def __init__(self):
         pass
 
-    async def execute_dosing(self, device_id: int, http_endpoint: str, dosing_actions: list, combined: bool = False) -> dict:
+    async def execute_dosing(self, device_id: str, http_endpoint: str, dosing_actions: list, combined: bool = False) -> dict:
         """
         Execute a dosing command using the unified device controller.
         If combined=True, the controller will use the /dose_monitor endpoint.
@@ -46,7 +46,7 @@ class DoseManager:
         response = await controller.cancel_dosing()
         logger.info(f"Cancellation response for device {device_id}: {response}")
         return {"status": "dosing_cancelled", "device_id": device_id, "response": response}
-    async def get_device(self, device_id: int, db: AsyncSession):
+    async def get_device(self, device_id: str, db: AsyncSession):
         device = await db.get(Device, device_id)
         if not device:
             raise HTTPException(status_code=404, detail="Device not found")
@@ -59,5 +59,5 @@ dose_manager = DoseManager()
 async def execute_dosing_operation(device_id: str, http_endpoint: str, dosing_actions: list, combined: bool = False) -> dict:
     return await dose_manager.execute_dosing(device_id, http_endpoint, dosing_actions, combined)
 
-async def cancel_dosing_operation(device_id: int, http_endpoint: str) -> dict:
+async def cancel_dosing_operation(device_id: str, http_endpoint: str) -> dict:
     return await dose_manager.cancel_dosing(device_id, http_endpoint)

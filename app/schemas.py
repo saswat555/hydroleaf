@@ -107,7 +107,7 @@ class DosingOperation(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 class SensorReading(BaseModel):
-    device_id: int
+    device_id: str
     reading_type: str
     value: float
     timestamp: datetime
@@ -310,7 +310,7 @@ class SubscriptionPlanCreate(BaseModel):
 class SubscriptionResponse(BaseModel):
     id: int
     user_id: int
-    device_id: int
+    device_id: str
     plan_id: int
     start_date: datetime
     end_date: datetime
@@ -333,7 +333,7 @@ class SubscriptionPlanResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 class CreatePaymentRequest(BaseModel):
-    device_id: int
+    device_id: str
     plan_id: int
 
 class ConfirmPaymentRequest(BaseModel):
@@ -348,7 +348,7 @@ class PaymentStatus(str, Enum):
 class PaymentOrderResponse(BaseModel):
     id: int
     user_id: int
-    device_id: int
+    device_id: str
     plan_id: int
     amount_cents: int
     status: PaymentStatus

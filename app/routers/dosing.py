@@ -20,7 +20,7 @@ router = APIRouter()
 
 @router.post("/execute/{device_id}", response_model=DosingOperation)
 async def execute_dosing(
-    device_id: int,
+    device_id: str,
     db: AsyncSession = Depends(get_db)
 ):
     """
@@ -44,7 +44,7 @@ async def execute_dosing(
 
 @router.post("/cancel/{device_id}")
 async def cancel_dosing(
-    device_id: int,
+    device_id: str,
     db: AsyncSession = Depends(get_db)
 ):
     """
@@ -63,7 +63,7 @@ async def cancel_dosing(
 
 @router.get("/history/{device_id}", response_model=List[DosingOperation])
 async def get_dosing_history(
-    device_id: int,
+    device_id: str,
     session: AsyncSession = Depends(get_db)
 ):
     """
@@ -133,7 +133,7 @@ class LlmDosingRequest(BaseModel):
 
 @router.post("/llm-request")
 async def llm_dosing_request(
-    device_id: int,
+    device_id: str,
     request: LlmDosingRequest,
     db: AsyncSession = Depends(get_db)
 ):
@@ -166,7 +166,7 @@ class llmPlaningRequest(BaseModel):
 
 @router.post("/llm-plan")
 async def llm_plan(
-    device_id: int,
+    device_id: str,
     request: llmPlaningRequest,
     db: AsyncSession= Depends(get_db)
 ): 
@@ -195,7 +195,7 @@ async def llm_plan(
 
 
 class DosingProfileServiceRequest(BaseModel):
-    device_id: int
+    device_id: str
     device_ip: str | None = None
     plant_name: str
     plant_type: str

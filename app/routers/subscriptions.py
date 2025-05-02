@@ -15,7 +15,7 @@ router = APIRouter(prefix="/api/v1/subscriptions", tags=["subscriptions"])
 @router.post("/redeem", response_model=SubscriptionResponse)
 async def redeem_key(
     activation_key: str,
-    device_id: int,
+    device_id: str,
     db: AsyncSession = Depends(get_db),
     current_user=Depends(get_current_user),
 ):

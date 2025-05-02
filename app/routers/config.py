@@ -74,7 +74,7 @@ async def create_dosing_profile(
 
 @router.get("/dosing-profiles/{device_id}", response_model=List[DosingProfileResponse])
 async def get_device_profiles(
-    device_id: int,
+    device_id: str,
     db: AsyncSession = Depends(get_db)
 ):
     """Get all dosing profiles for a device"""

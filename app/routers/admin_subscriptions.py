@@ -17,7 +17,7 @@ router = APIRouter(prefix="/admin", tags=["admin"])
     dependencies=[Depends(get_current_admin)]
 )
 async def generate_device_activation_key(
-    device_id: int,
+    device_id: str,
     plan_id: int,
     db: AsyncSession = Depends(get_db),
     admin: User = Depends(get_current_admin),

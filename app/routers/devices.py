@@ -230,7 +230,7 @@ async def get_device(device_id: str = PathParam(..., description="MAC ID of the 
     return device
 
 @router.get("/sensoreading/{device_id}")
-async def get_sensor_readings(device_id: int, db: AsyncSession = Depends(get_db)):
+async def get_sensor_readings(device_id: str, db: AsyncSession = Depends(get_db)):
     result = await db.execute(select(Device).where(Device.id == device_id))
     device = result.scalar_one_or_none()
     if not device:
@@ -240,7 +240,7 @@ async def get_sensor_readings(device_id: int, db: AsyncSession = Depends(get_db)
 
 
 @router.get("/device/{device_id}/version", summary="Get device version")
-async def get_device_version(device_id: int, db: AsyncSession = Depends(get_db)):
+async def get_device_version(device_id: str, db: AsyncSession = Depends(get_db)):
     try:
         # Fetch the device from the database
         result = await db.execute(select(Device).where(Device.id == device_id))

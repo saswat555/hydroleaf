@@ -107,8 +107,7 @@ class Farm(Base):
 
 class Device(Base):
     __tablename__ = "devices"
-
-    id   = Column(String(32), primary_key=True, default=_uuid)
+    id = Column(String(64), primary_key=True, index=True) 
     user_id             = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
     farm_id             = Column(Integer, ForeignKey("farms.id", ondelete="SET NULL"), nullable=True)
     mac_id              = Column(String(64), unique=True, nullable=False, index=True)
@@ -188,7 +187,7 @@ class SensorReading(Base):
     __tablename__ = "sensor_readings"
 
     id          = Column(Integer, primary_key=True, index=True)
-    device_id = Column(String(32), ForeignKey("devices.id", ondelete="CASCADE"), nullable=False)
+    device_id = Column(String(64), ForeignKey("devices.id", ondelete="CASCADE"))
     reading_type= Column(String(50), nullable=False)
     value       = Column(Float, nullable=False)
     timestamp   = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
@@ -201,7 +200,7 @@ class DosingOperation(Base):
     __tablename__ = "dosing_operations"
 
     id          = Column(Integer, primary_key=True, index=True)
-    device_id   = Column(String(32), ForeignKey("devices.id", ondelete="CASCADE"), nullable=False)
+    device_id = Column(String(64), ForeignKey("devices.id", ondelete="CASCADE"))
     operation_id= Column(String(100), unique=True, nullable=False)
     actions     = Column(JSON, nullable=False)
     status      = Column(String(50), nullable=False)
@@ -294,9 +293,9 @@ class ActivationKey(Base):
     created_at          = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     redeemed            = Column(Boolean, default=False, nullable=False)
     redeemed_at         = Column(DateTime(timezone=True), nullable=True)
-    redeemed_device_id  = Column(String(32), ForeignKey("devices.id", ondelete="SET NULL"))
+    redeemed_device_id  = Column(String(64), ForeignKey("devices.id", ondelete="SET NULL"))
     redeemed_user_id    = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"))
-    allowed_device_id   = Column(String(32), ForeignKey("devices.id", ondelete="SET NULL"))
+    allowed_device_id   = Column(String(64), ForeignKey("devices.id", ondelete="SET NULL"))
 
     plan             = relationship("SubscriptionPlan", back_populates="activation_keys")
     creator          = relationship("User", foreign_keys=[created_by])
@@ -310,7 +309,7 @@ class Subscription(Base):
 
     id         = Column(Integer, primary_key=True, index=True)
     user_id    = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
-    device_id = Column(String(32), ForeignKey("devices.id", ondelete="CASCADE"), nullable=False)
+    device_id = Column(String(64), ForeignKey("devices.id", ondelete="CASCADE"))
     plan_id    = Column(Integer, ForeignKey("subscription_plans.id", ondelete="SET NULL"), nullable=False)
     start_date = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     end_date   = Column(DateTime(timezone=True), nullable=False)
@@ -334,7 +333,7 @@ class PaymentOrder(Base):
 
     id                 = Column(Integer, primary_key=True, index=True)
     user_id            = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
-    device_id          = Column(String(32), ForeignKey("devices.id", ondelete="CASCADE"), nullable=False)
+    device_id          = Column(String(64), ForeignKey("devices.id", ondelete="CASCADE"))
     plan_id            = Column(Integer, ForeignKey("subscription_plans.id", ondelete="SET NULL"), nullable=False)
     amount_cents       = Column(Integer, nullable=False)
     status             = Column(
@@ -397,12 +396,13 @@ class DetectionRecord(Base):
 
 class CloudKey(Base):
     __tablename__ = "cloud_keys"
-    id           = Column(Integer, primary_key=True)
-    key          = Column(String(64), unique=True, index=True, nullable=False)
-    created_by   = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
-    created_at   = Column(DateTime(timezone=True), server_default=func.now())
 
-    creator      = relationship("User", foreign_keys=[created_by])
+    id         = Column(Integer, primary_key=True, index=True)
+    key        = Column(String(64), unique=True, nullable=False, index=True)
+    created_by = Column(Integer, ForeignKey("admins.id", ondelete="CASCADE"), nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    creator = relationship("Admin", back_populates="cloud_keys")
 
 
 class CameraToken(Base):
@@ -410,3 +410,21 @@ class CameraToken(Base):
     camera_id = Column(String(64), primary_key=True)
     token     = Column(String(64), nullable=False)
     issued_at = Column(DateTime(timezone=True), server_default=func.now())
+
+
+class Admin(Base):
+    __tablename__ = "admins"
+
+    id           = Column(Integer, primary_key=True, index=True)
+    email        = Column(String(128), unique=True, nullable=False, index=True)
+    hashed_password = Column(String(256), nullable=False)
+    role         = Column(String(50), nullable=False, default="superadmin")
+    created_at   = Column(DateTime(timezone=True), server_default=func.now())
+
+    # 👇 **add this single line**
+    cloud_keys = relationship(
+        "CloudKey",
+        back_populates="creator",
+        cascade="all, delete-orphan",
+        lazy="selectin",          # optional – gives efficient eager loading
+    )

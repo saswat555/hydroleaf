@@ -388,7 +388,7 @@ async def getSensorData(device: Device) -> dict:
             raise HTTPException(status_code=500, detail="Failed to fetch sensor data") from e
 
 async def process_dosing_request(
-    device_id: int,
+    device_id: str,
     sensor_data: dict,
     plant_profile: dict,
     db: AsyncSession
@@ -419,7 +419,7 @@ async def process_dosing_request(
         raise HTTPException(status_code=500, detail="An unexpected error occurred") from e
 
 async def process_sensor_plan(
-    device_id: int,
+    device_id: str,
     sensor_data: dict,
     plant_profile: dict,
     query: str,
