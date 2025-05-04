@@ -48,16 +48,14 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # ─── Application Lifespan ──────────────────────────────────────────────────────
+RESET_DB = os.getenv("RESET_DB", "false").lower() in ("1","true","yes")
 @asynccontextmanager
-async def lifespan(app: FastAPI):
-    logger.info("Starting Hydroleaf API — creating/updating schema via SQLAlchemy")
+async def lifespan(app):
     async with engine.begin() as conn:
+        if RESET_DB:
+            await conn.run_sync(Base.metadata.drop_all)
         await conn.run_sync(Base.metadata.create_all)
-    logger.info("Schema creation complete")
-    app.state.start_time = time.time()
     yield
-    logger.info("Shutting down Hydroleaf API")
-
 # ─── Instantiate FastAPI ──────────────────────────────────────────────────────
 app = FastAPI(
     title="Hydroleaf API",
