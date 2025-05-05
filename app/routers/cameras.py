@@ -8,10 +8,11 @@ from pathlib import Path
 
 import numpy as np
 import cv2
-from fastapi import APIRouter, Depends, Request, BackgroundTasks, HTTPException, Query
+from fastapi import APIRouter, Depends, Request, BackgroundTasks, HTTPException, Query, WebSocket
 from fastapi.responses import FileResponse, StreamingResponse, JSONResponse
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from collections import defaultdict
 
 from app.core.config import CAM_EVENT_GAP_SECONDS, DATA_ROOT, RAW_DIR, CLIPS_DIR, BOUNDARY
 from app.core.database import get_db
@@ -22,6 +23,8 @@ from app.utils.camera_tasks import encode_and_cleanup
 from app.utils.camera_queue import camera_queue
 
 router = APIRouter()
+# WebSocket clients mapping for live push
+ws_clients: dict[str, list[WebSocket]] = defaultdict(list)
 
 
 async def _process_upload(
@@ -70,7 +73,7 @@ async def _process_upload(
     camera.last_seen = datetime.utcnow()
     await db.commit()
 
-    # 6) Schedule encoding
+    # 6) Schedule encoding (HLS segmentation & cleanup)
     def _encode(cam: str):
         asyncio.run(encode_and_cleanup(cam))
     background_tasks.add_task(_encode, camera_id)
@@ -80,6 +83,13 @@ async def _process_upload(
         lambda cid, fp: asyncio.run(camera_queue.enqueue(cid, Path(fp))),
         camera_id, str(latest_file)
     )
+
+    # 8) Push raw JPEG to any connected WebSocket clients
+    for ws in list(ws_clients.get(camera_id, [])):
+        try:
+            await ws.send_bytes(image_bytes)
+        except Exception:
+            ws_clients[camera_id].remove(ws)
 
     return {"ok": True, "ts": ts, "mode": "day" if day_flag else "night"}
 
@@ -148,7 +158,6 @@ def stream(
                         f"Content-Type: image/jpeg\r\n"
                         f"Content-Length: {len(data)}\r\n\r\n"
                     ).encode() + data + b"\r\n"
-            # ~20 FPS
             await asyncio.sleep(0.05)
 
     return StreamingResponse(
@@ -244,7 +253,6 @@ def _enhance_day(frame: np.ndarray) -> np.ndarray:
     enhanced = cv2.cvtColor(merged, cv2.COLOR_LAB2BGR)
     return cv2.fastNlMeansDenoisingColored(enhanced, None, 4, 4, 7, 21)
 
-
 def _enhance_night(frame: np.ndarray) -> np.ndarray:
     gamma = 0.5
     inv_gamma = 1.0 / gamma
@@ -300,3 +308,15 @@ async def get_camera_report(
             )
 
     return CameraReportResponse(camera_id=camera_id, detections=detections)
+
+
+@router.websocket("/ws/stream/{camera_id}")
+async def ws_stream(websocket: WebSocket, camera_id: str):
+    # authenticate camera token on connect if desired
+    await websocket.accept()
+    ws_clients[camera_id].append(websocket)
+    try:
+        while True:
+            await asyncio.sleep(30)  # keep-alive ping
+    finally:
+        ws_clients[camera_id].remove(websocket)

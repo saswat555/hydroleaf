@@ -79,6 +79,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
+app.mount("/hls", StaticFiles(directory=os.getenv("CAM_DATA_ROOT", "./data")), name="hls")
 templates = Jinja2Templates(directory="app/templates")
 app.add_middleware(
     CORSMiddleware,

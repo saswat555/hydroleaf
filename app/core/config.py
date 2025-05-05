@@ -35,7 +35,8 @@ DEBUG            = _get_bool("DEBUG", ENVIRONMENT != "production")
 TESTING          = _get_bool("TESTING")
 DEPLOYMENT_MODE  = os.getenv("DEPLOYMENT_MODE", "LAN").upper()            # LAN / CLOUD
 ALLOWED_ORIGINS  = [o.strip() for o in os.getenv("ALLOWED_ORIGINS", "*").split(",")]
-
+HLS_TARGET_DURATION       = _get_int("HLS_TARGET_DURATION", 4)
+HLS_PLAYLIST_LENGTH       = _get_int("HLS_PLAYLIST_LENGTH", 6)
 # --------------------------------------------------------------------------- #
 # 3.  Database                                                                 #
 # --------------------------------------------------------------------------- #
