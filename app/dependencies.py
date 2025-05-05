@@ -6,11 +6,11 @@ from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.future import select
-from app.models import ActivationKey, CameraToken, Device, Subscription, SubscriptionPlan, User
+from app.models import ActivationKey, CameraToken, Device, Subscription, SubscriptionPlan, User, Admin
 from app.core.database import get_db
 bearer_scheme = HTTPBearer() 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login")
-
+ALGORITHM = "HS256"
 async def get_current_user(token: str = Depends(oauth2_scheme), db=Depends(get_db)):
     SECRET_KEY = os.getenv("SECRET_KEY", "your-default-secret")
     try:
@@ -35,17 +35,28 @@ async def get_current_user(token: str = Depends(oauth2_scheme), db=Depends(get_d
             detail="Could not validate credentials"
         )
 
+async def get_current_admin(
+    token: str = Depends(oauth2_scheme),
+    db=Depends(get_db),
+):
+    """
+    Dependency that verifies the bearer token belongs to an Admin.
+    """
+    SECRET_KEY = os.getenv("SECRET_KEY", "your-default-secret")
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        admin_id = payload.get("user_id")
+        if admin_id is None:
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid authentication credentials")
 
-async def get_current_admin(user: User = Depends(get_current_user)):
-    """
-    Dependency that verifies the current user is an admin.
-    """
-    if user.role != "superadmin":
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Admin privileges required"
-        )
-    return user
+        result = await db.execute(select(Admin).where(Admin.id == admin_id))
+        admin = result.unique().scalar_one_or_none()
+        if not admin or admin.role != "superadmin":
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin privileges required")
+
+        return admin
+    except jwt.PyJWTError:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Could not validate credentials")
 
 
 async def get_current_device(

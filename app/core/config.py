@@ -86,3 +86,5 @@ SERPER_API_KEY = os.getenv("SERPER_API_KEY", "")
 SECRET_KEY = os.getenv("SECRET_KEY")
 if not SECRET_KEY:
     raise RuntimeError("SECRET_KEY is required for JWT / session signing")
+RESET_DB = _get_bool("RESET_DB", False)
+

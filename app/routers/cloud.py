@@ -103,7 +103,7 @@ async def dosing_cancel(request: DosingCancellationRequest):
     "/admin/generate_cloud_key",
     dependencies=[Depends(get_current_admin)],
 )
-@router.post("/admin/generate_cloud_key")
+@router.post("/admin/generate_cloud_key", dependencies=[Depends(get_current_admin)])
 async def generate_cloud_key(
     db: AsyncSession = Depends(get_db),
     admin: User = Depends(get_current_admin),   # ← get the actual admin user

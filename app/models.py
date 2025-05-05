@@ -63,7 +63,6 @@ class User(Base):
     payment_orders = relationship("PaymentOrder", back_populates="user", cascade="all, delete-orphan")
     cameras      = relationship("UserCamera", back_populates="user", cascade="all, delete-orphan")
 
-
 class UserProfile(Base):
     __tablename__ = "user_profiles"
 

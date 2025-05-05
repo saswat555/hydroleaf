@@ -15,7 +15,7 @@ from fastapi.responses import JSONResponse
 from fastapi.templating import Jinja2Templates
 import uvicorn
 
-from app.core.config import ENVIRONMENT, ALLOWED_ORIGINS, SESSION_KEY, API_V1_STR
+from app.core.config import ENVIRONMENT, ALLOWED_ORIGINS, SESSION_KEY, API_V1_STR, RESET_DB
 from app.core.database import engine, Base, get_db, check_db_connection
 
 from app.routers import (
@@ -48,13 +48,16 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # ─── Application Lifespan ──────────────────────────────────────────────────────
-RESET_DB = os.getenv("RESET_DB", "false").lower() in ("1","true","yes")
 @asynccontextmanager
 async def lifespan(app):
+    # record startup time for /health
+    app.state.start_time = time.time()
+
     async with engine.begin() as conn:
         if RESET_DB:
             await conn.run_sync(Base.metadata.drop_all)
         await conn.run_sync(Base.metadata.create_all)
+
     yield
 # ─── Instantiate FastAPI ──────────────────────────────────────────────────────
 app = FastAPI(
