@@ -16,7 +16,7 @@ from app.models import Device, Task
 from app.schemas import DeviceType, SimpleDosingCommand
 from pathlib import Path as FilePath 
 CAM_FW = FilePath("firmware/camera/firmware.bin")
-router = APIRouter(prefix="/api/v1/device_comm", tags=["device_comm"])
+router = APIRouter(tags=["device_comm"])
 
 
 @router.get("/update", summary="Check for firmware update")

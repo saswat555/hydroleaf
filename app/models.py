@@ -365,7 +365,7 @@ class Camera(Base):
     last_clip_time  = Column(DateTime(timezone=True))
     storage_used    = Column(Float, default=0.0, nullable=False)  # MB
     settings        = Column(JSON)
-
+    hls_path        = Column(String(256), nullable=True)
     user_cameras     = relationship("UserCamera", back_populates="camera", cascade="all, delete-orphan")
     detection_records= relationship("DetectionRecord", back_populates="camera", cascade="all, delete-orphan")
 
