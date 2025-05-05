@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>🌱 HydroLeaf Admin</title>
+  <title>🌱 HydroLeaf Admin Dashboard</title>
   <link
     href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css"
     rel="stylesheet"
@@ -12,18 +12,20 @@
     body { background: #f7f9fc; }
     #feedCanvas {
       width: 100%;
-      max-height: 75vh;
+      max-height: 60vh;
       background: #000;
       display: none;
     }
+    .tabSection { padding: 1rem; }
+    .nav-link { cursor: pointer; }
   </style>
 </head>
 <body class="p-4">
-  <div class="container" style="max-width: 400px;">
-    <h2 class="mb-4 text-center">HydroLeaf Admin</h2>
+  <div class="container" style="max-width: 900px;">
+    <h2 class="mb-4 text-center">HydroLeaf Admin Dashboard</h2>
 
-    <!-- LOGIN FORM -->
-    <div id="loginSection">
+    <!-- LOGIN -->
+    <div id="loginSection" class="card p-4">
       <div class="mb-3">
         <label for="userInput" class="form-label">Email</label>
         <input type="email" id="userInput" class="form-control" placeholder="you@example.com">
@@ -35,116 +37,273 @@
       <button id="loginBtn" class="btn btn-primary w-100">Log In</button>
     </div>
 
-    <!-- STREAM CONTROLS (hidden until login) -->
-    <div id="streamSection" class="d-none">
-      <div class="mb-3">
-        <label for="cameraInput" class="form-label">Camera ID</label>
-        <input type="text" id="cameraInput" class="form-control" placeholder="e.g. CAM_1234">
+    <!-- DASHBOARD -->
+    <div id="dashboard" class="d-none">
+      <div class="d-flex justify-content-between align-items-center mb-3">
+        <strong id="welcomeMsg"></strong>
+        <button id="logoutBtn" class="btn btn-outline-secondary btn-sm">Logout</button>
       </div>
-      <button id="startBtn" class="btn btn-success w-100">Start Stream</button>
-    </div>
 
-    <!-- CANVAS FOR MJPEG -->
-    <div class="mt-4">
-      <canvas id="feedCanvas"></canvas>
+      <!-- TABS -->
+      <ul class="nav nav-tabs" id="adminTabs">
+        <li class="nav-item"><a class="nav-link active" data-section="streamSection">Camera Stream</a></li>
+        <li class="nav-item"><a class="nav-link" data-section="usersSection">Users</a></li>
+        <li class="nav-item"><a class="nav-link" data-section="activationSection">Device Keys</a></li>
+        <li class="nav-item"><a class="nav-link" data-section="cloudKeySection">Cloud Key</a></li>
+        <li class="nav-item"><a class="nav-link" data-section="devicesSection">Connected Devices</a></li>
+      </ul>
+
+      <!-- CAMERA STREAM -->
+      <div id="streamSection" class="tabSection">
+        <div class="row g-2">
+          <div class="col-md-8">
+            <input type="text" id="cameraInput" class="form-control" placeholder="Camera ID (e.g. CAM_1234)">
+          </div>
+          <div class="col-md-4">
+            <button id="startStreamBtn" class="btn btn-success w-100">Start Stream</button>
+          </div>
+        </div>
+        <canvas id="feedCanvas" class="mt-3"></canvas>
+      </div>
+
+      <!-- USERS -->
+      <div id="usersSection" class="tabSection d-none">
+        <button id="refreshUsersBtn" class="btn btn-outline-primary mb-3">Refresh Users</button>
+        <div id="usersTableContainer"></div>
+      </div>
+
+      <!-- DEVICE ACTIVATION KEY -->
+      <div id="activationSection" class="tabSection d-none">
+        <div class="row g-2 mb-2">
+          <div class="col">
+            <input type="text" id="actDeviceId" class="form-control" placeholder="Device ID">
+          </div>
+          <div class="col">
+            <input type="number" id="actPlanId" class="form-control" placeholder="Plan ID">
+          </div>
+          <div class="col-auto">
+            <button id="genActKeyBtn" class="btn btn-primary">Generate Key</button>
+          </div>
+        </div>
+        <pre id="actKeyResult"></pre>
+      </div>
+
+      <!-- CLOUD KEY -->
+      <div id="cloudKeySection" class="tabSection d-none">
+        <button id="genCloudKeyBtn" class="btn btn-primary mb-2">Generate Cloud Key</button>
+        <pre id="cloudKeyResult"></pre>
+      </div>
+
+      <!-- CONNECTED DEVICES -->
+      <div id="devicesSection" class="tabSection d-none">
+        <button id="refreshDevicesBtn" class="btn btn-outline-primary mb-3">Refresh Devices</button>
+        <div id="devicesTableContainer"></div>
+      </div>
     </div>
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/axios@1.6.7/dist/axios.min.js"></script>
   <script>
-    const baseUrl = 'http://cloud.hydroleaf.in'; // adjust if needed
+    const baseUrl = 'http://cloud.hydroleaf.in';
     const el = id => document.getElementById(id);
-    let jwtToken = '';  // will hold "Bearer ..." after login
+    let jwtToken = '';
 
-    // ── LOGIN ──────────────────────────────────────────────────────────
+    // ─── LOGIN & LOGOUT ─────────────────────────
     el('loginBtn').onclick = async () => {
       const email = el('userInput').value.trim();
       const pass  = el('passInput').value;
       if (!email || !pass) return alert('Enter email and password');
-
       try {
-        // FastAPI expects form-url-encoded for OAuth2PasswordRequestForm
         const params = new URLSearchParams();
         params.append('username', email);
         params.append('password', pass);
-
         const resp = await axios.post(
           `${baseUrl}/api/v1/auth/login`,
           params,
           { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } }
         );
-
         jwtToken = resp.data.access_token;
+        // apply to all axios
+        axios.defaults.headers.common['Authorization'] = `Bearer ${jwtToken}`;
         // switch views
         el('loginSection').classList.add('d-none');
-        el('streamSection').classList.remove('d-none');
+        el('dashboard').classList.remove('d-none');
+        el('welcomeMsg').textContent = `Logged in as ${email}`;
       } catch (err) {
         console.error(err);
         alert('Login failed: ' + (err.response?.data?.detail || err.message));
       }
     };
+    el('logoutBtn').onclick = () => {
+      jwtToken = '';
+      delete axios.defaults.headers.common['Authorization'];
+      document.querySelectorAll('.tabSection').forEach(s => s.classList.add('d-none'));
+      el('loginSection').classList.remove('d-none');
+      el('dashboard').classList.add('d-none');
+    };
 
-    // ── MJPEG → CANVAS PIPELINE ────────────────────────────────────────
+    // ─── TAB NAVIGATOR ─────────────────────────
+    document.querySelectorAll('#adminTabs .nav-link').forEach(link => {
+      link.onclick = () => {
+        // highlight
+        document.querySelectorAll('#adminTabs .nav-link').forEach(l => l.classList.remove('active'));
+        link.classList.add('active');
+        // show section
+        const sec = link.dataset.section;
+        document.querySelectorAll('.tabSection').forEach(s => s.id === sec ? s.classList.remove('d-none') : s.classList.add('d-none'));
+        // lazy-load
+        if (sec === 'usersSection') loadUsers();
+        if (sec === 'devicesSection') loadDevices();
+      };
+    });
+
+    // ─── CAMERA STREAM ─────────────────────────
+    el('startStreamBtn').onclick = () => {
+      const camId = el('cameraInput').value.trim();
+      if (!camId) return alert('Enter camera ID');
+      startStream(camId).catch(e => alert('Stream error: ' + e.message));
+    };
     async function startStream(camId) {
       const url = `${baseUrl}/api/v1/cameras/stream/${encodeURIComponent(camId)}`;
       const resp = await fetch(url, {
-        headers: { Authorization: `Bearer ${jwtToken}` }
+        headers: { 'Authorization': `Bearer ${jwtToken}` }
       });
-      if (!resp.ok) throw new Error(`Stream error: ${resp.status}`);
-
+      if (!resp.ok) throw new Error(resp.statusText || resp.status);
       const canvas = el('feedCanvas');
       const ctx = canvas.getContext('2d');
       canvas.style.display = 'block';
-
-      // parse boundary
-      const contentType = resp.headers.get('Content-Type');
-      const boundary = '--' + contentType.split('boundary=')[1];
-
+      const boundary = '--' + resp.headers.get('Content-Type').split('boundary=')[1];
       const decoder = new TextDecoder('iso-8859-1');
       let buffer = '';
-      const reader = resp.body.getReader();
-
-      while (true) {
-        const { value, done } = await reader.read();
+      for (;;) {
+        const { value, done } = await resp.body.getReader().read();
         if (done) break;
         buffer += decoder.decode(value, { stream: true });
         const parts = buffer.split(boundary);
         buffer = parts.pop();
-
         for (let part of parts) {
-          const headerEnd = part.indexOf('\r\n\r\n');
-          if (headerEnd < 0) continue;
-          const jpegStr = part.slice(headerEnd + 4);
-          const bytes = new Uint8Array(jpegStr.length);
-          for (let i = 0; i < jpegStr.length; i++) {
-            bytes[i] = jpegStr.charCodeAt(i);
-          }
-          const blob = new Blob([bytes], { type: 'image/jpeg' });
+          const idx = part.indexOf('\r\n\r\n');
+          if (idx < 0) continue;
+          const jpg = part.slice(idx + 4);
+          const arr = new Uint8Array(jpg.length);
+          for (let i=0; i<jpg.length; i++) arr[i] = jpg.charCodeAt(i);
+          const blob = new Blob([arr], { type: 'image/jpeg' });
           const bmp  = await createImageBitmap(blob);
-          canvas.width  = bmp.width;
+          canvas.width = bmp.width;
           canvas.height = bmp.height;
           ctx.drawImage(bmp, 0, 0);
         }
       }
     }
 
-    // ── START BUTTON ──────────────────────────────────────────────────
-    el('startBtn').onclick = async () => {
-      const camId = el('cameraInput').value.trim();
-      if (!camId) return alert('Enter camera ID');
+    // ─── USERS MANAGEMENT ──────────────────────
+    async function loadUsers() {
       try {
-        // optional status check
-        await fetch(
-          `${baseUrl}/api/v1/cameras/api/status/${encodeURIComponent(camId)}`,
-          { headers: { Authorization: `Bearer ${jwtToken}` } }
-        ).then(r => { if (!r.ok) throw new Error(r.status) });
-
-        await startStream(camId);
-      } catch (err) {
-        console.error(err);
-        alert('Stream error: ' + err.message);
+        const resp = await axios.get(`${baseUrl}/admin/users`);
+        const users = resp.data;
+        const rows = users.map(u => `
+          <tr>
+            <td>${u.id}</td>
+            <td>${u.email}</td>
+            <td>${u.role}</td>
+            <td>${new Date(u.created_at).toLocaleString()}</td>
+            <td>
+              <button class="btn btn-sm btn-secondary me-1" onclick="impersonate(${u.id},'${u.email}')">Impersonate</button>
+              <button class="btn btn-sm btn-warning me-1" onclick="editUser(${u.id},'${u.email}','${u.role}')">Edit</button>
+              <button class="btn btn-sm btn-danger" onclick="deleteUser(${u.id})">Delete</button>
+            </td>
+          </tr>
+        `).join('');
+        el('usersTableContainer').innerHTML = `
+          <table class="table table-striped">
+            <thead><tr>
+              <th>ID</th><th>Email</th><th>Role</th><th>Created At</th><th>Actions</th>
+            </tr></thead>
+            <tbody>${rows}</tbody>
+          </table>
+        `;
+      } catch (e) {
+        console.error(e);
+        alert('Failed to load users: ' + e);
       }
+    }
+    async function impersonate(id,email) {
+      if(!confirm(`Impersonate ${email}?`))return;
+      try {
+        const resp = await axios.post(`${baseUrl}/admin/users/impersonate/${id}`);
+        jwtToken = resp.data.access_token;
+        axios.defaults.headers.common['Authorization'] = `Bearer ${jwtToken}`;
+        el('welcomeMsg').textContent = `Impersonated ${resp.data.impersonated_user}`;
+        alert('Now acting as ' + resp.data.impersonated_user);
+        loadUsers();
+      } catch(e){console.error(e);alert('Impersonation failed: '+(e.response?.data?.detail||e));}
+    }
+    async function editUser(id,email,role) {
+      const newEmail = prompt('New email:', email);
+      if (newEmail===null) return;
+      const newRole  = prompt('New role:', role);
+      if (newRole===null) return;
+      try {
+        await axios.put(`${baseUrl}/admin/users/${id}`, { email:newEmail, role:newRole });
+        loadUsers();
+      } catch(e){console.error(e);alert('Update failed: '+(e.response?.data?.detail||e));}
+    }
+    async function deleteUser(id) {
+      if (!confirm('Really delete user '+id+'?')) return;
+      try{
+        await axios.delete(`${baseUrl}/admin/users/${id}`);
+        loadUsers();
+      }catch(e){console.error(e);alert('Delete failed: '+(e.response?.data?.detail||e));}
+    }
+    el('refreshUsersBtn').onclick = loadUsers;
+
+    // ─── DEVICE ACTIVATION KEY ─────────────────
+    el('genActKeyBtn').onclick = async () => {
+      const dev = el('actDeviceId').value.trim();
+      const plan = el('actPlanId').value.trim();
+      if(!dev||!plan) return alert('Enter device ID and plan ID');
+      try {
+        const resp = await axios.post(
+          `${baseUrl}/admin/generate_device_activation_key`,
+          null,
+          { params: { device_id: dev, plan_id: plan } }
+        );
+        el('actKeyResult').textContent = JSON.stringify(resp.data, null, 2);
+      } catch(e){console.error(e);alert('Failed: '+(e.response?.data?.detail||e));}
     };
+
+    // ─── CLOUD KEY ────────────────────────────
+    el('genCloudKeyBtn').onclick = async () => {
+      try {
+        const resp = await axios.post(`${baseUrl}/api/v1/cloud/admin/generate_cloud_key`);
+        el('cloudKeyResult').textContent = JSON.stringify(resp.data, null, 2);
+      } catch(e){console.error(e);alert('Failed: '+(e.response?.data?.detail||e));}
+    };
+
+    // ─── CONNECTED DEVICES ────────────────────
+    async function loadDevices() {
+      try {
+        const resp = await axios.get(`${baseUrl}/admin/devices`);
+        const data = resp.data;
+        const rows = Object.entries(data).map(([id,info]) => `
+          <tr>
+            <td>${id}</td>
+            <td>${info.ip}</td>
+            <td>${info.reachable}</td>
+            <td>${new Date(info.last_seen * 1000).toLocaleString()}</td>
+          </tr>
+        `).join('');
+        el('devicesTableContainer').innerHTML = `
+          <table class="table table-bordered">
+            <thead><tr>
+              <th>Device ID</th><th>IP</th><th>Reachable</th><th>Last Seen</th>
+            </tr></thead>
+            <tbody>${rows}</tbody>
+          </table>
+        `;
+      } catch(e){console.error(e);alert('Failed to load devices: '+e);}
+    }
+    el('refreshDevicesBtn').onclick = loadDevices;
   </script>
 </body>
 </html>
