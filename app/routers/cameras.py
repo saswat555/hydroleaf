@@ -73,17 +73,16 @@ async def _process_upload(
     camera.last_seen = datetime.utcnow()
     await db.commit()
 
-    # 6) Schedule encoding (HLS segmentation & cleanup)
-    def _encode(cam: str):
-        asyncio.run(encode_and_cleanup(cam))
-    background_tasks.add_task(_encode, camera_id)
+    # 6) Schedule encoding (HLS segmentation & cleanup) on the current loop
+    def _schedule_encode(cid: str):
+        asyncio.create_task(encode_and_cleanup(cid))
+    background_tasks.add_task(_schedule_encode, camera_id)
+ 
 
-    # 7) Schedule YOLO detection
-    background_tasks.add_task(
-        lambda cid, fp: asyncio.run(camera_queue.enqueue(cid, Path(fp))),
-        camera_id, str(latest_file)
-    )
-
+    # 7) Schedule YOLO detection on the current loop
+    def _schedule_detect(cid: str, fp: str):
+        asyncio.create_task(camera_queue.enqueue(cid, Path(fp)))
+    background_tasks.add_task(_schedule_detect, camera_id, str(latest_file))
     # 8) Push raw JPEG to any connected WebSocket clients
     for ws in list(ws_clients.get(camera_id, [])):
         try:
