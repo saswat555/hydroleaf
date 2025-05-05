@@ -8,7 +8,7 @@ from pathlib import Path
 
 import numpy as np
 import cv2
-from fastapi import APIRouter, Depends, Request, BackgroundTasks, HTTPException
+from fastapi import APIRouter, Depends, Request, BackgroundTasks, HTTPException, Query
 from fastapi.responses import FileResponse, StreamingResponse, JSONResponse
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -22,6 +22,7 @@ from app.utils.camera_tasks import encode_and_cleanup
 from app.utils.camera_queue import camera_queue
 
 router = APIRouter()
+
 
 async def _process_upload(
     camera_id: str,
@@ -44,10 +45,7 @@ async def _process_upload(
 
     # 3) Day/night enhancement
     try:
-        if day_flag:
-            processed = _enhance_day(frame)
-        else:
-            processed = _enhance_night(frame)
+        processed = _enhance_day(frame) if day_flag else _enhance_night(frame)
         ok, buf = cv2.imencode(".jpg", processed)
         image_bytes = buf.tobytes() if ok else raw_bytes
     except Exception:
@@ -116,11 +114,26 @@ async def upload_night_frame(
     "/stream/{camera_id}",
     dependencies=[Depends(get_current_admin)]
 )
-def mjpeg_stream(camera_id: str):
+def stream(
+    camera_id: str,
+    mode: str = Query(
+        "mjpeg",
+        regex="^(mjpeg|poll)$",
+        description="`mjpeg` for live MJPEG (~20 FPS), `poll` for single-frame snapshot"
+    )
+):
     cam_dir = Path(DATA_ROOT) / camera_id
     if not cam_dir.exists():
         raise HTTPException(404, "Camera not found")
 
+    # Poll mode: return a single JPEG
+    if mode == "poll":
+        img_path = cam_dir / "latest.jpg"
+        if not img_path.exists():
+            raise HTTPException(404, "Image not found")
+        return FileResponse(img_path, media_type="image/jpeg")
+
+    # MJPEG mode: multipart stream
     async def gen():
         last_mtime = 0
         while True:
@@ -135,6 +148,7 @@ def mjpeg_stream(camera_id: str):
                         f"Content-Type: image/jpeg\r\n"
                         f"Content-Length: {len(data)}\r\n\r\n"
                     ).encode() + data + b"\r\n"
+            # ~20 FPS
             await asyncio.sleep(0.05)
 
     return StreamingResponse(
@@ -203,7 +217,10 @@ async def next_command(
 ):
     cmd = await db.scalar(
         select(DeviceCommand)
-        .where(DeviceCommand.device_id == camera_id, DeviceCommand.dispatched == False)
+        .where(
+            DeviceCommand.device_id == camera_id,
+            DeviceCommand.dispatched == False
+        )
         .order_by(DeviceCommand.issued_at)
         .limit(1)
     )
@@ -221,11 +238,12 @@ async def next_command(
 def _enhance_day(frame: np.ndarray) -> np.ndarray:
     lab = cv2.cvtColor(frame, cv2.COLOR_BGR2LAB)
     l, a, b = cv2.split(lab)
-    clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8,8))
+    clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
     cl = clahe.apply(l)
     merged = cv2.merge((cl, a, b))
     enhanced = cv2.cvtColor(merged, cv2.COLOR_LAB2BGR)
     return cv2.fastNlMeansDenoisingColored(enhanced, None, 4, 4, 7, 21)
+
 
 def _enhance_night(frame: np.ndarray) -> np.ndarray:
     gamma = 0.5
@@ -233,12 +251,12 @@ def _enhance_night(frame: np.ndarray) -> np.ndarray:
     table = (np.arange(256) / 255.0) ** inv_gamma * 255
     bright = cv2.LUT(frame, table.astype("uint8"))
     gray = cv2.cvtColor(bright, cv2.COLOR_BGR2GRAY)
-    clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8,8))
+    clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
     eq = clahe.apply(gray)
     eq_bgr = cv2.cvtColor(eq, cv2.COLOR_GRAY2BGR)
     merged = cv2.addWeighted(bright, 0.7, eq_bgr, 0.3, 0)
     denoised = cv2.fastNlMeansDenoisingColored(merged, None, 10, 10, 7, 21)
-    blur = cv2.GaussianBlur(denoised, (0,0), sigmaX=3, sigmaY=3)
+    blur = cv2.GaussianBlur(denoised, (0, 0), sigmaX=3, sigmaY=3)
     return cv2.addWeighted(denoised, 1.5, blur, -0.5, 0)
 
 
@@ -256,7 +274,7 @@ async def get_camera_report(
         .order_by(DetectionRecord.timestamp)
     )
     records = q.scalars().all()
-    grouped = {}
+    grouped: dict[str, list[dict]] = {}
     gap = timedelta(seconds=CAM_EVENT_GAP_SECONDS)
 
     for rec in records:
@@ -270,14 +288,14 @@ async def get_camera_report(
             else:
                 lst.append({"start": rec.timestamp, "end": rec.timestamp})
 
-    detections = []
+    detections: list[DetectionRange] = []
     for obj, ranges in grouped.items():
         for r in ranges:
             detections.append(
                 DetectionRange(
                     object_name=obj,
                     start_time=r["start"],
-                    end_time=r["end"]
+                    end_time=r["end"],
                 )
             )
 

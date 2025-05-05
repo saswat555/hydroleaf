@@ -14,7 +14,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import JSONResponse
 from fastapi.templating import Jinja2Templates
 import uvicorn
-
+from app.routers.admin_clips import router as admin_clips_router
 from app.core.config import ENVIRONMENT, ALLOWED_ORIGINS, SESSION_KEY, API_V1_STR, RESET_DB
 from app.core.database import engine, Base, get_db, check_db_connection
 
@@ -199,6 +199,7 @@ app.include_router(cloud_router,         prefix=f"{API_V1_STR}/cloud",         t
 app.include_router(admin_router,         prefix="/admin",                      tags=["admin"])
 app.include_router(device_comm_router,   prefix=f"{API_V1_STR}/device_comm",   tags=["device_comm"])
 app.include_router(cameras_router,       prefix=f"{API_V1_STR}/cameras",       tags=["cameras"])
+app.include_router(admin_clips_router)
 
 # ─── Startup Tasks ───────────────────────────────────────────────────────────
 @app.on_event("startup")
