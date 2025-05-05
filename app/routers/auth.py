@@ -20,22 +20,28 @@ def verify_password(plain_password, hashed_password):
 
 def get_password_hash(password):
     return pwd_context.hash(password)
-
 @router.post("/login")
 async def login(form_data: OAuth2PasswordRequestForm = Depends(), db=Depends(get_db)):
-    # Retrieve user by email
-    result = await db.execute(select(User).where(User.email == form_data.username))
-    user = result.unique().scalar_one_or_none()
+    # 1) Try the normal User table
+    user = await db.scalar(select(User).where(User.email == form_data.username))
+    # 2) If not found, fall back to Admins
+    if user is None:
+        from app.models import Admin
+        user = await db.scalar(select(Admin).where(Admin.email == form_data.username))
+
+    # 3) Verify credentials
     if not user or not verify_password(form_data.password, user.hashed_password):
         raise HTTPException(status_code=400, detail="Invalid credentials")
-    
+
+    # 4) Issue JWT
     token_data = {
         "user_id": user.id,
-        "role": user.role,
-        "exp": datetime.datetime.utcnow() + datetime.timedelta(hours=1)
+        "role":    user.role,
+        "exp":     datetime.datetime.utcnow() + datetime.timedelta(hours=1)
     }
     token = jwt.encode(token_data, SECRET_KEY, algorithm=ALGORITHM)
     return {"access_token": token, "token_type": "bearer"}
+
 
 @router.post("/signup", response_model=UserResponse)
 async def signup(user_create: UserCreate, db=Depends(get_db)):
@@ -49,6 +55,12 @@ async def signup(user_create: UserCreate, db=Depends(get_db)):
     db.add(user)
     await db.commit()
     await db.refresh(user)
+    token_data = {
+      "user_id": user.id,
+      "role":    user.role,
+      "exp":     datetime.datetime.utcnow() + datetime.timedelta(hours=1)
+    }
+    token = jwt.encode(token_data, SECRET_KEY, algorithm=ALGORITHM)
     from app.models import UserProfile
     profile = UserProfile(
         user_id    = user.id,
@@ -65,4 +77,9 @@ async def signup(user_create: UserCreate, db=Depends(get_db)):
     await db.commit()
     await db.refresh(profile)
     await db.refresh(user)
-    return user
+    return {
+      "access_token": token,
+      "token_type":   "bearer",
+      "user":         UserResponse.from_orm(user),
+    }
+

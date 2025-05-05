@@ -10,57 +10,139 @@
   />
   <style>
     body { background: #f7f9fc; }
-    #feed { width: 100%; max-height: 75vh; background: #000; object-fit: contain; display: none; }
+    #feedCanvas {
+      width: 100%;
+      max-height: 75vh;
+      background: #000;
+      display: none;
+    }
   </style>
 </head>
 <body class="p-4">
   <div class="container" style="max-width: 400px;">
     <h2 class="mb-4 text-center">HydroLeaf Admin</h2>
-    <div class="mb-3">
-      <label for="tokenInput" class="form-label">Admin JWT / API-Key</label>
-      <input type="text" id="tokenInput" class="form-control" placeholder="Bearer token">
-    </div>
-    <div class="mb-3">
-      <label for="cameraInput" class="form-label">Camera ID</label>
-      <input type="text" id="cameraInput" class="form-control" placeholder="e.g. CAM_1234">
-    </div>
-    <button id="startBtn" class="btn btn-success w-100">Start Stream</button>
 
+    <!-- LOGIN FORM -->
+    <div id="loginSection">
+      <div class="mb-3">
+        <label for="userInput" class="form-label">Email</label>
+        <input type="email" id="userInput" class="form-control" placeholder="you@example.com">
+      </div>
+      <div class="mb-3">
+        <label for="passInput" class="form-label">Password</label>
+        <input type="password" id="passInput" class="form-control" placeholder="••••••••">
+      </div>
+      <button id="loginBtn" class="btn btn-primary w-100">Log In</button>
+    </div>
+
+    <!-- STREAM CONTROLS (hidden until login) -->
+    <div id="streamSection" class="d-none">
+      <div class="mb-3">
+        <label for="cameraInput" class="form-label">Camera ID</label>
+        <input type="text" id="cameraInput" class="form-control" placeholder="e.g. CAM_1234">
+      </div>
+      <button id="startBtn" class="btn btn-success w-100">Start Stream</button>
+    </div>
+
+    <!-- CANVAS FOR MJPEG -->
     <div class="mt-4">
-      <img id="feed" alt="Live MJPEG feed">
+      <canvas id="feedCanvas"></canvas>
     </div>
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/axios@1.6.7/dist/axios.min.js"></script>
   <script>
-    const baseUrl = 'http://cloud.hydroleaf.in';
+    const baseUrl = 'http://cloud.hydroleaf.in'; // adjust if needed
     const el = id => document.getElementById(id);
+    let jwtToken = '';  // will hold "Bearer ..." after login
 
-    el('startBtn').onclick = async () => {
-      const token = el('tokenInput').value.trim();
-      const camId = el('cameraInput').value.trim();
-      if (!token || !camId) {
-        return alert('Please enter both token and camera ID.');
-      }
+    // ── LOGIN ──────────────────────────────────────────────────────────
+    el('loginBtn').onclick = async () => {
+      const email = el('userInput').value.trim();
+      const pass  = el('passInput').value;
+      if (!email || !pass) return alert('Enter email and password');
 
       try {
-        // 1) Validate camera exists & token is valid via status endpoint
-        await axios.get(
-          `${baseUrl}/api/v1/cameras/api/status/${encodeURIComponent(camId)}`,
-          { headers: { Authorization: `Bearer ${token}` } }
+        // FastAPI expects form-url-encoded for OAuth2PasswordRequestForm
+        const params = new URLSearchParams();
+        params.append('username', email);
+        params.append('password', pass);
+
+        const resp = await axios.post(
+          `${baseUrl}/api/v1/auth/login`,
+          params,
+          { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } }
         );
 
-        // 2) Start MJPEG stream
-        el('feed').src = `${baseUrl}/api/v1/cameras/stream/${encodeURIComponent(camId)}`;
-        el('feed').style.display = 'block';
-
+        jwtToken = resp.data.access_token;
+        // switch views
+        el('loginSection').classList.add('d-none');
+        el('streamSection').classList.remove('d-none');
       } catch (err) {
         console.error(err);
-        if (err.response) {
-          alert(`Error ${err.response.status}: ${err.response.data.detail || err.response.statusText}`);
-        } else {
-          alert('Network or CORS error – see console.');
+        alert('Login failed: ' + (err.response?.data?.detail || err.message));
+      }
+    };
+
+    // ── MJPEG → CANVAS PIPELINE ────────────────────────────────────────
+    async function startStream(camId) {
+      const url = `${baseUrl}/api/v1/cameras/stream/${encodeURIComponent(camId)}`;
+      const resp = await fetch(url, {
+        headers: { Authorization: `Bearer ${jwtToken}` }
+      });
+      if (!resp.ok) throw new Error(`Stream error: ${resp.status}`);
+
+      const canvas = el('feedCanvas');
+      const ctx = canvas.getContext('2d');
+      canvas.style.display = 'block';
+
+      // parse boundary
+      const contentType = resp.headers.get('Content-Type');
+      const boundary = '--' + contentType.split('boundary=')[1];
+
+      const decoder = new TextDecoder('iso-8859-1');
+      let buffer = '';
+      const reader = resp.body.getReader();
+
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const parts = buffer.split(boundary);
+        buffer = parts.pop();
+
+        for (let part of parts) {
+          const headerEnd = part.indexOf('\r\n\r\n');
+          if (headerEnd < 0) continue;
+          const jpegStr = part.slice(headerEnd + 4);
+          const bytes = new Uint8Array(jpegStr.length);
+          for (let i = 0; i < jpegStr.length; i++) {
+            bytes[i] = jpegStr.charCodeAt(i);
+          }
+          const blob = new Blob([bytes], { type: 'image/jpeg' });
+          const bmp  = await createImageBitmap(blob);
+          canvas.width  = bmp.width;
+          canvas.height = bmp.height;
+          ctx.drawImage(bmp, 0, 0);
         }
+      }
+    }
+
+    // ── START BUTTON ──────────────────────────────────────────────────
+    el('startBtn').onclick = async () => {
+      const camId = el('cameraInput').value.trim();
+      if (!camId) return alert('Enter camera ID');
+      try {
+        // optional status check
+        await fetch(
+          `${baseUrl}/api/v1/cameras/api/status/${encodeURIComponent(camId)}`,
+          { headers: { Authorization: `Bearer ${jwtToken}` } }
+        ).then(r => { if (!r.ok) throw new Error(r.status) });
+
+        await startStream(camId);
+      } catch (err) {
+        console.error(err);
+        alert('Stream error: ' + err.message);
       }
     };
   </script>
