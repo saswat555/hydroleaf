@@ -209,7 +209,6 @@
       const cam = el('clipsCameraInput').value.trim();
       if (!cam) return alert('Enter Camera ID');
       try {
-        // note 📌: backend route is /api/v1/cameras/api/clips/{camera_id}
         const { data } = await axios.get(`${baseUrl}/api/v1/cameras/api/clips/${encodeURIComponent(cam)}`);
         if (!data.length) {
           el('clipsListContainer').innerHTML = '<p>No clips found</p>';
@@ -335,6 +334,10 @@
     async function loadDevices() {
       try {
         const { data } = await axios.get(`${baseUrl}/admin/devices`);
+        if (!Object.keys(data).length) {
+          el('devicesTableContainer').innerHTML = '<p>No connected devices.</p>';
+          return;
+        }
         const rows = Object.entries(data).map(([id, info]) => `
           <tr>
             <td>${id}</td>
@@ -343,12 +346,11 @@
             <td>${new Date(info.last_seen * 1000).toLocaleString()}</td>
           </tr>
         `).join('');
-        el('devicesTableContainer').innerHTML = rows
-          ? `<table class="table table-bordered">
-               <thead><tr><th>Device ID</th><th>IP</th><th>Reachable</th><th>Last Seen</th></tr></thead>
-               <tbody>${rows}</tbody>
-             </table>`
-          : '<p>No connected devices.</p>';
+        el('devicesTableContainer').innerHTML = `
+          <table class="table table-bordered">
+            <thead><tr><th>Device ID</th><th>IP</th><th>Reachable</th><th>Last Seen</th></tr></thead>
+            <tbody>${rows}</tbody>
+          </table>`;
       } catch (e) {
         alert('Error: ' + (e.response?.data?.detail || e.message));
       }
