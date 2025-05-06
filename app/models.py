@@ -427,3 +427,26 @@ class Admin(Base):
         cascade="all, delete-orphan",
         lazy="selectin",
     )
+
+class DosingDeviceToken(Base):
+    __tablename__ = "dosing_device_tokens"
+
+    device_id = Column(
+        String(64),
+        ForeignKey("devices.id", ondelete="CASCADE"),
+        primary_key=True,
+    )
+    token     = Column(String(64), unique=True, nullable=False, index=True)
+    issued_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+
+class ValveDeviceToken(Base):
+    __tablename__ = "valve_device_tokens"
+
+    device_id = Column(
+        String(64),
+        ForeignKey("devices.id", ondelete="CASCADE"),
+        primary_key=True,
+    )
+    token     = Column(String(64), unique=True, nullable=False, index=True)
+    issued_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)

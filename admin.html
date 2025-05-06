@@ -123,13 +123,15 @@
 
   <script src="https://cdn.jsdelivr.net/npm/axios@1.6.7/dist/axios.min.js"></script>
   <script>
+    // autodetect base URL
     const baseUrl = 'http://cloud.hydroleaf.in';
     const el = id => document.getElementById(id);
     let jwtToken = '';
 
     // ─── LOGIN & LOGOUT ─────────────────────────
     el('loginBtn').onclick = async () => {
-      const email = el('userInput').value.trim(), pass = el('passInput').value;
+      const email = el('userInput').value.trim(),
+            pass  = el('passInput').value;
       if (!email || !pass) return alert('Enter email & password');
       try {
         const params = new URLSearchParams({ username: email, password: pass });
@@ -168,12 +170,12 @@
       link.onclick = () => {
         const sec = link.dataset.section;
         showSection(sec);
-        if (sec === 'usersSection') loadUsers();
-        if (sec === 'devicesSection') loadDevices();
+        if (sec === 'usersSection')    loadUsers();
+        if (sec === 'devicesSection')  loadDevices();
       };
     });
 
-    // ─── CAMERA STREAM (snapshot loop) ─────────────────────────
+    // ─── CAMERA STREAM ─────────────────────────
     let streamInterval = null;
     el('startStreamBtn').onclick = () => {
       const cam = el('cameraInput').value.trim();
@@ -188,10 +190,10 @@
           );
           if (!res.ok) throw new Error(res.statusText);
           const blob = await res.blob();
-          const bmp = await createImageBitmap(blob);
-          const cv = el('feedCanvas');
-          cv.width = bmp.width;
-          cv.height = bmp.height;
+          const bmp  = await createImageBitmap(blob);
+          const cv   = el('feedCanvas');
+          cv.width   = bmp.width;
+          cv.height  = bmp.height;
           cv.getContext('2d').drawImage(bmp, 0, 0);
         } catch (e) {
           console.error('Stream error', e);
@@ -207,7 +209,8 @@
       const cam = el('clipsCameraInput').value.trim();
       if (!cam) return alert('Enter Camera ID');
       try {
-        const { data } = await axios.get(`${baseUrl}/api/v1/cameras/clips/${encodeURIComponent(cam)}`);
+        // note 📌: backend route is /api/v1/cameras/api/clips/{camera_id}
+        const { data } = await axios.get(`${baseUrl}/api/v1/cameras/api/clips/${encodeURIComponent(cam)}`);
         if (!data.length) {
           el('clipsListContainer').innerHTML = '<p>No clips found</p>';
           return;
@@ -282,7 +285,7 @@
     };
     window.editUser = async (id, email, role) => {
       const ne = prompt('New email:', email); if (ne === null) return;
-      const nr = prompt('New role:', role); if (nr === null) return;
+      const nr = prompt('New role:', role);   if (nr === null) return;
       try {
         await axios.put(`${baseUrl}/admin/users/${id}`, { email: ne, role: nr });
         loadUsers();
@@ -302,7 +305,8 @@
 
     // ─── DEVICE ACTIVATION KEY ─────────────────
     el('genActKeyBtn').onclick = async () => {
-      const dev = el('actDeviceId').value.trim(), pl = el('actPlanId').value.trim();
+      const dev = el('actDeviceId').value.trim(),
+            pl  = el('actPlanId').value.trim();
       if (!dev || !pl) return alert('Enter device & plan IDs');
       try {
         const { data } = await axios.post(

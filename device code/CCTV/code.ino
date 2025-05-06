@@ -1,57 +1,56 @@
 /*****************************************************************************************
- *  HYDROLEAF SMART-CAM  –  Production Firmware  v4.2
+ *  HYDROLEAF SMART-CAM  –  Production Firmware  v4.3
  *  Target  : ESP32-CAM (AI-Thinker) – 4 MB flash, PSRAM enabled
  *  Author  : ChatGPT (o4-mini)
  *
  *  • Always-on AP + captive portal on 192.168.0.1  
  *  • /wifi & /save_wifi for credentials  
  *  • /status for IPs & cloud auth state  
- *  • /logs, /, OTA push/pull, day/night LDR, HTTPS frame streaming (~30 FPS)  
+ *  • /logs, /, OTA push, day/night LDR, HTTP frame streaming (~30 FPS)  
  *****************************************************************************************/
 
 #include <ArduinoJson.h>
 #include <WiFi.h>
-#include <WiFiClientSecure.h>
 #include <WebServer.h>
 #include <DNSServer.h>
 #include <Preferences.h>
 #include <esp_camera.h>
 #include <Update.h>
 #include <time.h>
-// ───────── GPIO MAP (AI-Thinker) ─────────
-#define PWDN_GPIO_NUM     32
-#define RESET_GPIO_NUM   -1
-#define XCLK_GPIO_NUM     0
-#define SIOD_GPIO_NUM    26
-#define SIOC_GPIO_NUM    27
-#define Y9_GPIO_NUM      35
-#define Y8_GPIO_NUM      34
-#define Y7_GPIO_NUM      39
-#define Y6_GPIO_NUM      36
-#define Y5_GPIO_NUM      21
-#define Y4_GPIO_NUM      19
-#define Y3_GPIO_NUM      18
-#define Y2_GPIO_NUM       5
-#define VSYNC_GPIO_NUM   25
-#define HREF_GPIO_NUM    23
-#define PCLK_GPIO_NUM    22
-
-#define LED_STATUS       33
-#define BTN_CONFIG        4
-#define PIN_LDR          14
-#define PIN_IRLED        12
 #include <HTTPClient.h>
 
+// ───────── GPIO MAP (AI-Thinker) ─────────
+#define PWDN_GPIO_NUM 32
+#define RESET_GPIO_NUM -1
+#define XCLK_GPIO_NUM 0
+#define SIOD_GPIO_NUM 26
+#define SIOC_GPIO_NUM 27
+#define Y9_GPIO_NUM 35
+#define Y8_GPIO_NUM 34
+#define Y7_GPIO_NUM 39
+#define Y6_GPIO_NUM 36
+#define Y5_GPIO_NUM 21
+#define Y4_GPIO_NUM 19
+#define Y3_GPIO_NUM 18
+#define Y2_GPIO_NUM 5
+#define VSYNC_GPIO_NUM 25
+#define HREF_GPIO_NUM 23
+#define PCLK_GPIO_NUM 22
+
+#define LED_STATUS 33
+#define BTN_CONFIG 4
+#define PIN_LDR 14
+#define PIN_IRLED 12
+
+#define DEFAULT_CLOUD_KEY ""
+
 // ───────── CLOUD ENDPOINTS ─────────
-static const char BACKEND_HOST[]       = "cloud.hydroleaf.in";
-static const char AUTH_PATH[]          = "/api/v1/cloud/authenticate";
-static const char UPLOAD_PRFX[]        = "/upload/";            
-static const char UPDATE_CHECK_PRFX[]  = "/api/v1/device_comm/update?device_id=";
-static const char CLOUD_KEY[]          = "5e882fe3a75c3dfce2fd90459eaa4997";
+static const char BACKEND_HOST[]      = "cloud.hydroleaf.in";
+static const char AUTH_PATH[]         = "/api/v1/cloud/authenticate";
+static const char UPLOAD_PRFX[]       = "/upload/";
 
 // ───────── TIMINGS ─────────
-#define WIFI_RETRY_MS    (30UL * 1000UL)
-#define UPDATE_IVL_MS    (6UL * 60UL * 60UL * 1000UL)
+#define WIFI_RETRY_MS  (30UL * 1000UL)
 
 // ───────── HTML TEMPLATES ─────────
 #include <pgmspace.h>
@@ -86,6 +85,7 @@ button{padding:10px;width:100%;border:none;background:#007bff;color:#fff;border-
 <form action="/save_wifi" method="POST">
   <label>SSID:<input name="ssid" value="%s"></label>
   <label>Password:<input name="pass" type="password" value="%s"></label>
+  <label>Cloud Key:<input name="cloudkey" value="%s"></label>
   <button type="submit">Save &amp; Connect</button>
 </form>
 <a href="/">Back to Menu</a>
@@ -122,20 +122,18 @@ background:#007bff;color:#fff;font-size:16px;text-align:center;text-decoration:n
 )rawliteral";
 
 // ───────── GLOBALS ─────────
-Preferences       prefs;
-WebServer         server(80);
-DNSServer         dns;
-WiFiClientSecure  secureClient;
-HTTPClient        http;
-sensor_t*         cam        = nullptr;
-bool              camReady   = false;
-bool              nightMode  = false;
+Preferences     prefs;
+WebServer       server(80);
+DNSServer       dns;
+WiFiClient      client;
+HTTPClient      http;
+sensor_t*       cam       = nullptr;
+bool            camReady  = false;
+bool            nightMode = false;
 
-String            ssid, pass, apPass, camId, jwt;
-bool              activated  = false;
-
-static unsigned long lastWifiTry   = 0;
-static unsigned long lastUpdateChk = 0;
+String ssid, pass, apPass, camId, jwt, cloudKey;
+bool   activated       = false;
+unsigned long lastWifiTry = 0;
 
 // ───────── LOG BUFFER ─────────
 #define LOG_BUF_SZ 2048
@@ -143,12 +141,12 @@ static char logBuf[LOG_BUF_SZ];
 static size_t logHead = 0;
 void logLine(const char* msg) {
   size_t n = strlen(msg);
-  if (n+2 > LOG_BUF_SZ) return;
-  if (logHead + n+2 >= LOG_BUF_SZ) logHead = 0;
+  if (n + 2 > LOG_BUF_SZ) return;
+  if (logHead + n + 2 >= LOG_BUF_SZ) logHead = 0;
   memcpy(logBuf + logHead, msg, n);
-  logBuf[logHead + n]   = '\n';
-  logBuf[logHead + n+1] = 0;
-  logHead += n+1;
+  logBuf[logHead + n]     = '\n';
+  logBuf[logHead + n + 1] = 0;
+  logHead += n + 1;
   Serial.println(msg);
 }
 
@@ -165,28 +163,27 @@ inline void storeBool(const char* key, bool v) {
 }
 
 // ───────── PROTOTYPES ─────────
-void generateCameraId();
-bool wifiConnect(uint8_t retries=5);
-bool cloudAuthenticate();
-void initCamera();
-void applyDayParams();
-bool sendFrame();
-void updateLDR();
-void handleButton();
-void portalStart();
-void setupRoutes();
-void checkCloudOta();
-void handleMenu();
-void handleWiFi();
-void handleSaveWiFi();
-void handleStatus();
-void handleLogs();
-void handleOtaPush();
+void  generateCameraId();
+bool  wifiConnect(uint8_t retries = 5);
+bool  cloudAuthenticate();
+void  initCamera();
+void  applyDayParams();
+bool  sendFrame();
+void  updateLDR();
+void  handleButton();
+void  portalStart();
+void  setupRoutes();
+void  handleMenu();
+void  handleWiFi();
+void  handleSaveWiFi();
+void  handleStatus();
+void  handleLogs();
+void  handleOtaPush();
 
 // ───────── LED HEARTBEAT ─────────
 inline void beatLED() {
-  static uint32_t t=0;
-  if (millis()-t < 3000) return;
+  static uint32_t t = 0;
+  if (millis() - t < 3000) return;
   t = millis();
   digitalWrite(LED_STATUS, HIGH);
   delay(20);
@@ -198,36 +195,45 @@ void handleMenu() {
   char buf[512];
   IPAddress staIP = WiFi.isConnected() ? WiFi.localIP() : IPAddress(0,0,0,0);
   IPAddress apIP(192,168,0,1);
-  snprintf_P(buf,sizeof(buf), PAGE_MENU_TPL,
+  snprintf_P(buf, sizeof(buf), PAGE_MENU_TPL,
              camId.c_str(),
              staIP.toString().c_str(),
              apIP.toString().c_str(),
-             CLOUD_KEY);
+             cloudKey.c_str());
   server.send(200, "text/html", buf);
 }
 
 void handleWiFi() {
   prefs.begin("cam_cfg", true);
-  String curS = prefs.getString("ssid",""), curP = prefs.getString("pass","");
+  String curS = prefs.getString("ssid", ""),
+         curP = prefs.getString("pass", ""),
+         curK = prefs.getString("cloudkey", DEFAULT_CLOUD_KEY);
   prefs.end();
-  char buf[512];
-  snprintf_P(buf,sizeof(buf), PAGE_WIFI_TPL, curS.c_str(), curP.c_str());
+  char buf[600];
+  snprintf_P(buf, sizeof(buf), PAGE_WIFI_TPL,
+             curS.c_str(), curP.c_str(), curK.c_str());
   server.send(200, "text/html", buf);
 }
 
 void handleSaveWiFi() {
-  if (server.hasArg("ssid") && server.hasArg("pass")) {
-    ssid = server.arg("ssid");
-    pass = server.arg("pass");
+  if (server.hasArg("ssid") && server.hasArg("pass") && server.hasArg("cloudkey")) {
+    ssid     = server.arg("ssid");
+    pass     = server.arg("pass");
+    cloudKey = server.arg("cloudkey");
     prefs.begin("cam_cfg", false);
     prefs.putString("ssid", ssid);
     prefs.putString("pass", pass);
+    prefs.putString("cloudkey", cloudKey);
     prefs.end();
+
+    // stop portal DNS if you ever drop AP-only
+    dns.stop();
+
     WiFi.begin(ssid.c_str(), pass.c_str());
     delay(2000);
   }
   server.sendHeader("Location","/status", true);
-  server.send(302, "text/plain", "");
+  server.send(302, "text/plain","");
 }
 
 void handleStatus() {
@@ -235,64 +241,61 @@ void handleStatus() {
   IPAddress staIP = WiFi.isConnected() ? WiFi.localIP() : IPAddress(0,0,0,0);
   const char* cloudSt = activated ? "OK" : "Not Auth";
   char buf[512];
-  snprintf_P(buf,sizeof(buf), PAGE_STATUS_TPL,
+  snprintf_P(buf, sizeof(buf), PAGE_STATUS_TPL,
              camId.c_str(),
              apIP.toString().c_str(),
              staIP.toString().c_str(),
              cloudSt);
-  server.send(200,"text/html",buf);
+  server.send(200, "text/html", buf);
 }
 
 void handleLogs() {
   static char tmp[LOG_BUF_SZ*2];
-  size_t fp = strnlen(logBuf+logHead, LOG_BUF_SZ-logHead);
-  memcpy(tmp, logBuf+logHead, fp);
-  memcpy(tmp+fp, logBuf, logHead);
-  tmp[fp+logHead] = 0;
-  char page[LOG_BUF_SZ*2+64];
-  snprintf_P(page,sizeof(page),PAGE_LOGS_TPL,tmp);
-  server.send(200,"text/html",page);
+  size_t fp = strnlen(logBuf + logHead, LOG_BUF_SZ - logHead);
+  memcpy(tmp,            logBuf + logHead, fp);
+  memcpy(tmp + fp,       logBuf,           logHead);
+  tmp[fp + logHead] = 0;
+  char page[LOG_BUF_SZ*2 + 64];
+  snprintf_P(page, sizeof(page), PAGE_LOGS_TPL, tmp);
+  server.send(200, "text/html", page);
 }
 
 void handleOtaPush() {
   HTTPUpload& up = server.upload();
   if (up.status == UPLOAD_FILE_START) {
-    if (!server.hasHeader("X-OTA-KEY") ||
-        server.header("X-OTA-KEY") != CLOUD_KEY) {
-      server.send(403,"text/plain","Forbidden");
+    if (!server.hasHeader("X-OTA-KEY") || server.header("X-OTA-KEY") != cloudKey) {
+      server.send(403, "text/plain", "Forbidden");
       return;
     }
     logLine("[OTA] push-start");
     Update.begin(UPDATE_SIZE_UNKNOWN);
-  }
-  else if (up.status == UPLOAD_FILE_WRITE) {
+  } else if (up.status == UPLOAD_FILE_WRITE) {
     Update.write(up.buf, up.currentSize);
-  }
-  else if (up.status == UPLOAD_FILE_END) {
+  } else if (up.status == UPLOAD_FILE_END) {
     bool ok = Update.end(true);
-    logLine(ok? "[OTA] push-done":"[OTA] push-fail");
-    server.send(ok?200:500,"text/plain", ok?"OK":"FAIL");
+    logLine(ok ? "[OTA] push-done" : "[OTA] push-fail");
+    server.send(ok ? 200 : 500, "text/plain", ok ? "OK" : "FAIL");
     delay(400);
     ESP.restart();
   }
 }
 
 void setupRoutes() {
-  server.on("/",             HTTP_GET,  handleMenu);
-  server.on("/wifi",         HTTP_GET,  handleWiFi);
-  server.on("/save_wifi",    HTTP_POST, handleSaveWiFi);
-  server.on("/status",       HTTP_GET,  handleStatus);
-  server.on("/logs",         HTTP_GET,  handleLogs);
-  server.on("/manual_update",HTTP_POST, [](){}, handleOtaPush);
+  server.on("/",       HTTP_GET,  handleMenu);
+  server.on("/wifi",   HTTP_GET,  handleWiFi);
+  server.on("/save_wifi", HTTP_POST, handleSaveWiFi);
+  server.on("/status", HTTP_GET,  handleStatus);
+  server.on("/logs",   HTTP_GET,  handleLogs);
+  server.on("/manual_update", HTTP_POST, [](){}, handleOtaPush);
   server.begin();
 }
 
 void portalStart() {
   WiFi.mode(WIFI_AP_STA);
   IPAddress apIP(192,168,0,1);
-  WiFi.softAPConfig(apIP,apIP,IPAddress(255,255,255,0));
+  WiFi.softAPConfig(apIP, apIP, IPAddress(255,255,255,0));
   WiFi.softAP(camId.c_str(), apPass.c_str());
-  dns.start(53,"*",apIP);
+  dns.start(53, "*", apIP);
   setupRoutes();
   logLine("[AP] portal ready");
 }
@@ -300,19 +303,19 @@ void portalStart() {
 // ───────── CAMERA INIT ─────────
 void applyDayParams() {
   prefs.begin("cam_cfg", true);
-  int b = prefs.getInt("bright",1),
-      c = prefs.getInt("contr",1),
-      s = prefs.getInt("sat",1),
-      d = prefs.getInt("dn",5);
+  int b = prefs.getInt("bright", 1),
+      c = prefs.getInt("contr", 1),
+      s = prefs.getInt("sat", 1),
+      d = prefs.getInt("dn",    5);
   prefs.end();
-  cam->set_brightness(cam,b);
-  cam->set_contrast(  cam,c);
-  cam->set_saturation(cam,s);
-  cam->set_denoise(   cam,d);
+  cam->set_brightness(cam, b);
+  cam->set_contrast(  cam, c);
+  cam->set_saturation(cam, s);
+  cam->set_denoise(   cam, d);
 }
 
 void initCamera() {
-  camera_config_t cfg = {};
+  camera_config_t cfg{};
   cfg.ledc_channel = LEDC_CHANNEL_0;
   cfg.ledc_timer   = LEDC_TIMER_0;
   cfg.pin_d0       = Y2_GPIO_NUM;
@@ -335,9 +338,9 @@ void initCamera() {
   cfg.pixel_format = PIXFORMAT_JPEG;
 
   if (psramFound()) {
-    cfg.frame_size   = FRAMESIZE_VGA;    // lower resolution for speed
+    cfg.frame_size   = FRAMESIZE_VGA;
     cfg.fb_count     = 2;
-    cfg.jpeg_quality = 8;                // higher compression
+    cfg.jpeg_quality = 8;
   } else {
     cfg.frame_size   = FRAMESIZE_QVGA;
     cfg.fb_count     = 1;
@@ -349,10 +352,9 @@ void initCamera() {
     delay(500);
     ESP.restart();
   }
-
   cam = esp_camera_sensor_get();
-  cam->set_hmirror(cam,1);
-  cam->set_vflip( cam,0);
+  cam->set_hmirror(cam, 1);
+  cam->set_vflip( cam, 0);
   applyDayParams();
   camReady = true;
   logLine("[CAM] ready");
@@ -361,12 +363,12 @@ void initCamera() {
 // ───────── WIFI & CLOUD AUTH ─────────
 bool wifiConnect(uint8_t retries) {
   WiFi.mode(WIFI_STA);
-  for (uint8_t i=0; i<retries; i++) {
+  for (uint8_t i = 0; i < retries; i++) {
     logLine("[NET] connecting...");
     WiFi.begin(ssid.c_str(), pass.c_str());
-    for (uint8_t t=0; t<50; t++) {
+    for (uint8_t t = 0; t < 50; t++) {
       if (WiFi.status() == WL_CONNECTED) {
-        logLine(("[NET] IP "+WiFi.localIP().toString()).c_str());
+        logLine(("[NET] IP " + WiFi.localIP().toString()).c_str());
         return true;
       }
       delay(100);
@@ -379,11 +381,12 @@ bool wifiConnect(uint8_t retries) {
 
 void generateCameraId() {
   prefs.begin("cam_cfg", false);
-  camId = prefs.getString("camId","");
-  apPass = prefs.getString("apPass","configme");
+  camId   = prefs.getString("camId", "");
+  apPass  = prefs.getString("apPass","configme");
   prefs.end();
 
   if (camId.length()) return;
+  // time needed for reproducible ID
   configTime(0,0,"pool.ntp.org","time.google.com");
   struct tm tm;
   char buf[32] = "CAM";
@@ -395,16 +398,14 @@ void generateCameraId() {
 }
 
 bool cloudAuthenticate() {
-  String url = String("https://") + BACKEND_HOST + AUTH_PATH;
-  secureClient.setInsecure();
-  http.begin(secureClient, url);
+  String url = String("http://") + BACKEND_HOST + AUTH_PATH;
+  http.begin(client, url);
   http.addHeader("Content-Type","application/json");
 
   StaticJsonDocument<128> d;
-  d["device_id"]  = camId;
-  d["cloud_key"]  = CLOUD_KEY;
-  String body;
-  serializeJson(d, body);
+  d["device_id"] = camId;
+  d["cloud_key"] = cloudKey;
+  String body; serializeJson(d, body);
 
   int code = http.POST(body);
   String resp = http.getString();
@@ -414,14 +415,13 @@ bool cloudAuthenticate() {
     logLine("[AUTH] fail");
     return false;
   }
-
   StaticJsonDocument<256> rd;
   if (deserializeJson(rd, resp) || !rd["token"].is<const char*>()) {
     logLine("[AUTH] bad JSON");
     return false;
   }
 
-  jwt = rd["token"].as<const char*>();
+  jwt       = rd["token"].as<const char*>();
   storeString("token", jwt);
   activated = true;
   storeBool("activated", true);
@@ -435,54 +435,52 @@ bool sendFrame() {
   camera_fb_t* fb = esp_camera_fb_get();
   if (!fb) return false;
 
-  // persistent HTTPS connection
-  static bool first = true;
-  static const String url = String("https://") + BACKEND_HOST +
-                            UPLOAD_PRFX + camId + (nightMode?"/night":"/day");
-  if (first) {
-    secureClient.setInsecure();
-    http.begin(secureClient, url);
-    http.addHeader("Content-Type","image/jpeg");
-    if (jwt.length()) http.addHeader("Authorization","Bearer " + jwt);
-    first = false;
+  // build fresh URL + headers every time
+  String url = String("http://") + BACKEND_HOST
+             + UPLOAD_PRFX + camId
+             + (nightMode ? "/night" : "/day");
+
+  http.begin(client, url);
+  http.addHeader("Content-Type","image/jpeg");
+  if (jwt.length()) {
+    http.addHeader("Authorization","Bearer " + jwt);
   }
 
-  // send one POST per frame
   int code = http.sendRequest("POST", fb->buf, fb->len);
   esp_camera_fb_return(fb);
+  http.end();
 
   if (code == 401) {
-    // re-authenticate on 401
-    jwt = "";
+    // immediate re-auth
+    jwt       = "";
     storeString("token","");
     activated = false;
     storeBool("activated", false);
+    cloudAuthenticate();
   }
-
-  return (code >= 200 && code < 300);
+  return (code >=200 && code<300);
 }
 
 // ───────── LDR DAY/NIGHT SWITCH ─────────
-uint8_t ldrRing[5] = {1,1,1,1,1}, ldrIdx = 0;
-void updateLDR() {
+uint8_t ldrRing[5] = {1,1,1,1,1}, ldrIdx=0;
+void updateLDR(){
   ldrRing[ldrIdx++] = digitalRead(PIN_LDR);
-  if (ldrIdx >= 5) ldrIdx = 0;
-  uint8_t dark = 0;
-  for (auto v : ldrRing) if (v == LOW) ++dark;
+  if (ldrIdx>=5) ldrIdx=0;
+  uint8_t dark=0;
+  for(auto v:ldrRing) if(v==LOW) ++dark;
 
-  if (dark >= 4 && !nightMode) {
-    nightMode = true;
-    digitalWrite(PIN_IRLED, HIGH);
+  if(dark>=4 && !nightMode){
+    nightMode=true;
+    digitalWrite(PIN_IRLED,HIGH);
     cam->set_whitebal(cam,0);
     cam->set_awb_gain(cam,0);
     cam->set_brightness(cam,2);
     cam->set_contrast(cam,2);
     cam->set_saturation(cam,-1);
     cam->set_denoise(cam,7);
-  }
-  else if (dark <= 1 && nightMode) {
-    nightMode = false;
-    digitalWrite(PIN_IRLED, LOW);
+  } else if(dark<=1 && nightMode){
+    nightMode=false;
+    digitalWrite(PIN_IRLED,LOW);
     applyDayParams();
     cam->set_whitebal(cam,1);
     cam->set_awb_gain(cam,1);
@@ -490,157 +488,75 @@ void updateLDR() {
 }
 
 // ───────── BUTTON HANDLER ─────────
-void handleButton() {
-  static unsigned long down = 0;
-  bool pressed = (digitalRead(BTN_CONFIG) == LOW);
-  if (pressed && !down) down = millis();
-  if (!pressed && down) {
-    unsigned long held = millis() - down;
-    down = 0;
-    if (held >= 3000) {
-      prefs.begin("cam_cfg", false);
+void handleButton(){
+  static unsigned long down=0;
+  bool pressed = digitalRead(BTN_CONFIG)==LOW;
+  if(pressed && !down) down=millis();
+  if(!pressed && down){
+    unsigned long held=millis()-down;
+    down=0;
+    if(held>=3000){
+      prefs.begin("cam_cfg",false);
       prefs.clear();
       prefs.end();
       logLine("[BTN] factory reset");
       delay(500);
       ESP.restart();
-    }
-    else if (held >= 100) {
+    } else if(held>=100){
       portalStart();
     }
   }
 }
 
-// ───────── OTA PULL ─────────
-void checkCloudOta() {
-  if (!WiFi.isConnected() || !activated) return;
-
-  String chk = String("https://") + BACKEND_HOST +
-               UPDATE_CHECK_PRFX + camId;
-  secureClient.setInsecure();
-  http.begin(secureClient, chk);
-  int code = http.GET();
-  if (code != 200) {
-    logLine("[OTA] check fail");
-    http.end();
-    return;
-  }
-
-  String r = http.getString();
-  http.end();
-
-  StaticJsonDocument<256> d;
-  if (deserializeJson(d, r)) {
-    logLine("[OTA] bad JSON");
-    return;
-  }
-
-  if (!d["update_available"].as<bool>()) {
-    logLine("[OTA] up-to-date");
-    return;
-  }
-
-  String bin = d["download_url"].as<const char*>();
-  logLine(("[OTA] pull " + bin).c_str());
-
-  secureClient.setInsecure();
-  http.begin(secureClient, bin);
-  code = http.GET();
-  if (code != 200) {
-    logLine("[OTA] no bin");
-    http.end();
-    return;
-  }
-
-  int len = http.getSize();
-  WiFiClient* stream = http.getStreamPtr();
-  if (!Update.begin(len?len:UPDATE_SIZE_UNKNOWN)) {
-    Update.printError(Serial);
-    http.end();
-    return;
-  }
-
-  uint8_t buf[256];
-  size_t written = 0;
-  while (http.connected() && (written < len || len == 0)) {
-    size_t avail = stream->available();
-    if (avail) {
-      size_t rd = stream->readBytes(buf, min(avail, sizeof(buf)));
-      Update.write(buf, rd);
-      written += rd;
-    }
-    delay(1);
-  }
-
-  bool ok = Update.end() && Update.isFinished();
-  logLine(ok ? "[OTA] SUCCESS":"[OTA] FAIL");
-  http.end();
-
-  if (ok) {
-    delay(400);
-    ESP.restart();
-  }
-}
-
-// ───────── SETUP ─────────
-void setup() {
+// ───────── SETUP & LOOP ─────────
+void setup(){
   Serial.begin(115200);
-  pinMode(LED_STATUS, OUTPUT);
-  digitalWrite(LED_STATUS, LOW);
-  pinMode(BTN_CONFIG, INPUT_PULLUP);
-  pinMode(PIN_LDR, INPUT_PULLUP);
-  pinMode(PIN_IRLED, OUTPUT);
-  digitalWrite(PIN_IRLED, LOW);
+  pinMode(LED_STATUS,OUTPUT);
+  digitalWrite(LED_STATUS,LOW);
+  pinMode(BTN_CONFIG,  INPUT_PULLUP);
+  pinMode(PIN_LDR,     INPUT_PULLUP);
+  pinMode(PIN_IRLED,   OUTPUT);
+  digitalWrite(PIN_IRLED,LOW);
 
-  prefs.begin("cam_cfg", false);
+  prefs.begin("cam_cfg",false);
   ssid      = prefs.getString("ssid","");
   pass      = prefs.getString("pass","");
   apPass    = prefs.getString("apPass","configme");
   jwt       = prefs.getString("token","");
-  activated = prefs.getBool("activated",false);
+  activated = prefs.getBool("activated", false);
+  cloudKey  = prefs.getString("cloudkey", DEFAULT_CLOUD_KEY);
   prefs.end();
 
   generateCameraId();
 
-  if (ssid.length() && wifiConnect()) {
-    if (!activated)              activated = cloudAuthenticate();
-    if (activated && !camReady)  initCamera();
-    if (activated) {
-      checkCloudOta();
-      lastUpdateChk = millis();
-    }
+  if(ssid.length() && wifiConnect()){
+    // sync time for initial ID + future logging
+    configTime(0,0,"pool.ntp.org","time.google.com");
+    if(!activated) activated=cloudAuthenticate();
+    if(activated && !camReady) initCamera();
   }
 
   portalStart();
 }
 
-// ───────── LOOP ─────────
-void loop() {
+void loop(){
   handleButton();
   updateLDR();
   beatLED();
 
   // retry Wi-Fi
-  if (WiFi.status() != WL_CONNECTED &&
-      millis() - lastWifiTry > WIFI_RETRY_MS) {
-    lastWifiTry = millis();
+  if(WiFi.status()!=WL_CONNECTED && millis()-lastWifiTry>WIFI_RETRY_MS){
+    lastWifiTry=millis();
     logLine("[NET] retry");
-    if (wifiConnect() && activated && !camReady) {
+    if(wifiConnect() && activated && !camReady){
       initCamera();
     }
   }
 
-  // continuous streaming as fast as possible
-  if (activated && WiFi.status() == WL_CONNECTED && camReady) {
+  // continuous streaming
+  if(activated && WiFi.status()==WL_CONNECTED && camReady){
     bool ok = sendFrame();
-    logLine(ok ? "[TX] ok":"[TX] fail");
-  }
-
-  // periodic OTA check
-  if (activated && WiFi.status()==WL_CONNECTED &&
-      millis() - lastUpdateChk > UPDATE_IVL_MS) {
-    lastUpdateChk = millis();
-    checkCloudOta();
+    logLine(ok?"[TX] ok":"[TX] fail");
   }
 
   dns.processNextRequest();
