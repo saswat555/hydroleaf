@@ -14,7 +14,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from collections import defaultdict
 
-from app.core.config import CAM_EVENT_GAP_SECONDS, DATA_ROOT, RAW_DIR, CLIPS_DIR, BOUNDARY
+from app.core.config import CAM_EVENT_GAP_SECONDS, DATA_ROOT, RAW_DIR, CLIPS_DIR, BOUNDARY, PROCESSED_DIR
 from app.core.database import get_db
 from app.dependencies import get_current_admin, verify_camera_token
 from app.models import Camera, DetectionRecord, DeviceCommand
@@ -73,12 +73,13 @@ async def _process_upload(
     camera.last_seen = datetime.utcnow()
     await db.commit()
 
-    # 6) Schedule encoding immediately on the main event loop
+    # 6) Schedule encoding & cleanup
     loop = asyncio.get_running_loop()
     loop.create_task(encode_and_cleanup(camera_id))
 
-    # 7) Schedule YOLO detection immediately on the main event loop
+    # 7) Schedule YOLO detection
     loop.create_task(camera_queue.enqueue(camera_id, Path(latest_file)))
+
     # 8) Push raw JPEG to any connected WebSocket clients
     for ws in list(ws_clients.get(camera_id, [])):
         try:
@@ -133,7 +134,13 @@ def stream(
 
     # Poll mode: return a single JPEG
     if mode == "poll":
-        img_path = cam_dir / "latest.jpg"
+        # prefer latest annotated frame
+        proc = cam_dir / PROCESSED_DIR
+        if proc.exists():
+            jpgs = sorted(proc.glob("*.jpg"), key=lambda p: p.stat().st_mtime, reverse=True)
+            img_path = jpgs[0] if jpgs else cam_dir / "latest.jpg"
+        else:
+            img_path = cam_dir / "latest.jpg"
         if not img_path.exists():
             raise HTTPException(404, "Image not found")
         return FileResponse(img_path, media_type="image/jpeg")
@@ -142,7 +149,13 @@ def stream(
     async def gen():
         last_mtime = 0
         while True:
-            img_path = cam_dir / "latest.jpg"
+            proc = cam_dir / PROCESSED_DIR
+            if proc.exists():
+                jpgs = sorted(proc.glob("*.jpg"), key=lambda p: p.stat().st_mtime)
+                img_path = jpgs[-1] if jpgs else cam_dir / "latest.jpg"
+            else:
+                img_path = cam_dir / "latest.jpg"
+
             if img_path.exists():
                 m = img_path.stat().st_mtime_ns
                 if m != last_mtime:
@@ -166,7 +179,13 @@ def stream(
     dependencies=[Depends(get_current_admin)]
 )
 def still(camera_id: str):
-    p = Path(DATA_ROOT) / camera_id / "latest.jpg"
+    base = Path(DATA_ROOT) / camera_id
+    proc = base / PROCESSED_DIR
+    if proc.exists():
+        jpgs = sorted(proc.glob("*.jpg"), key=lambda p: p.stat().st_mtime, reverse=True)
+        p = jpgs[0] if jpgs else base / "latest.jpg"
+    else:
+        p = base / "latest.jpg"
     if not p.exists():
         raise HTTPException(404, "Image not found")
     return FileResponse(p, media_type="image/jpeg")
@@ -307,7 +326,6 @@ async def get_camera_report(
 
 @router.websocket("/ws/stream/{camera_id}")
 async def ws_stream(websocket: WebSocket, camera_id: str):
-    # authenticate camera token on connect if desired
     await websocket.accept()
     ws_clients[camera_id].append(websocket)
     try:

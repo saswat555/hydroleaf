@@ -1820,6 +1820,13 @@ async def generate_cloud_key(
     logger.info("New cloud key generated: %s", new_key)
     return {"cloud_key": new_key}
 
+@router.get("/admin/cloud-keys", dependencies=[Depends(get_current_admin)])
+async def list_cloud_keys(db: AsyncSession = Depends(get_db)):
+    result = await db.execute(select(CloudKey))
+    return [
+        {"key": ck.key, "created_by": ck.created_by, "created_at": ck.created_at}
+        for ck in result.scalars().all()
+    ]
 
 ----- app/routers/admin_users.py -----
 # app/routers/admin_users.py
@@ -2617,7 +2624,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from collections import defaultdict
 
-from app.core.config import CAM_EVENT_GAP_SECONDS, DATA_ROOT, RAW_DIR, CLIPS_DIR, BOUNDARY
+from app.core.config import CAM_EVENT_GAP_SECONDS, DATA_ROOT, RAW_DIR, CLIPS_DIR, BOUNDARY, PROCESSED_DIR
 from app.core.database import get_db
 from app.dependencies import get_current_admin, verify_camera_token
 from app.models import Camera, DetectionRecord, DeviceCommand
@@ -2676,12 +2683,13 @@ async def _process_upload(
     camera.last_seen = datetime.utcnow()
     await db.commit()
 
-    # 6) Schedule encoding immediately on the main event loop
+    # 6) Schedule encoding & cleanup
     loop = asyncio.get_running_loop()
     loop.create_task(encode_and_cleanup(camera_id))
 
-    # 7) Schedule YOLO detection immediately on the main event loop
+    # 7) Schedule YOLO detection
     loop.create_task(camera_queue.enqueue(camera_id, Path(latest_file)))
+
     # 8) Push raw JPEG to any connected WebSocket clients
     for ws in list(ws_clients.get(camera_id, [])):
         try:
@@ -2736,7 +2744,13 @@ def stream(
 
     # Poll mode: return a single JPEG
     if mode == "poll":
-        img_path = cam_dir / "latest.jpg"
+        # prefer latest annotated frame
+        proc = cam_dir / PROCESSED_DIR
+        if proc.exists():
+            jpgs = sorted(proc.glob("*.jpg"), key=lambda p: p.stat().st_mtime, reverse=True)
+            img_path = jpgs[0] if jpgs else cam_dir / "latest.jpg"
+        else:
+            img_path = cam_dir / "latest.jpg"
         if not img_path.exists():
             raise HTTPException(404, "Image not found")
         return FileResponse(img_path, media_type="image/jpeg")
@@ -2745,7 +2759,13 @@ def stream(
     async def gen():
         last_mtime = 0
         while True:
-            img_path = cam_dir / "latest.jpg"
+            proc = cam_dir / PROCESSED_DIR
+            if proc.exists():
+                jpgs = sorted(proc.glob("*.jpg"), key=lambda p: p.stat().st_mtime)
+                img_path = jpgs[-1] if jpgs else cam_dir / "latest.jpg"
+            else:
+                img_path = cam_dir / "latest.jpg"
+
             if img_path.exists():
                 m = img_path.stat().st_mtime_ns
                 if m != last_mtime:
@@ -2769,7 +2789,13 @@ def stream(
     dependencies=[Depends(get_current_admin)]
 )
 def still(camera_id: str):
-    p = Path(DATA_ROOT) / camera_id / "latest.jpg"
+    base = Path(DATA_ROOT) / camera_id
+    proc = base / PROCESSED_DIR
+    if proc.exists():
+        jpgs = sorted(proc.glob("*.jpg"), key=lambda p: p.stat().st_mtime, reverse=True)
+        p = jpgs[0] if jpgs else base / "latest.jpg"
+    else:
+        p = base / "latest.jpg"
     if not p.exists():
         raise HTTPException(404, "Image not found")
     return FileResponse(p, media_type="image/jpeg")
@@ -2910,7 +2936,6 @@ async def get_camera_report(
 
 @router.websocket("/ws/stream/{camera_id}")
 async def ws_stream(websocket: WebSocket, camera_id: str):
-    # authenticate camera token on connect if desired
     await websocket.accept()
     ws_clients[camera_id].append(websocket)
     try:
@@ -3602,7 +3627,7 @@ DATA_ROOT                 = os.getenv("CAM_DATA_ROOT", "./data")
 RAW_DIR                   = os.getenv("CAM_RAW_DIR", "raw")
 CLIPS_DIR                 = os.getenv("CAM_CLIPS_DIR", "clips")
 PROCESSED_DIR             = os.getenv("CAM_PROCESSED_DIR", "processed")
-RETENTION_DAYS            = _get_int("CAM_RETENTION_DAYS", 2)
+RETENTION_DAYS            = _get_int("CAM_RETENTION_DAYS", 1)
 OFFLINE_TIMEOUT           = _get_int("CAM_OFFLINE_TIMEOUT", 45)
 BOUNDARY                  = os.getenv("CAM_BOUNDARY", "frame")
 YOLO_MODEL_PATH           = os.getenv("YOLO_MODEL_PATH", "yolov5s.pt")
@@ -3794,6 +3819,7 @@ from sqlalchemy import update
 from app.models import Camera
 from app.core.config import (
     DATA_ROOT,
+    PROCESSED_DIR,
     RAW_DIR,
     CLIPS_DIR,
     RETENTION_DAYS,
@@ -3816,7 +3842,9 @@ def _encode_and_cleanup_sync(cam_id: str):
     hls_dir.mkdir(parents=True, exist_ok=True)
 
     # Group raw frames into 15‑minute buckets
-    CLIP_MS = 15 * 60 * 1000
+    CLIP_MS = 5 * 60 * 1000
+    proc_dir = cam_dir / PROCESSED_DIR
+    input_dir = proc_dir if proc_dir.exists() else raw_dir
     files = sorted(raw_dir.glob("*.jpg"), key=lambda f: int(f.stem))
     buckets: dict[int, list[Path]] = {}
     for f in files:
@@ -3868,6 +3896,10 @@ def _encode_and_cleanup_sync(cam_id: str):
     for clip in clips_dir.glob("*.mp4"):
         if datetime.fromtimestamp(clip.stat().st_mtime, timezone.utc) < cutoff:
             clip.unlink(missing_ok=True)
+    if proc_dir.exists():
+        for p in proc_dir.glob("*.jpg"):
+            if datetime.fromtimestamp(p.stat().st_mtime, timezone.utc) < cutoff:
+                p.unlink(missing_ok=True)
 
 
 async def encode_and_cleanup(cam_id: str):

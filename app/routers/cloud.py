@@ -63,6 +63,7 @@ async def authenticate_cloud(
 
     token = secrets.token_hex(16)  # (replace with JWT if needed)
     db.add(CameraToken(camera_id=payload.device_id, token=token))
+    await db.commit()
     logger.info(
         "Device %s authenticated OK – issued token %s", payload.device_id, token
     )
@@ -114,3 +115,11 @@ async def generate_cloud_key(
     await db.commit()
     logger.info("New cloud key generated: %s", new_key)
     return {"cloud_key": new_key}
+
+@router.get("/admin/cloud-keys", dependencies=[Depends(get_current_admin)])
+async def list_cloud_keys(db: AsyncSession = Depends(get_db)):
+    result = await db.execute(select(CloudKey))
+    return [
+        {"key": ck.key, "created_by": ck.created_by, "created_at": ck.created_at}
+        for ck in result.scalars().all()
+    ]

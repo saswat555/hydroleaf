@@ -11,6 +11,7 @@ from sqlalchemy import update
 from app.models import Camera
 from app.core.config import (
     DATA_ROOT,
+    PROCESSED_DIR,
     RAW_DIR,
     CLIPS_DIR,
     RETENTION_DAYS,
@@ -33,7 +34,9 @@ def _encode_and_cleanup_sync(cam_id: str):
     hls_dir.mkdir(parents=True, exist_ok=True)
 
     # Group raw frames into 15‑minute buckets
-    CLIP_MS = 15 * 60 * 1000
+    CLIP_MS = 5 * 60 * 1000
+    proc_dir = cam_dir / PROCESSED_DIR
+    input_dir = proc_dir if proc_dir.exists() else raw_dir
     files = sorted(raw_dir.glob("*.jpg"), key=lambda f: int(f.stem))
     buckets: dict[int, list[Path]] = {}
     for f in files:
@@ -85,6 +88,10 @@ def _encode_and_cleanup_sync(cam_id: str):
     for clip in clips_dir.glob("*.mp4"):
         if datetime.fromtimestamp(clip.stat().st_mtime, timezone.utc) < cutoff:
             clip.unlink(missing_ok=True)
+    if proc_dir.exists():
+        for p in proc_dir.glob("*.jpg"):
+            if datetime.fromtimestamp(p.stat().st_mtime, timezone.utc) < cutoff:
+                p.unlink(missing_ok=True)
 
 
 async def encode_and_cleanup(cam_id: str):
