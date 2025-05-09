@@ -34,9 +34,14 @@ router = APIRouter()
 # 2.  Helper – fetch the newest key
 # ─────────────────────────────────────────────────────────────────────────────
 async def _is_valid_key(db: AsyncSession, key: str) -> bool:
-    """Return True if *any* row matches `key`."""
-    return await db.scalar(select(CloudKey).where(CloudKey.key == key).exists())
-
+    """
+    Return **True** if the key exists in the `cloud_keys` table.
+    Uses COUNT(*) so the result is a plain boolean‑friendly integer.
+    """
+    count = await db.scalar(
+        select(func.count()).select_from(CloudKey).where(CloudKey.key == key)
+    )
+    return bool(count)
 
 # ─────────────────────────────────────────────────────────────────────────────
 # 3.  Public endpoints
