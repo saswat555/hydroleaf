@@ -11,11 +11,9 @@
       background: #f7f9fc;
     }
 
-    #feedCanvas {
-      width: 100%;
-      max-height: 60vh;
-      background: #000;
-      display: none;
+    .card-img-top {
+      object-fit: cover;
+      height: 200px;
     }
 
     .tabSection {
@@ -29,11 +27,11 @@
 </head>
 
 <body class="p-4">
-  <div class="container" style="max-width:900px;">
+  <div class="container" style="max-width:1200px;">
     <h2 class="mb-4 text-center">HydroLeaf Admin Dashboard</h2>
 
     <!-- LOGIN -->
-    <div id="loginSection" class="card p-4">
+    <div id="loginSection" class="card p-4 mx-auto" style="max-width:400px;">
       <div class="mb-3">
         <label for="userInput" class="form-label">Email</label>
         <input type="email" id="userInput" class="form-control" placeholder="you@example.com">
@@ -64,18 +62,19 @@
 
       <!-- CAMERA STREAM -->
       <div id="streamSection" class="tabSection">
-        <div class="row g-2">
-          <div class="col-md-6">
-            <input type="text" id="cameraInput" class="form-control" placeholder="Camera ID e.g. CAM_1234">
+        <div class="row g-2 mb-3">
+          <div class="col-md-8">
+            <input type="text" id="cameraIdsInput" class="form-control"
+              placeholder="Enter up to 6 comma-separated Camera IDs">
           </div>
-          <div class="col-md-3">
-            <button id="startStreamBtn" class="btn btn-success w-100">Start Stream</button>
+          <div class="col-md-2">
+            <button id="startStreamBtn" class="btn btn-success w-100">Start Streams</button>
           </div>
-          <div class="col-md-3">
-            <button id="stopStreamBtn" class="btn btn-danger w-100">Stop Stream</button>
+          <div class="col-md-2">
+            <button id="stopStreamBtn" class="btn btn-danger w-100">Stop Streams</button>
           </div>
         </div>
-        <canvas id="feedCanvas" class="mt-3"></canvas>
+        <div id="streamsContainer" class="row g-3"></div>
       </div>
 
       <!-- CLIPS -->
@@ -123,23 +122,21 @@
 
   <script src="https://cdn.jsdelivr.net/npm/axios@1.6.7/dist/axios.min.js"></script>
   <script>
-    // autodetect base URL
-    const baseUrl = 'http://cloud.hydroleaf.in';
+    const baseUrl = location.protocol + '//' + location.host;
     const el = id => document.getElementById(id);
     let jwtToken = '';
+    const streamIntervals = {};
 
-    // ─── LOGIN & LOGOUT ─────────────────────────
+    // ─── LOGIN ─────────────────────────
     el('loginBtn').onclick = async () => {
       const email = el('userInput').value.trim(),
-            pass  = el('passInput').value;
+        pass = el('passInput').value;
       if (!email || !pass) return alert('Enter email & password');
       try {
         const params = new URLSearchParams({ username: email, password: pass });
-        const { data } = await axios.post(
-          `${baseUrl}/api/v1/auth/login`,
-          params,
-          { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } }
-        );
+        const { data } = await axios.post(`${baseUrl}/api/v1/auth/login`, params, {
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
+        });
         jwtToken = data.access_token;
         axios.defaults.headers.common['Authorization'] = `Bearer ${jwtToken}`;
         el('loginSection').classList.add('d-none');
@@ -149,15 +146,9 @@
         alert('Login failed: ' + (err.response?.data?.detail || err.message));
       }
     };
-    el('logoutBtn').onclick = () => {
-      jwtToken = '';
-      delete axios.defaults.headers.common['Authorization'];
-      el('dashboard').classList.add('d-none');
-      el('loginSection').classList.remove('d-none');
-      document.querySelectorAll('.tabSection').forEach(s => s.classList.add('d-none'));
-    };
+    el('logoutBtn').onclick = () => location.reload();
 
-    // ─── TAB NAVIGATOR ─────────────────────────
+    // ─── TABS ─────────────────────────
     function showSection(secId) {
       document.querySelectorAll('#adminTabs .nav-link').forEach(l =>
         l.classList.toggle('active', l.dataset.section === secId)
@@ -170,41 +161,69 @@
       link.onclick = () => {
         const sec = link.dataset.section;
         showSection(sec);
-        if (sec === 'usersSection')    loadUsers();
-        if (sec === 'devicesSection')  loadDevices();
+        if (sec === 'usersSection') loadUsers();
+        if (sec === 'devicesSection') loadDevices();
       };
     });
 
-    // ─── CAMERA STREAM ─────────────────────────
-    let streamInterval = null;
+    // ─── STREAMS ────────────────────────
     el('startStreamBtn').onclick = () => {
-      const cam = el('cameraInput').value.trim();
-      if (!cam) return alert('Enter Camera ID');
-      el('feedCanvas').style.display = 'block';
-      clearInterval(streamInterval);
-      async function fetchFrame() {
-        try {
-          const res = await fetch(
-            `${baseUrl}/api/v1/cameras/still/${encodeURIComponent(cam)}?_=${Date.now()}`,
-            { headers: { 'Authorization': `Bearer ${jwtToken}` } }
-          );
-          if (!res.ok) throw new Error(res.statusText);
-          const blob = await res.blob();
-          const bmp  = await createImageBitmap(blob);
-          const cv   = el('feedCanvas');
-          cv.width   = bmp.width;
-          cv.height  = bmp.height;
-          cv.getContext('2d').drawImage(bmp, 0, 0);
-        } catch (e) {
-          console.error('Stream error', e);
-        }
-      }
-      fetchFrame();
-      streamInterval = setInterval(fetchFrame, 1000);
-    };
-    el('stopStreamBtn').onclick = () => clearInterval(streamInterval);
+      // 1. clear any ongoing streams
+      Object.values(streamIntervals).forEach(clearInterval);
+      Object.keys(streamIntervals).forEach(key => delete streamIntervals[key]);
+      el('streamsContainer').innerHTML = '';
 
-    // ─── CLIPS ───────────────────────────────
+      // 2. parse comma-separated IDs (up to 6)
+      const raw = el('cameraIdsInput').value.trim();
+      const ids = raw
+        .split(/\s*,\s*/)      // split on commas, trimming whitespace
+        .filter(id => id)      // drop empty strings
+        .slice(0, 6);          // max 6 IDs
+
+      if (ids.length === 0) {
+        return alert('Enter at least one Camera ID (comma-separated, max 6).');
+      }
+
+      // 3. build a card + polling interval for each ID
+      ids.forEach(id => {
+        const col = document.createElement('div');
+        col.className = 'col-sm-6 col-md-4';
+
+        const card = document.createElement('div');
+        card.className = 'card';
+
+        const hdr = document.createElement('div');
+        hdr.className = 'card-header';
+        hdr.textContent = id;
+
+        const img = document.createElement('img');
+        img.className = 'card-img-top';
+
+        card.append(hdr, img);
+        col.append(card);
+        el('streamsContainer').append(col);
+
+        streamIntervals[id] = setInterval(async () => {
+          try {
+            const res = await axios.get(
+              `${baseUrl}/api/v1/cameras/still/${encodeURIComponent(id)}`,
+              { responseType: 'blob' }
+            );
+            img.src = URL.createObjectURL(res.data);
+          } catch (e) {
+            console.error('Stream error for', id, e);
+          }
+        }, 1000);
+      });
+    };
+
+    el('stopStreamBtn').onclick = () => {
+      Object.values(streamIntervals).forEach(clearInterval);
+      Object.keys(streamIntervals).forEach(k => delete streamIntervals[k]);
+      el('streamsContainer').innerHTML = '';
+    };
+
+    // ─── CLIPS ─────────────────────────
     el('loadClipsBtn').onclick = async () => {
       const cam = el('clipsCameraInput').value.trim();
       if (!cam) return alert('Enter Camera ID');
@@ -219,13 +238,8 @@
             <td>${c.filename}</td>
             <td>${new Date(c.datetime).toLocaleString()}</td>
             <td>${c.size_mb} MB</td>
-            <td>
-              <a class="btn btn-sm btn-outline-primary"
-                 href="${baseUrl}/api/v1/cameras/clips/${encodeURIComponent(cam)}/${encodeURIComponent(c.filename)}"
-                 target="_blank">Download</a>
-            </td>
-          </tr>
-        `).join('');
+            <td><a class="btn btn-sm btn-outline-primary" href="${baseUrl}/api/v1/cameras/clips/${encodeURIComponent(cam)}/${encodeURIComponent(c.filename)}" target="_blank">Download</a></td>
+          </tr>`).join('');
         el('clipsListContainer').innerHTML = `
           <table class="table table-striped">
             <thead><tr><th>Filename</th><th>Date/Time</th><th>Size</th><th>Action</th></tr></thead>
@@ -236,7 +250,7 @@
       }
     };
 
-    // ─── USERS ───────────────────────────────
+    // ─── USERS ─────────────────────────
     el('refreshUsersBtn').onclick = loadUsers;
     async function loadUsers() {
       try {
@@ -247,20 +261,14 @@
         }
         const rows = data.map(u => `
           <tr>
-            <td>${u.id}</td>
-            <td>${u.email}</td>
-            <td>${u.role}</td>
+            <td>${u.id}</td><td>${u.email}</td><td>${u.role}</td>
             <td>${new Date(u.created_at).toLocaleString()}</td>
             <td>
-              <button class="btn btn-sm btn-secondary me-1"
-                      onclick="impersonate(${u.id}, '${u.email}')">Impersonate</button>
-              <button class="btn btn-sm btn-warning me-1"
-                      onclick="editUser(${u.id}, '${u.email}', '${u.role}')">Edit</button>
-              <button class="btn btn-sm btn-danger"
-                      onclick="deleteUser(${u.id})">Delete</button>
+              <button class="btn btn-sm btn-secondary me-1" onclick="impersonate(${u.id}, '${u.email}')">Impersonate</button>
+              <button class="btn btn-sm btn-warning me-1" onclick="editUser(${u.id}, '${u.email}', '${u.role}')">Edit</button>
+              <button class="btn btn-sm btn-danger" onclick="deleteUser(${u.id})">Delete</button>
             </td>
-          </tr>
-        `).join('');
+          </tr>`).join('');
         el('usersTableContainer').innerHTML = `
           <table class="table table-striped">
             <thead><tr><th>ID</th><th>Email</th><th>Role</th><th>Created At</th><th>Actions</th></tr></thead>
@@ -270,90 +278,41 @@
         alert('Failed to load users: ' + (e.response?.data?.detail || e.message));
       }
     }
-    window.impersonate = async (id, email) => {
-      if (!confirm(`Impersonate ${email}?`)) return;
-      try {
-        const { data } = await axios.post(`${baseUrl}/admin/users/impersonate/${id}`);
-        jwtToken = data.access_token;
-        axios.defaults.headers.common['Authorization'] = `Bearer ${jwtToken}`;
-        el('welcomeMsg').textContent = `Impersonated ${data.impersonated_user}`;
-        loadUsers();
-      } catch (e) {
-        alert('Impersonation failed: ' + (e.response?.data?.detail || e.message));
-      }
-    };
-    window.editUser = async (id, email, role) => {
-      const ne = prompt('New email:', email); if (ne === null) return;
-      const nr = prompt('New role:', role);   if (nr === null) return;
-      try {
-        await axios.put(`${baseUrl}/admin/users/${id}`, { email: ne, role: nr });
-        loadUsers();
-      } catch (e) {
-        alert('Update failed: ' + (e.response?.data?.detail || e.message));
-      }
-    };
-    window.deleteUser = async id => {
-      if (!confirm(`Delete user ${id}?`)) return;
-      try {
-        await axios.delete(`${baseUrl}/admin/users/${id}`);
-        loadUsers();
-      } catch (e) {
-        alert('Delete failed: ' + (e.response?.data?.detail || e.message));
-      }
-    };
+    window.impersonate = async (id, email) => { if (!confirm(`Impersonate ${email}?`)) return; try { const { data } = await axios.post(`${baseUrl}/admin/users/impersonate/${id}`); jwtToken = data.access_token; axios.defaults.headers.common['Authorization'] = `Bearer ${jwtToken}`; el('welcomeMsg').textContent = `Impersonated ${data.impersonated_user}`; loadUsers(); } catch (e) { alert('Impersonation failed:' + (e.response?.data?.detail || e.message)); } };
+    window.editUser = async (id, email, role) => { const ne = prompt('New email:', email); if (ne === null) return; const nr = prompt('New role:', role); if (nr === null) return; try { await axios.put(`${baseUrl}/admin/users/${id}`, { email: ne, role: nr }); loadUsers(); } catch (e) { alert('Update failed:' + (e.response?.data?.detail || e.message)); } };
+    window.deleteUser = async id => { if (!confirm(`Delete user ${id}?`)) return; try { await axios.delete(`${baseUrl}/admin/users/${id}`); loadUsers(); } catch (e) { alert('Delete failed:' + (e.response?.data?.detail || e.message)); } };
 
-    // ─── DEVICE ACTIVATION KEY ─────────────────
+    // ─── DEVICE KEYS ───────────────────────
     el('genActKeyBtn').onclick = async () => {
-      const dev = el('actDeviceId').value.trim(),
-            pl  = el('actPlanId').value.trim();
+      const dev = el('actDeviceId').value.trim(), pl = el('actPlanId').value.trim();
       if (!dev || !pl) return alert('Enter device & plan IDs');
       try {
-        const { data } = await axios.post(
-          `${baseUrl}/admin/generate_device_activation_key`,
-          null,
-          { params: { device_id: dev, plan_id: pl } }
-        );
+        const { data } = await axios.post(`${baseUrl}/admin/generate_device_activation_key`, null, { params: { device_id: dev, plan_id: pl } });
         el('actKeyResult').textContent = JSON.stringify(data, null, 2);
-      } catch (e) {
-        alert('Error: ' + (e.response?.data?.detail || e.message));
-      }
+      } catch (e) { alert('Error:' + (e.response?.data?.detail || e.message)); }
     };
 
-    // ─── CLOUD KEY ────────────────────────────
+    // ─── CLOUD KEY ────────────────────────
     el('genCloudKeyBtn').onclick = async () => {
-      try {
-        const { data } = await axios.post(`${baseUrl}/api/v1/cloud/admin/generate_cloud_key`);
-        el('cloudKeyResult').textContent = JSON.stringify(data, null, 2);
-      } catch (e) {
-        alert('Error: ' + (e.response?.data?.detail || e.message));
-      }
+      try { const { data } = await axios.post(`${baseUrl}/api/v1/cloud/admin/generate_cloud_key`); el('cloudKeyResult').textContent = JSON.stringify(data, null, 2); }
+      catch (e) { alert('Error:' + (e.response?.data?.detail || e.message)); }
     };
 
-    // ─── CONNECTED DEVICES ────────────────────
+    // ─── DEVICES ─────────────────────────
     el('refreshDevicesBtn').onclick = loadDevices;
     async function loadDevices() {
       try {
         const { data } = await axios.get(`${baseUrl}/admin/devices`);
-        if (!Object.keys(data).length) {
-          el('devicesTableContainer').innerHTML = '<p>No connected devices.</p>';
-          return;
-        }
+        if (!Object.keys(data).length) return el('devicesTableContainer').innerHTML = '<p>No connected devices.</p>';
         const rows = Object.entries(data).map(([id, info]) => `
-          <tr>
-            <td>${id}</td>
-            <td>${info.ip}</td>
-            <td>${info.reachable}</td>
-            <td>${new Date(info.last_seen * 1000).toLocaleString()}</td>
-          </tr>
-        `).join('');
+          <tr><td>${id}</td><td>${info.ip}</td><td>${info.reachable}</td><td>${new Date(info.last_seen * 1000).toLocaleString()}</td></tr>`
+        ).join('');
         el('devicesTableContainer').innerHTML = `
           <table class="table table-bordered">
             <thead><tr><th>Device ID</th><th>IP</th><th>Reachable</th><th>Last Seen</th></tr></thead>
             <tbody>${rows}</tbody>
           </table>`;
-      } catch (e) {
-        alert('Error: ' + (e.response?.data?.detail || e.message));
-      }
+      } catch (e) { alert('Error:' + (e.response?.data?.detail || e.message)); }
     }
   </script>
 </body>

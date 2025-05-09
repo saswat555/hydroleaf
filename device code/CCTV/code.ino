@@ -74,22 +74,117 @@ background:#007bff;color:#fff;font-size:16px;text-align:center;text-decoration:n
 )rawliteral";
 
 static const char PAGE_WIFI_TPL[] PROGMEM = R"rawliteral(
-<!doctype html><html><head><meta charset=utf-8>
-<meta name=viewport content='width=device-width,initial-scale=1'>
-<title>Configure Wi-Fi</title>
-<style>body{font-family:system-ui;background:#fafafa;margin:0;padding:18px}
-label, input{display:block;width:100%;padding:6px;margin:6px 0;font-size:16px}
-button{padding:10px;width:100%;border:none;background:#007bff;color:#fff;border-radius:4px;font-size:16px}
-</style></head><body>
-<h1>Wi-Fi Settings</h1>
-<form action="/save_wifi" method="POST">
-  <label>SSID:<input name="ssid" value="%s"></label>
-  <label>Password:<input name="pass" type="password" value="%s"></label>
-  <label>Cloud Key:<input name="cloudkey" value="%s"></label>
-  <button type="submit">Save &amp; Connect</button>
-</form>
-<a href="/">Back to Menu</a>
-</body></html>
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Hydroleaf Smart-Cam Wi-Fi Config</title>
+  <style>
+    :root {
+      --primary: #28a745;
+      --bg: #f7f9fc;
+      --card: #ffffff;
+      --text: #333333;
+      --border: #cccccc;
+    }
+    body {
+      margin: 0;
+      padding: 0;
+      background: var(--bg);
+      font-family: system-ui, sans-serif;
+      color: var(--text);
+    }
+    .container {
+      max-width: 400px;
+      margin: 0 auto;
+      padding: 16px;
+    }
+    .header {
+      background: var(--primary);
+      padding: 16px;
+      text-align: center;
+      color: #fff;
+      border-radius: 8px 8px 0 0;
+    }
+    .card {
+      background: var(--card);
+      border-radius: 0 0 8px 8px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+      padding: 24px;
+      margin-top: -8px;
+    }
+    h1 {
+      margin: 0;
+      font-size: 1.4rem;
+    }
+    .form-group {
+      margin-bottom: 16px;
+    }
+    label {
+      display: block;
+      margin-bottom: 6px;
+      font-weight: 600;
+    }
+    input {
+      width: 100%;
+      padding: 10px;
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      font-size: 1rem;
+    }
+    input::placeholder {
+      color: #999;
+    }
+    button {
+      width: 100%;
+      padding: 12px;
+      border: none;
+      border-radius: 4px;
+      background: var(--primary);
+      color: #fff;
+      font-size: 1rem;
+      cursor: pointer;
+    }
+    button:hover {
+      opacity: 0.9;
+    }
+    .back {
+      display: block;
+      text-align: center;
+      margin-top: 16px;
+      color: var(--primary);
+      text-decoration: none;
+      font-size: 0.9rem;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>Configure Wi-Fi & Cloud Key</h1>
+    </div>
+    <div class="card">
+      <form action="/save_wifi" method="POST">
+        <div class="form-group">
+          <label for="ssid">SSID</label>
+          <input id="ssid" name="ssid" type="text" placeholder="Enter SSID" value="%s">
+        </div>
+        <div class="form-group">
+          <label for="pass">Password</label>
+          <input id="pass" name="pass" type="password" placeholder="Enter Password" value="%s">
+        </div>
+        <div class="form-group">
+          <label for="cloudkey">Cloud Key</label>
+          <input id="cloudkey" name="cloudkey" type="text" placeholder="Enter Cloud Key" value="%s">
+        </div>
+        <button type="submit">Save &amp; Connect</button>
+      </form>
+      <a class="back" href="/">← Back to Menu</a>
+    </div>
+  </div>
+</body>
+</html>
 )rawliteral";
 
 static const char PAGE_STATUS_TPL[] PROGMEM = R"rawliteral(
@@ -226,8 +321,6 @@ void handleSaveWiFi() {
     prefs.putString("cloudkey", cloudKey);
     prefs.end();
 
-    // stop portal DNS if you ever drop AP-only
-    dns.stop();
 
     WiFi.begin(ssid.c_str(), pass.c_str());
     delay(2000);
@@ -338,9 +431,9 @@ void initCamera() {
   cfg.pixel_format = PIXFORMAT_JPEG;
 
   if (psramFound()) {
-    cfg.frame_size   = FRAMESIZE_VGA;
-    cfg.fb_count     = 2;
-    cfg.jpeg_quality = 8;
+    cfg.frame_size   = FRAMESIZE_HD;
+    cfg.fb_count     = 3;
+    cfg.jpeg_quality = 6;
   } else {
     cfg.frame_size   = FRAMESIZE_QVGA;
     cfg.fb_count     = 1;
@@ -441,6 +534,7 @@ bool sendFrame() {
              + (nightMode ? "/night" : "/day");
 
   http.begin(client, url);
+  http.setReuse(true);
   http.addHeader("Content-Type","image/jpeg");
   if (jwt.length()) {
     http.addHeader("Authorization","Bearer " + jwt);
