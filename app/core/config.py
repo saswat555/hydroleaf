@@ -69,7 +69,7 @@ BOUNDARY                  = os.getenv("CAM_BOUNDARY", "frame")
 YOLO_MODEL_PATH           = os.getenv("YOLO_MODEL_PATH", "yolov5s.pt")
 CAM_DETECTION_WORKERS     = _get_int("CAM_DETECTION_WORKERS", 4)
 CAM_EVENT_GAP_SECONDS     = _get_int("CAM_EVENT_GAP_SECONDS", 2)
-
+DETECTORS         = os.getenv("DETECTORS", "ssd,yolo").split(",")
 API_V1_STR   = os.getenv("API_V1_STR", "/api/v1")
 PROJECT_NAME = os.getenv("PROJECT_NAME", "Hydroleaf")
 SESSION_KEY  = os.getenv("SESSION_KEY", "Hydroleaf_session")

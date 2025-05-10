@@ -230,7 +230,7 @@
       const cam = el('clipsCameraInput').value.trim();
       if (!cam) return alert('Enter Camera ID');
       try {
-        const { data } = await axios.get(`${baseUrl}/api/v1/cameras/api/clips/${encodeURIComponent(cam)}`);
+        const { data } = await axios.get(`${baseUrl}/admin/cameras/${encodeURIComponent(cam)}/clips`);
         if (!data.length) {
           el('clipsListContainer').innerHTML = '<p>No clips found</p>';
           return;
@@ -239,12 +239,23 @@
           <tr>
             <td>${c.filename}</td>
             <td>${new Date(c.datetime).toLocaleString()}</td>
-            <td>${c.size_mb} MB</td>
-            <td><a class="btn btn-sm btn-outline-primary" href="${baseUrl}/api/v1/cameras/clips/${encodeURIComponent(cam)}/${encodeURIComponent(c.filename)}" target="_blank">Download</a></td>
+            <td class="text-end">${c.size_mb}&nbsp;MB</td>
+            <td class="text-nowrap">
+              <a class="btn btn-sm btn-outline-success me-1"
+                 href="${baseUrl}/admin/cameras/${encodeURIComponent(cam)}/clips/${encodeURIComponent(c.filename)}/play"
+                 target="_blank">Play</a>
+              <a class="btn btn-sm btn-outline-primary"
+                 href="${baseUrl}/admin/cameras/${encodeURIComponent(cam)}/clips/${encodeURIComponent(c.filename)}/download"
+                 target="_blank">Download</a>
+            </td>
           </tr>`).join('');
-        el('clipsListContainer').innerHTML = `
-          <table class="table table-striped">
-            <thead><tr><th>Filename</th><th>Date/Time</th><th>Size</th><th>Action</th></tr></thead>
+          el('clipsListContainer').innerHTML = `
+          <table class="table table-striped table-hover">
+            <thead class="table-light">
+              <tr>
+                <th>Filename</th><th>Date / Time</th><th class="text-end">Size</th><th>Actions</th>
+              </tr>
+            </thead>
             <tbody>${rows}</tbody>
           </table>`;
       } catch (e) {

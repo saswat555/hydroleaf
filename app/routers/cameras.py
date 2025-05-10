@@ -166,7 +166,7 @@ def stream(
                         f"Content-Type: image/jpeg\r\n"
                         f"Content-Length: {len(data)}\r\n\r\n"
                     ).encode() + data + b"\r\n"
-            await asyncio.sleep(0.05)
+            await asyncio.sleep(0.03)
 
     return StreamingResponse(
         gen(),

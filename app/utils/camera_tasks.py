@@ -34,10 +34,10 @@ def _encode_and_cleanup_sync(cam_id: str):
     hls_dir.mkdir(parents=True, exist_ok=True)
 
     # Group raw frames into 15‑minute buckets
-    CLIP_MS = 5 * 60 * 1000
+    CLIP_MS = 20 * 1000  
     proc_dir = cam_dir / PROCESSED_DIR
     input_dir = proc_dir if proc_dir.exists() else raw_dir
-    files = sorted(raw_dir.glob("*.jpg"), key=lambda f: int(f.stem))
+    files = sorted(input_dir.glob("*.jpg"), key=lambda f: int(f.stem))
     buckets: dict[int, list[Path]] = {}
     for f in files:
         period = int(f.stem) // CLIP_MS
@@ -56,7 +56,7 @@ def _encode_and_cleanup_sync(cam_id: str):
                 continue
             h, w = first.shape[:2]
             vw = cv2.VideoWriter(
-                str(clip_path), cv2.VideoWriter_fourcc(*"mp4v"), 10, (w, h)
+                str(clip_path), cv2.VideoWriter_fourcc(*"mp4v"), 20, (w, h)
             )
             for imgf in group:
                 im = cv2.imread(str(imgf))
