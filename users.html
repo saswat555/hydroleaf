@@ -37,6 +37,14 @@
     <!-- SIGNUP -->
     <div id="signupSection" class="card p-4 mx-auto d-none" style="max-width:400px;">
       <div class="mb-3">
+        <label for="signupFirstName" class="form-label">First Name</label>
+        <input type="text" id="signupFirstName" class="form-control" placeholder="John">
+      </div>
+      <div class="mb-3">
+        <label for="signupLastName" class="form-label">Last Name</label>
+        <input type="text" id="signupLastName" class="form-control" placeholder="Doe">
+      </div>
+      <div class="mb-3">
         <label for="signupEmail" class="form-label">Email</label>
         <input type="email" id="signupEmail" class="form-control" placeholder="you@example.com">
       </div>
@@ -128,7 +136,7 @@
     let dosingProfiles = [];
     const el = id => document.getElementById(id);
 
-    // LOGIN / SIGNUP toggles
+    // Toggle Login / Signup
     el('showSignup').onclick = () => {
       el('loginSection').classList.add('d-none');
       el('signupSection').classList.remove('d-none');
@@ -151,7 +159,7 @@
         const { data } = await axios.post(`${baseUrl}/api/v1/auth/login`, params, {
           headers:{ 'Content-Type':'application/x-www-form-urlencoded' }
         });
-        jwt = data.access_token || data.accessToken || data.access_token;
+        jwt = data.access_token;
         axios.defaults.headers.common['Authorization'] = `Bearer ${jwt}`;
         el('loginSection').classList.add('d-none');
         el('signupSection').classList.add('d-none');
@@ -162,22 +170,32 @@
         alert('Login failed: ' + (e.response?.data?.detail || e.message));
       }
     };
+
     // SIGNUP
     el('signupBtn').onclick = async () => {
+      const first = el('signupFirstName').value.trim();
+      const last  = el('signupLastName').value.trim();
       const email = el('signupEmail').value.trim();
-      const pass = el('signupPassword').value;
-      if (!email || !pass) return alert('Enter signup details');
+      const pass  = el('signupPassword').value;
+      if (!first || !last || !email || !pass) return alert('All fields required');
       try {
-        await axios.post(`${baseUrl}/api/v1/auth/signup`, { email, password: pass });
+        await axios.post(`${baseUrl}/api/v1/auth/signup`, {
+          email,
+          password: pass,
+          name: `${first} ${last}`,
+          first_name: first,
+          last_name: last
+        });
         alert('Signup successful! Please log in.');
         el('showLogin').click();
       } catch (e) {
         alert('Signup failed: ' + (e.response?.data?.detail || e.message));
       }
     };
+
     el('userLogoutBtn').onclick = () => location.reload();
 
-    // TAB NAV + loader hooks
+    // TAB NAV
     document.querySelectorAll('.nav-link').forEach(link => {
       link.onclick = () => {
         const sec = link.dataset.section;
@@ -194,34 +212,26 @@
       };
     });
 
-    // INITIAL DASHBOARD LOAD
+    // INITIAL LOAD
     async function loadUserDashboard() {
       loadCameraStreams();
       loadPlants();
       loadSwitches();
       loadValves();
       loadSubscription();
-      // dosing will load when you click its tab
     }
 
-    // 1. Cameras
+    // 1. Camera Streams
     async function loadCameraStreams() {
+      // assume you have an endpoint to list your cameras
       const { data: cams } = await axios.get(`${baseUrl}/api/v1/users/me/cameras`);
-      const container = el('uStreamsContainer');
-      container.innerHTML = '';
+      const C = el('uStreamsContainer'); C.innerHTML = '';
       cams.forEach(id => {
-        const col = document.createElement('div');
-        col.className = 'col-sm-6';
-        const card = document.createElement('div');
-        card.className = 'card';
-        const hdr = document.createElement('div');
-        hdr.className = 'card-header';
-        hdr.textContent = id;
-        const img = document.createElement('img');
-        img.className = 'card-img-top';
-        card.append(hdr, img);
-        col.append(card);
-        container.append(col);
+        const col = document.createElement('div'); col.className = 'col-sm-6';
+        const card = document.createElement('div'); card.className = 'card';
+        const hdr  = document.createElement('div'); hdr.className = 'card-header'; hdr.textContent = id;
+        const img  = document.createElement('img'); img.className = 'card-img-top';
+        card.append(hdr, img); col.append(card); C.append(col);
         setInterval(async () => {
           try {
             const resp = await axios.get(`${baseUrl}/api/v1/cameras/stream/${encodeURIComponent(id)}?mode=poll`, { responseType:'blob' });
@@ -231,137 +241,111 @@
       });
     }
 
-    // 2. Plants
+    // 2. My Plants
     async function loadPlants() {
-      const { data } = await axios.get(`${baseUrl}/api/v1/users/me/plants`);
-      const ct = el('plantsContainer');
-      ct.innerHTML = '';
+      const { data } = await axios.get(`${baseUrl}/api/v1/plants`);
+      const ct = el('plantsContainer'); ct.innerHTML = '';
       data.forEach(p => {
-        const div = document.createElement('div');
-        div.className = 'plant-card';
-        div.innerHTML = `<h5>${p.name}</h5>
+        const d = document.createElement('div'); d.className = 'plant-card';
+        d.innerHTML = `<h5>${p.name}</h5>
           <p>Type: ${p.type} | Stage: ${p.growth_stage} | Seeded: ${new Date(p.seeding_date).toLocaleDateString()}</p>
           <p>Region: ${p.region} | Location: ${p.location}</p>`;
-        ct.append(div);
+        ct.append(d);
       });
     }
     el('addPlantBtn').onclick = async () => {
-      const name = prompt('Plant name:');
-      if (!name) return;
-      const type = prompt('Species/type:');
-      const stage = prompt('Growth stage:');
-      const date = prompt('Seeding date (ISO):');
-      const region = prompt('Region:');
-      const loc = prompt('Location:');
-      await axios.post(`${baseUrl}/api/v1/plants`, { 
-        name, type, growth_stage: stage, seeding_date: date, region, location: loc 
-      });
+      const name = prompt('Plant name:'); if (!name) return;
+      const type = prompt('Species/type:'), stage = prompt('Growth stage:');
+      const date = prompt('Seeding date (ISO):'), region = prompt('Region:');
+      const loc  = prompt('Location:');
+      await axios.post(`${baseUrl}/api/v1/plants`, { name, type, growth_stage: stage, seeding_date: date, region, location: loc });
       loadPlants();
     };
 
-    // 3. Dosing (NEW FLOW)
+    // 3. Dosing (LLM flow)
     async function loadDosing() {
-      // 1) your devices
-      const [{ data: devices }, { data: profiles }] = await Promise.all([
-        axios.get(`${baseUrl}/api/v1/devices/my`),
-        // We’ll load profiles once device picked
-        Promise.resolve({ data: [] })
-      ]);
+      const { data: devices } = await axios.get(`${baseUrl}/api/v1/devices/my`);
       const devSel = el('dosingDeviceSelect');
-      devSel.innerHTML = devices.map(d => 
-        `<option value="${d.id}">${d.name} (${d.mac_id})</option>`
-      ).join('');
+      devSel.innerHTML = devices.map(d => `<option value="${d.id}">${d.name}</option>`).join('');
       devSel.onchange = async () => {
         const dev = devSel.value;
-        // 2) fetch dosing profiles for that device
-        const { data } = await axios.get(`${baseUrl}/api/v1/config/dosing-profiles/${encodeURIComponent(dev)}`);
+        const { data } = await axios.get(`${baseUrl}/api/v1/config/dosing-profiles/${dev}`);
         dosingProfiles = data;
         el('profileSelect').innerHTML = data.map(p =>
           `<option value="${p.id}">${p.plant_name} (${new Date(p.seeding_date).toLocaleDateString()})</option>`
         ).join('');
       };
-      // trigger initial load
       if (devices.length) devSel.onchange();
     }
     el('doDosingBtn').onclick = async () => {
       const devId = el('dosingDeviceSelect').value;
       const profId = el('profileSelect').value;
-      if (!devId || !profId) return alert('Select both device & profile');
-      // 3) get sensor data
-      const { data: sensorData } = await axios.get(`${baseUrl}/api/v1/devices/sensoreading/${encodeURIComponent(devId)}`);
-      // 4) find profile object
-      const prof = dosingProfiles.find(p => p.id.toString() === profId);
-      // 5) call the LLM-powered dosing endpoint
+      if (!devId || !profId) return alert('Select device & profile');
+      const { data: sensorData } = await axios.get(`${baseUrl}/api/v1/devices/sensoreading/${devId}`);
+      const prof = dosingProfiles.find(p => p.id == profId);
       try {
         const res = await axios.post(
-          `${baseUrl}/api/v1/dosing/llm-request?device_id=${encodeURIComponent(devId)}`,
+          `${baseUrl}/api/v1/dosing/llm-request?device_id=${devId}`,
           { sensor_data: sensorData, plant_profile: prof }
         );
-        // FastAPI returns [ result, rawLLM ]
         const [ result, raw ] = res.data;
         el('dosingResult').innerHTML = `
-          <h5>Actions Sent</h5>
-          <pre>${JSON.stringify(result, null, 2)}</pre>
-          <h5>LLM Raw</h5>
-          <pre>${raw}</pre>
+          <h5>Actions Sent</h5><pre>${JSON.stringify(result, null, 2)}</pre>
+          <h5>LLM Raw</h5><pre>${raw}</pre>
         `;
       } catch (e) {
         alert('Dosing failed: ' + (e.response?.data?.detail || e.message));
       }
     };
 
-    // 4. SWITCHES
+    // 4. Switches
     async function loadSwitches() {
-      const { data } = await axios.get(`${baseUrl}/api/v1/users/me/switches`);
-      const ct = el('switchesContainer');
-      ct.innerHTML = '';
+      const { data } = await axios.get(`${baseUrl}/api/v1/device_comm/pending_tasks?device_id=SWITCH_CONTROLLER_MAC`);
+      // replace with your actual switches endpoint
+      const ct = el('switchesContainer'); ct.innerHTML = '';
       data.forEach(s => {
         const btn = document.createElement('button');
         btn.className = 'btn btn-outline-secondary me-2 mb-2';
-        btn.textContent = `${s.name}: ${s.state}`;
-        btn.onclick = async () => {
-          const { data: res } = await axios.post(`${baseUrl}/api/v1/device_comm/switch_toggle`, { switch_id: s.id });
-          btn.textContent = `${s.name}: ${res.new_state}`;
-        };
+        btn.textContent = `Switch ${s.switch_id}: pending`;
         ct.append(btn);
       });
     }
 
-    // 5. VALVES
+    // 5. Valves
     async function loadValves() {
-      const { data } = await axios.get(`${baseUrl}/api/v1/users/me/valves`);
-      const ct = el('valvesContainer');
-      ct.innerHTML = '';
+      const { data } = await axios.get(`${baseUrl}/api/v1/device_comm/pending_tasks?device_id=VALVE_CONTROLLER_MAC`);
+      // replace with your actual valves endpoint
+      const ct = el('valvesContainer'); ct.innerHTML = '';
       data.forEach(v => {
         const btn = document.createElement('button');
         btn.className = 'btn btn-outline-secondary me-2 mb-2';
-        btn.textContent = `${v.name}: ${v.state}`;
-        btn.onclick = async () => {
-          const { data: res } = await axios.post(`${baseUrl}/api/v1/device_comm/valve_toggle`, { valve_id: v.id });
-          btn.textContent = `${v.name}: ${res.new_state}`;
-        };
+        btn.textContent = `Valve ${v.valve_id}: pending`;
         ct.append(btn);
       });
     }
 
-    // 6. SUBSCRIPTION
+    // 6. Subscription & Payments
     async function loadSubscription() {
-      const { data } = await axios.get(`${baseUrl}/api/v1/users/me/subscription`);
+      const { data: subs } = await axios.get(`${baseUrl}/api/v1/subscriptions`);
+      // pick your subscription record
+      const sub = subs.find(s => s.device_id);
       const st = el('subStatus');
-      if (data.active) {
-        st.innerHTML = `<div class="alert alert-success">Active until ${new Date(data.expires_at).toLocaleDateString()}</div>`;
-        el('paymentSection').style.display = 'none';
-      } else if (data.pending) {
-        st.innerHTML = `<div class="alert alert-warning">Pending approval</div>`;
+      if (sub && sub.active) {
+        st.innerHTML = `<div class="alert alert-success">Active until ${new Date(sub.end_date).toLocaleDateString()}</div>`;
         el('paymentSection').style.display = 'none';
       } else {
-        st.innerHTML = `<div class="alert alert-danger">Inactive — please subscribe</div>`;
+        st.innerHTML = `<div class="alert alert-danger">No active subscription</div>`;
         el('paymentSection').style.display = '';
-        el('qrCodeImg').src = data.qr_code_url;
+        // create a payment order for plan_id=1 (example)
+        const { data: order } = await axios.post(`${baseUrl}/api/v1/payments/create`, {
+          device_id: 'YOUR_DEVICE_ID',
+          plan_id: 1
+        });
+        el('qrCodeImg').src = order.qr_code_url;
         el('submitTxBtn').onclick = async () => {
           const tx = el('txIdInput').value.trim();
           if (!tx) return alert('Enter Tx ID');
-          await axios.post(`${baseUrl}/api/v1/payments/confirm/${data.id}`, { upi_transaction_id: tx });
+          await axios.post(`${baseUrl}/api/v1/payments/confirm/${order.id}`, { upi_transaction_id: tx });
           loadSubscription();
         };
       }
