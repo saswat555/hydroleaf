@@ -65,8 +65,7 @@
       <div id="streamSection" class="tabSection">
         <div class="row g-2 mb-3">
           <div class="col-md-8">
-            <input type="text" id="cameraIdsInput" class="form-control"
-              placeholder="Enter up to 6 Camera IDs (comma, space or newline separated)">
+            <input type="text" id="cameraIdsInput" class="form-control" placeholder="Enter up to 6 Camera IDs (comma, space or newline separated)">
           </div>
           <div class="col-md-2">
             <button id="startStreamBtn" class="btn btn-success w-100">Start Streams</button>
@@ -132,7 +131,6 @@
     const baseUrl = 'http://cloud.hydroleaf.in';
     const el = id => document.getElementById(id);
     let jwtToken = '';
-    const streamIntervals = {};
 
     // ─── LOGIN ─────────────────────────
     el('loginBtn').onclick = async () => {
@@ -140,7 +138,10 @@
       const pass = el('passInput').value;
       if (!email || !pass) return alert('Enter email & password');
       try {
-        const params = new URLSearchParams({ username: email, password: pass });
+        const params = new URLSearchParams();
+        params.append('grant_type', 'password');
+        params.append('username', email);
+        params.append('password', pass);
         const { data } = await axios.post(`${baseUrl}/api/v1/auth/login`, params, {
           headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
         });
@@ -176,14 +177,10 @@
 
     // ─── STREAMS ────────────────────────
     el('startStreamBtn').onclick = () => {
-      Object.values(streamIntervals).forEach(clearInterval);
-      Object.keys(streamIntervals).forEach(key => delete streamIntervals[key]);
       el('streamsContainer').innerHTML = '';
-
       const raw = el('cameraIdsInput').value.trim();
       const ids = raw.split(/[,\s;]+/).map(i => i.trim()).filter(Boolean).slice(0, 6);
       if (!ids.length) return alert('Enter at least one Camera ID (max 6).');
-
       ids.forEach(id => {
         const col = document.createElement('div');
         col.className = 'col-sm-6 col-md-4';
@@ -201,8 +198,6 @@
       });
     };
     el('stopStreamBtn').onclick = () => {
-      Object.values(streamIntervals).forEach(clearInterval);
-      Object.keys(streamIntervals).forEach(k => delete streamIntervals[k]);
       el('streamsContainer').innerHTML = '';
     };
 
@@ -230,9 +225,7 @@
         el('clipsListContainer').innerHTML = `
           <table class="table table-striped table-hover">
             <thead class="table-light">
-              <tr>
-                <th>Filename</th><th>Date / Time</th><th class="text-end">Size</th><th>Actions</th>
-              </tr>
+              <tr><th>Filename</th><th>Date / Time</th><th class="text-end">Size</th><th>Actions</th></tr>
             </thead>
             <tbody>${rows}</tbody>
           </table>
@@ -248,13 +241,11 @@
       try {
         const { data } = await axios.get(`${baseUrl}/admin/users`);
         if (!data.length) {
-          el('usersTableContainer').innerHTML = '<p>No users found.</p>';
-          return;
+          el('usersTableContainer').innerHTML = '<p>No users found.</p>'; return;
         }
         const rows = data.map(u => `
           <tr>
-            <td>${u.id}</td><td>${u.email}</td><td>${u.role}</td>
-            <td>${new Date(u.created_at).toLocaleString()}</td>
+            <td>${u.id}</td><td>${u.email}</td><td>${u.role}</td><td>${new Date(u.created_at).toLocaleString()}</td>
             <td>
               <button class="btn btn-sm btn-secondary me-1" onclick="impersonate(${u.id}, '${u.email}')">Impersonate</button>
               <button class="btn btn-sm btn-warning me-1" onclick="editUser(${u.id}, '${u.email}', '${u.role}')">Edit</button>
@@ -263,11 +254,7 @@
           </tr>
         `).join('');
         el('usersTableContainer').innerHTML = `
-          <table class="table table-striped">
-            <thead><tr><th>ID</th><th>Email</th><th>Role</th><th>Created At</th><th>Actions</th></tr></thead>
-            <tbody>${rows}</tbody>
-          </table>
-        `;
+          <table class="table table-striped"><thead><tr><th>ID</th><th>Email</th><th>Role</th><th>Created At</th><th>Actions</th></tr></thead><tbody>${rows}</tbody></table>`;
       } catch (e) {
         alert('Failed to load users: ' + (e.response?.data?.detail || e.message));
       }
@@ -299,7 +286,7 @@
       }
     };
 
-    window.deleteUser = async id => {
+    window.deleteUser = async (id) => {
       if (!confirm(`Delete user ${id}?`)) return;
       try {
         await axios.delete(`${baseUrl}/admin/users/${id}`);
@@ -338,19 +325,13 @@
       try {
         const { data } = await axios.get(`${baseUrl}/admin/devices`);
         if (!Object.keys(data).length) {
-          el('devicesTableContainer').innerHTML = '<p>No connected devices.</p>';
-          return;
+          el('devicesTableContainer').innerHTML = '<p>No connected devices.</p>'; return;
         }
         const rows = Object.entries(data).map(([id, info]) => `
-          <tr>
-            <td>${id}</td><td>${info.ip}</td><td>${info.reachable}</td><td>${new Date(info.last_seen * 1000).toLocaleString()}</td>
-          </tr>
+          <tr><td>${id}</td><td>${info.ip}</td><td>${info.reachable}</td><td>${new Date(info.last_seen * 1000).toLocaleString()}</td></tr>
         `).join('');
         el('devicesTableContainer').innerHTML = `
-          <table class="table table-bordered">
-            <thead><tr><th>Device ID</th>\<th>IP<\/th>\<th>Reachable<\/th>\<th>Last Seen<\/th><\/tr><\/thead>
-            <tbody>${rows}<\/tbody>
-          <\/table>
+          <table class="table table-bordered"><thead><tr><th>Device ID</th><th>IP</th><th>Reachable</th><th>Last Seen</th></tr></thead><tbody>${rows}</tbody></table>
         `;
       } catch (e) {
         alert('Error: ' + (e.response?.data?.detail || e.message));
@@ -363,19 +344,13 @@
       try {
         const { data } = await axios.get(`${baseUrl}/admin/cameras/list`);
         if (!data.length) {
-          el('cameraListContainer').innerHTML = '<p>No cameras found.</p>';
-          return;
+          el('cameraListContainer').innerHTML = '<p>No cameras found.</p>'; return;
         }
         const rows = data.map(c => `
-          <tr>
-            <td>${c.camera_id}</td><td>${c.is_online}</td><td>${new Date(c.last_seen).toLocaleString()}</td><td>${c.frames_received}</td><td>${c.clips_count}</td>
-          </tr>
+          <tr><td>${c.camera_id}</td><td>${c.is_online}</td><td>${new Date(c.last_seen).toLocaleString()}</td><td>${c.frames_received}</td><td>${c.clips_count}</td></tr>
         `).join('');
         el('cameraListContainer').innerHTML = `
-          <table class="table table-bordered">
-            <thead><tr><th>Camera ID</th><th>Online</th><th>Last Seen</th><th>Frames</th><th>Clips</th></tr></thead>
-            <tbody>${rows}</tbody>
-          </table>
+          <table class="table table-bordered"><thead><tr><th>Camera ID</th><th>Online</th><th>Last Seen</th><th>Frames</th><th>Clips</th></tr></thead><tbody>${rows}</tbody></table>
         `;
       } catch (e) {
         alert('Failed to load cameras: ' + (e.response?.data?.detail || e.message));
