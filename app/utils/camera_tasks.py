@@ -9,6 +9,9 @@ import numpy as np
 from sqlalchemy import update
 from sqlalchemy.future import select
 
+from ultralytics import YOLO
+import requests
+
 from app.models import Camera
 from app.core.config import (
     DATA_ROOT,
@@ -28,26 +31,51 @@ CLIP_DURATION = timedelta(minutes=10)
 FPS = 20
 
 # ───────── STATE ─────────
-_writers: dict[str, dict]        = {}
-_locks: dict[str, asyncio.Lock]  = {}
+_writers: dict[str, dict]       = {}
+_locks: dict[str, asyncio.Lock] = {}
 
-# ───────── YOLO MODEL ─────────
-_MODEL_PATH = Path("models/yolov5s.onnx")
-_NAMES_PATH = Path("models/coco.names")
+# ───────── MODEL CONFIG ─────────
+_MODEL_DIR     = Path("models")
+_WEIGHTS_PATH  = _MODEL_DIR / "yolov5s.pt"
+_WEIGHTS_URL   = "https://github.com/ultralytics/yolov5/releases/download/v6.0/yolov5s.pt"
 
-_net = cv2.dnn.readNet(str(_MODEL_PATH))
-_net.setPreferableBackend(cv2.dnn.DNN_BACKEND_OPENCV)
-_net.setPreferableTarget(cv2.dnn.DNN_TARGET_CPU)
+model: YOLO | None = None
+_LABELS: dict[int,str] = {}
+_detection_enabled = False
 
-with open(_NAMES_PATH) as f:
-    _LABELS = [l.strip() for l in f if l.strip()]
+def _download_file(url: str, dest: Path):
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    logger.info(f"[Model] Downloading {url} → {dest}")
+    resp = requests.get(url, stream=True)
+    resp.raise_for_status()
+    with open(dest, "wb") as f:
+        for chunk in resp.iter_content(1024*1024):
+            f.write(chunk)
+    logger.info(f"[Model] Download complete: {dest.name}")
+
+def _init_model():
+    global model, _LABELS, _detection_enabled
+    try:
+        if not _WEIGHTS_PATH.exists():
+            _download_file(_WEIGHTS_URL, _WEIGHTS_PATH)
+
+        model = YOLO(str(_WEIGHTS_PATH))
+        _LABELS = model.names  # dict idx→name
+        _detection_enabled = True
+        logger.info("[Model] ultralytics YOLOv5s loaded, detection enabled")
+    except Exception as e:
+        logger.warning(f"❌ Failed to initialize YOLO model ({e}), detection disabled")
+        model = None
+        _detection_enabled = False
+
+# initialize on import
+_init_model()
 
 
 def _ensure_dirs(cam_id: str):
     base = Path(DATA_ROOT) / cam_id
     for sub in (RAW_DIR, CLIPS_DIR, "hls"):
         (base / sub).mkdir(parents=True, exist_ok=True)
-    # day/night folders
     (base / RAW_DIR / "day").mkdir(parents=True, exist_ok=True)
     (base / RAW_DIR / "night").mkdir(parents=True, exist_ok=True)
 
@@ -59,7 +87,7 @@ def _start_writer(cam_id: str, size: tuple[int,int], start_ts: datetime):
     fourcc = cv2.VideoWriter_fourcc(*"mp4v")
     vw = cv2.VideoWriter(str(path), fourcc, FPS, size)
     _writers[cam_id] = {"writer": vw, "start": start_ts, "path": path}
-    logger.info(f"[Encoder] Started {path.name} for camera {cam_id}")
+    logger.info(f"[Encoder] Started clip {path.name} for camera {cam_id}")
 
 
 def _close_writer(cam_id: str):
@@ -68,8 +96,9 @@ def _close_writer(cam_id: str):
         return
     info["writer"].release()
     path = info["path"]
-    logger.info(f"[Encoder] Closed {path.name} for camera {cam_id}")
+    logger.info(f"[Encoder] Closed clip {path.name} for camera {cam_id}")
 
+    # HLS segmentation
     hls_dir = path.parent.parent / "hls"
     try:
         subprocess.run([
@@ -87,100 +116,83 @@ def _close_writer(cam_id: str):
 
 
 def _detect_and_draw(img: np.ndarray) -> np.ndarray:
-    """Run YOLO on the frame and draw boxes+labels."""
-    h, w = img.shape[:2]
-    blob = cv2.dnn.blobFromImage(img, 1/255, (640, 640), swapRB=True, crop=False)
-    _net.setInput(blob)
-    preds = _net.forward()[0]  # shape: Nx85 for YOLOv5
+    """
+    Run ultralytics YOLO model on img and overlay boxes+labels.
+    """
+    if not _detection_enabled or model is None:
+        return img
 
-    boxes, confidences, classIDs = [], [], []
-    for *xywh, conf, cls in preds:
-        if conf > 0.4:
-            cx, cy, bw, bh = xywh
-            x = int((cx - bw/2) * w)
-            y = int((cy - bh/2) * h)
-            bw = int(bw * w)
-            bh = int(bh * h)
-            boxes.append([x, y, bw, bh])
-            confidences.append(float(conf))
-            classIDs.append(int(cls))
-
-    idxs = cv2.dnn.NMSBoxes(boxes, confidences, 0.4, 0.5)
-    if len(idxs):
-        for i in idxs.flatten():
-            x, y, bw, bh = boxes[i]
-            label = f"{_LABELS[classIDs[i]]}:{confidences[i]:.2f}"
-            cv2.rectangle(img, (x, y), (x + bw, y + bh), (0, 255, 0), 2)
-            cv2.putText(img, label, (x, y - 5),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 1)
+    results = model(img, imgsz=640, conf=0.4, verbose=False)[0]
+    # results.boxes.xyxy, results.boxes.conf, results.boxes.cls
+    for box, conf, cls in zip(results.boxes.xyxy, results.boxes.conf, results.boxes.cls):
+        x1, y1, x2, y2 = map(int, box.tolist())
+        label = f"{_LABELS[int(cls)]}:{float(conf):.2f}"
+        cv2.rectangle(img, (x1, y1), (x2, y2), (0,255,0), 2)
+        cv2.putText(img, label, (x1, y1-6),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0,255,0), 1)
     return img
 
 
 async def encode_and_cleanup(cam_id: str):
     """
-    1) Gather all raw frames (day/night),
-    2) YOLO-detect & write to a rolling MP4 (10 min clips),
-    3) Segment to HLS, update DB, and prune old clips.
+    1) Read raw frames (day/night) for cam_id
+    2) Draw YOLO detections, append to 10-min MP4 at 20 FPS
+    3) Segment to HLS, update DB, prune old clips
     """
     lock = _locks.setdefault(cam_id, asyncio.Lock())
     if lock.locked():
         return
-
     async with lock:
         _ensure_dirs(cam_id)
-        base = Path(DATA_ROOT) / cam_id / RAW_DIR
-        day_dir = base / "day"
-        night_dir = base / "night"
+        raw_base = Path(DATA_ROOT) / cam_id / RAW_DIR
+        dirs = [raw_base / "day", raw_base / "night"]
 
-        # Collect (timestamp, path)
-        frames: list[tuple[int, Path]] = []
-        for d in (day_dir, night_dir):
-            if not d.exists():
-                continue
+        # collect and sort
+        frames: list[tuple[int,Path]] = []
+        for d in dirs:
+            if not d.exists(): continue
             for f in d.glob("*.jpg"):
                 try:
                     ts = int(f.stem)
                     frames.append((ts, f))
-                except ValueError:
+                except:
                     continue
-
         frames.sort(key=lambda x: x[0])
         if not frames:
             return
 
-        # Initialize writer if needed
+        # init writer
         ts0, fp0 = frames[0]
-        dt0 = datetime.fromtimestamp(ts0 / 1000, timezone.utc)
+        dt0 = datetime.fromtimestamp(ts0/1000, timezone.utc)
         img0 = cv2.imread(str(fp0))
         if img0 is None:
             fp0.unlink(missing_ok=True)
             return
         size = (img0.shape[1], img0.shape[0])
-
         if cam_id not in _writers:
             _start_writer(cam_id, size, dt0)
 
-        info = _writers[cam_id]
-        vw = info["writer"]
+        info       = _writers[cam_id]
+        vw         = info["writer"]
         clip_start = info["start"]
 
-        # Process & write each frame
+        # process each
         for ts, fp in frames:
-            dt = datetime.fromtimestamp(ts / 1000, timezone.utc)
+            dt = datetime.fromtimestamp(ts/1000, timezone.utc)
             if dt - clip_start >= CLIP_DURATION:
                 _close_writer(cam_id)
                 _start_writer(cam_id, size, dt)
-                info = _writers[cam_id]
-                vw = info["writer"]
+                info       = _writers[cam_id]
+                vw         = info["writer"]
                 clip_start = info["start"]
 
             img = cv2.imread(str(fp))
             if img is not None:
-                det = _detect_and_draw(img)
-                vw.write(det)
+                out = _detect_and_draw(img)
+                vw.write(out)
             fp.unlink(missing_ok=True)
 
-        # Update hls_path in DB
+        # update HLS path in DB
         async with AsyncSessionLocal() as session:
             await session.execute(
                 update(Camera)
@@ -189,7 +201,7 @@ async def encode_and_cleanup(cam_id: str):
             )
             await session.commit()
 
-        # Prune old clips
+        # prune old
         cutoff = datetime.now(timezone.utc) - timedelta(days=RETENTION_DAYS)
         clips_dir = Path(DATA_ROOT) / cam_id / CLIPS_DIR
         for c in clips_dir.glob("*.mp4"):
@@ -199,7 +211,7 @@ async def encode_and_cleanup(cam_id: str):
 
 async def offline_watcher(db_factory, interval_seconds: float = 30.0):
     """
-    Every `interval_seconds`, mark cameras online/offline based on last_seen.
+    Periodically mark cameras online/offline based on last_seen.
     """
     logger.info(f"Starting offline watcher every {interval_seconds}s")
     while True:
@@ -209,7 +221,7 @@ async def offline_watcher(db_factory, interval_seconds: float = 30.0):
             result = await session.execute(select(Camera))
             cams = result.scalars().all()
             for cam in cams:
-                last = cam.last_seen or datetime(1970,1,1, tzinfo=timezone.utc)
+                last   = cam.last_seen or datetime(1970,1,1,tzinfo=timezone.utc)
                 online = (now - last).total_seconds() <= OFFLINE_TIMEOUT
                 if cam.is_online != online:
                     cam.is_online = online
