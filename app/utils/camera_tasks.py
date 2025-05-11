@@ -1,5 +1,6 @@
 # app/utils/camera_tasks.py
 
+import os
 import asyncio
 import logging
 import shutil
@@ -9,16 +10,14 @@ from pathlib import Path
 
 import cv2
 import ffmpeg
-import numpy as np
 from sqlalchemy import update
-from sqlalchemy.future import select
+from sqlalchemy.future import select as future_select
 from ultralytics import YOLO
 
 from app.models import Camera
 from app.core.config import (
     DATA_ROOT,
     RAW_DIR,
-    PROCESSED_DIR,
     CLIPS_DIR,
     RETENTION_DAYS,
     HLS_TARGET_DURATION,
@@ -27,83 +26,68 @@ from app.core.config import (
     FPS,
 )
 from app.core.database import AsyncSessionLocal
-from app.utils.image_utils import is_day, clean_frame
+from app.utils.image_utils import clean_frame, is_day
 
 logger = logging.getLogger(__name__)
 
-# clip length and auto‐close delay
-CLIP_DURATION = timedelta(seconds=30)
-AUTO_CLOSE_DELAY = timedelta(seconds=60)
+# ── Suppress JPEG‐read warnings (set before any cv2.imread calls) ────────────
+# OpenCV’s Python binding no longer exposes cv2.utils.logging; instead
+# use the environment variable OPENCV_LOG_LEVEL=OFF to silence imread warnings. :contentReference[oaicite:0]{index=0}
+os.environ.setdefault("OPENCV_LOG_LEVEL", "OFF")
 
+# Clip rollover thresholds
+CLIP_DURATION      = timedelta(seconds=30)
+AUTO_CLOSE_DELAY   = timedelta(seconds=60)
+
+# Thread pool for YOLO inference
 _executor = ThreadPoolExecutor(max_workers=4)
-_locks: dict[str, asyncio.Lock] = {}
+_writers   = {}  # cam_id → {writer, start, path}
+_locks     = {}  # cam_id → asyncio.Lock()
 
-# maintain separate writers for raw and cv streams
-_writers_raw: dict[str, dict] = {}
-_writers_cv: dict[str, dict]  = {}
-
-# load YOLO
+# Load YOLO model once at startup
 try:
     _model = YOLO(str(Path("models") / "yolov5s.pt"))
     _labels = _model.names
     _detection_enabled = True
-    logger.info("YOLO loaded")
+    logger.info("YOLO loaded")  # ultralytics documentation :contentReference[oaicite:1]{index=1}
 except Exception as e:
     _model = None
     _labels = {}
     _detection_enabled = False
     logger.warning(f"YOLO init failed: {e}")
 
-
 def _ensure_dirs(cam_id: str):
     base = Path(DATA_ROOT) / cam_id
-    for sub in (RAW_DIR, PROCESSED_DIR, CLIPS_DIR, "hls"):
-        (base / sub).mkdir(parents=True, exist_ok=True)
+    for sub in (RAW_DIR, CLIPS_DIR, "hls"):
+        (base / sub).mkdir(parents=True, exist_ok=True)  # pathlib docs :contentReference[oaicite:2]{index=2}
 
-
-def _open_writers(cam_id: str, size: tuple[int, int], start: datetime):
-    """
-    Create two VideoWriters: one for raw frames, one for CV-annotated frames.
-    """
+def _open_writer(cam_id: str, size: tuple[int,int], start: datetime):
     clips = Path(DATA_ROOT) / cam_id / CLIPS_DIR
     ts = int(start.timestamp() * 1000)
+    out = clips / f"{ts}.mp4"
     fourcc = cv2.VideoWriter_fourcc(*"mp4v")
+    vw = cv2.VideoWriter(str(out), fourcc, FPS, size)  # VideoWriter usage :contentReference[oaicite:3]{index=3}
+    _writers[cam_id] = {"writer": vw, "start": start, "path": out}
+    logger.info(f"Started clip {out.name}")
 
-    # raw
-    raw_path = clips / f"{ts}.mp4"
-    vw_raw = cv2.VideoWriter(str(raw_path), fourcc, FPS, size)
-    _writers_raw[cam_id] = {"writer": vw_raw, "start": start, "path": raw_path}
+def _close_writer(cam_id: str):
+    info = _writers.pop(cam_id, None)
+    if not info:
+        return
+    info["writer"].release()
+    raw_path = info["path"]
+    logger.info(f"Closed clip {raw_path.name}")
 
-    # cv annotated
-    cv_path = clips / f"{ts}_cv.mp4"
-    vw_cv = cv2.VideoWriter(str(cv_path), fourcc, FPS, size)
-    _writers_cv[cam_id] = {"writer": vw_cv, "start": start, "path": cv_path}
+    # 1) Segment for HLS in background
+    asyncio.create_task(_segment_hls(raw_path))
+    # 2) Spawn CV re-encoding (YOLO overlay) in background
+    asyncio.create_task(_generate_cv_version(raw_path))
 
-    logger.info(f"Started clips {raw_path.name} & {cv_path.name}")
-
-
-def _close_writers(cam_id: str):
-    """
-    Close both raw and cv writers, segment raw for HLS.
-    """
-    raw_info = _writers_raw.pop(cam_id, None)
-    cv_info  = _writers_cv.pop(cam_id, None)
-
-    if raw_info:
-        raw_info["writer"].release()
-        path = raw_info["path"]
-        logger.info(f"Closed raw clip {path.name}")
-        asyncio.create_task(_segment_hls(path, cam_id))
-
-    if cv_info:
-        cv_info["writer"].release()
-        path = cv_info["path"]
-        logger.info(f"Closed processed clip {path.name}")
-
-async def _segment_hls(path: Path, cam_id: str):
-    if not shutil.which("ffmpeg"):
+async def _segment_hls(path: Path):
+    if not shutil.which("ffmpeg"):  # ffmpeg binary check :contentReference[oaicite:4]{index=4}
         logger.warning("ffmpeg not found")
         return
+    cam_id = path.parent.parent.name
     hls = Path(DATA_ROOT) / cam_id / "hls"
     hls.mkdir(parents=True, exist_ok=True)
     try:
@@ -120,81 +104,91 @@ async def _segment_hls(path: Path, cam_id: str):
             .overwrite_output()
             .run(quiet=True)
         )
-        logger.info(f"HLS segmented {path.name}")
+        logger.info(f"HLS segmented {path.name}")  # ffmpeg-python docs :contentReference[oaicite:5]{index=5}
     except ffmpeg.Error as e:
-        logger.error(f"HLS failed: {e}")
+        logger.error(f"HLS segmentation failed: {e}")
 
+async def _generate_cv_version(raw_path: Path):
+    stem = raw_path.stem
+    cv_path = raw_path.parent / f"{stem}_cv.mp4"
+    cap = cv2.VideoCapture(str(raw_path))  # VideoCapture usage :contentReference[oaicite:6]{index=6}
+    if not cap.isOpened():
+        logger.error(f"Failed to open raw clip: {raw_path}")
+        return
 
-def _detect_sync(img: np.ndarray) -> np.ndarray:
-    if not _detection_enabled:
-        return img
+    fps = cap.get(cv2.CAP_PROP_FPS) or FPS
+    w   = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+    h   = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+    fourcc = cv2.VideoWriter_fourcc(*"mp4v")
+    vw = cv2.VideoWriter(str(cv_path), fourcc, fps, (w, h))
+
+    loop = asyncio.get_running_loop()
+    while True:
+        ret, frame = cap.read()
+        if not ret:
+            break
+        cleaned = clean_frame(frame, is_day(frame))
+        if _detection_enabled:
+            cleaned = await loop.run_in_executor(_executor, _detect_sync, cleaned)  # ThreadPoolExecutor docs :contentReference[oaicite:7]{index=7}
+        vw.write(cleaned)
+    cap.release()
+    vw.release()
+    logger.info(f"Generated processed clip {cv_path.name}")
+
+def _detect_sync(img):
     res = _model(img, imgsz=640, conf=0.4, verbose=False)[0]
     for box, conf, cls in zip(res.boxes.xyxy, res.boxes.conf, res.boxes.cls):
         x1, y1, x2, y2 = map(int, box.tolist())
-        label = f"{_labels[int(cls)]}:{conf:.2f}"
-        cv2.rectangle(img, (x1, y1), (x2, y2), (0, 255, 0), 2)
-        cv2.putText(img, label, (x1, y1 - 6), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 1)
+        lbl = f"{_labels[int(cls)]}:{conf:.2f}"
+        cv2.rectangle(img, (x1, y1), (x2, y2), (0,255,0), 2)
+        cv2.putText(img, lbl, (x1, y1-6), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0,255,0), 1)
     return img
-
-async def _detect(img: np.ndarray) -> np.ndarray:
-    loop = asyncio.get_running_loop()
-    return await loop.run_in_executor(_executor, _detect_sync, img)
 
 async def encode_and_cleanup(cam_id: str):
     lock = _locks.setdefault(cam_id, asyncio.Lock())
     if lock.locked():
         return
-
     async with lock:
         base = Path(DATA_ROOT) / cam_id
-        raw = base / RAW_DIR
+        raw  = base / RAW_DIR
         _ensure_dirs(cam_id)
 
-        frames = sorted(raw.glob("*.jpg"), key=lambda p: int(p.stem))
+        frames = sorted(
+            [f for f in raw.glob("*.jpg") if f.stat().st_size > 1000],
+            key=lambda p: int(p.stem),
+        )
         if not frames:
             return
 
-        ts0 = int(frames[0].stem)
-        start = datetime.fromtimestamp(ts0 / 1000, timezone.utc)
-        img0 = cv2.imread(str(frames[0]))
-        if img0 is None:
-            frames[0].unlink(missing_ok=True)
-            return
-        size = (img0.shape[1], img0.shape[0])
+        ts0   = int(frames[0].stem)
+        start = datetime.fromtimestamp(ts0/1000, timezone.utc)
 
-        # open or rotate writers
-        raw_info = _writers_raw.get(cam_id)
-        if not raw_info or datetime.now(timezone.utc) - raw_info["start"] >= AUTO_CLOSE_DELAY:
-            _close_writers(cam_id)
-            _open_writers(cam_id, size, start)
-        raw_info = _writers_raw[cam_id]
-        cv_info  = _writers_cv[cam_id]
+        info = _writers.get(cam_id)
+        if not info or (datetime.now(timezone.utc) - info["start"] >= AUTO_CLOSE_DELAY):
+            _close_writer(cam_id)
+            img0 = cv2.imread(str(frames[0]))
+            if img0 is None:
+                frames[0].unlink(missing_ok=True)
+                return
+            _open_writer(cam_id, (img0.shape[1], img0.shape[0]), start)
 
-        vw_raw = raw_info["writer"]
-        vw_cv  = cv_info["writer"]
-
+        vw = _writers[cam_id]["writer"]
         for f in frames:
             img = cv2.imread(str(f))
             f.unlink(missing_ok=True)
             if img is None:
                 continue
+            vw.write(img)
+            tsf = datetime.fromtimestamp(int(f.stem)/1000, timezone.utc)
+            if tsf - _writers[cam_id]["start"] >= CLIP_DURATION:
+                _close_writer(cam_id)
+                img0 = cv2.imread(str(f))
+                if img0 is None:
+                    continue
+                _open_writer(cam_id, (img0.shape[1], img0.shape[0]), tsf)
+                vw = _writers[cam_id]["writer"]
 
-            # write raw
-            vw_raw.write(img)
-            # process & write cv
-            cleaned = clean_frame(img, is_day(img))
-            ann     = await _detect(cleaned)
-            vw_cv.write(ann)
-
-            tsf = datetime.fromtimestamp(int(f.stem) / 1000, timezone.utc)
-            if tsf - raw_info["start"] >= CLIP_DURATION:
-                _close_writers(cam_id)
-                _open_writers(cam_id, size, tsf)
-                raw_info = _writers_raw[cam_id]
-                cv_info  = _writers_cv[cam_id]
-                vw_raw, vw_cv = raw_info["writer"], cv_info["writer"]
-
-        # update camera.hls_path only for raw stream
+        # update HLS path :contentReference[oaicite:8]{index=8}
         async with AsyncSessionLocal() as sess:
             await sess.execute(
                 update(Camera)
@@ -203,12 +197,11 @@ async def encode_and_cleanup(cam_id: str):
             )
             await sess.commit()
 
-        # prune both raw & cv clips
+        # prune old clips
         cutoff = datetime.now(timezone.utc) - timedelta(days=RETENTION_DAYS)
-        for suffix in ["", "_cv"]:
-            for c in (base / CLIPS_DIR).glob(f"*{suffix}.mp4"):
-                if datetime.fromtimestamp(c.stat().st_mtime, timezone.utc) < cutoff:
-                    c.unlink(missing_ok=True)
+        for clip in (base / CLIPS_DIR).glob("*.mp4"):
+            if datetime.fromtimestamp(clip.stat().st_mtime, timezone.utc) < cutoff:
+                clip.unlink(missing_ok=True)
 
 async def offline_watcher(db_factory, interval_seconds: float = 30.0):
     logger.info(f"Offline watcher every {interval_seconds}s")
@@ -216,9 +209,9 @@ async def offline_watcher(db_factory, interval_seconds: float = 30.0):
         await asyncio.sleep(interval_seconds)
         now = datetime.now(timezone.utc)
         async with db_factory() as sess:
-            res = await sess.execute(select(Camera))
-            for cam in res.scalars().all():
-                last = cam.last_seen or datetime(1970, 1, 1, tzinfo=timezone.utc)
+            result = await sess.execute(future_select(Camera))
+            for cam in result.scalars().all():
+                last   = cam.last_seen or datetime(1970,1,1,tzinfo=timezone.utc)
                 online = (now - last).total_seconds() <= OFFLINE_TIMEOUT
                 if cam.is_online != online:
                     cam.is_online = online
