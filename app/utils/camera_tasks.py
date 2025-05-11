@@ -32,8 +32,8 @@ logger = logging.getLogger(__name__)
 os.environ.setdefault("OPENCV_LOG_LEVEL", "SILENT")
 
 # Clip roll-over settings
-CLIP_DURATION = timedelta(seconds=30)
-AUTO_CLOSE_DELAY = timedelta(seconds=60)
+CLIP_DURATION = timedelta(seconds=300)
+AUTO_CLOSE_DELAY = timedelta(seconds=600)
 
 # Thread pool for YOLO inference
 _executor = ThreadPoolExecutor(max_workers=4)
