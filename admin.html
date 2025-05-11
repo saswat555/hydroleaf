@@ -11,9 +11,12 @@
       background: #f7f9fc;
     }
 
-    .card-img-top {
+    .card-img-top,
+    .card video {
       object-fit: cover;
+      width: 100%;
       height: 200px;
+      background: #000;
     }
 
     .tabSection {
@@ -65,7 +68,7 @@
         <div class="row g-2 mb-3">
           <div class="col-md-8">
             <input type="text" id="cameraIdsInput" class="form-control"
-              placeholder="Enter up to 6 Camera IDs (comma, space or newline separated)">
+              placeholder="Enter up to 6 Camera IDs (comma/space separated)">
           </div>
           <div class="col-md-2">
             <button id="startStreamBtn" class="btn btn-success w-100">Start Streams</button>
@@ -120,17 +123,19 @@
     </div>
   </div>
 
+  <!-- deps -->
   <script src="https://cdn.jsdelivr.net/npm/axios@1.6.7/dist/axios.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+
   <script>
     const baseUrl = 'http://cloud.hydroleaf.in';
     const el = id => document.getElementById(id);
     let jwtToken = '';
-    const streamIntervals = {};
 
     // ─── LOGIN ─────────────────────────
     el('loginBtn').onclick = async () => {
       const email = el('userInput').value.trim(),
-        pass = el('passInput').value;
+            pass = el('passInput').value;
       if (!email || !pass) return alert('Enter email & password');
       try {
         const params = new URLSearchParams({ username: email, password: pass });
@@ -148,7 +153,7 @@
     };
     el('logoutBtn').onclick = () => location.reload();
 
-    // ─── TABS ─────────────────────────
+    // ─── TAB NAVIGATION ─────────────────
     function showSection(secId) {
       document.querySelectorAll('#adminTabs .nav-link').forEach(l =>
         l.classList.toggle('active', l.dataset.section === secId)
@@ -166,27 +171,19 @@
       };
     });
 
-    // ─── STREAMS ────────────────────────
+    // ─── LIVE STREAMS ───────────────────
+    let hlsInstances = {};
     el('startStreamBtn').onclick = () => {
-      // 1. clear any ongoing streams
-      Object.values(streamIntervals).forEach(clearInterval);
-      Object.keys(streamIntervals).forEach(key => delete streamIntervals[key]);
+      // clear old
+      Object.values(hlsInstances).forEach(hls => hls.destroy());
+      hlsInstances = {};
       el('streamsContainer').innerHTML = '';
 
-      // 2. parse comma-separated IDs (up to 6)
-      const raw = el('cameraIdsInput').value.trim();
-      const ids = raw
-        .split(/[,\s;]+/)
-        .map(id => id.trim())
-        .filter(Boolean)
-        .slice(0, 6);
-      // max 6 IDs
+      // parse IDs
+      const ids = el('cameraIdsInput').value
+        .split(/[,\s;]+/).map(s => s.trim()).filter(Boolean).slice(0,6);
+      if (!ids.length) return alert('Enter up to 6 Camera IDs.');
 
-      if (ids.length === 0) {
-        return alert('Enter at least one Camera ID (comma-separated, max 6).');
-      }
-
-      // 3. build a card + polling interval for each ID
       ids.forEach(id => {
         const col = document.createElement('div');
         col.className = 'col-sm-6 col-md-4';
@@ -198,49 +195,51 @@
         hdr.className = 'card-header';
         hdr.textContent = id;
 
-        const img = document.createElement('img');
-        img.className = 'card-img-top';
+        const video = document.createElement('video');
+        video.className = 'card-img-top';
+        video.controls = true;
+        video.autoplay = true;
+        video.muted = true;
+        video.playsInline = true;
 
-        card.append(hdr, img);
+        card.append(hdr, video);
         col.append(card);
         el('streamsContainer').append(col);
 
-        streamIntervals[id] = setInterval(async () => {
-          try {
-            const res = await axios.get(
-              `${baseUrl}/api/v1/cameras/still/${encodeURIComponent(id)}?t=${Date.now()}`,
-              { responseType: 'blob' }
-            );
-            img.src = URL.createObjectURL(res.data);
-          } catch (e) {
-            console.error('Stream error for', id, e);
-          }
-        }, 1000);
+        const src = `${baseUrl}/hls/${encodeURIComponent(id)}/index.m3u8`;
+        if (Hls.isSupported()) {
+          const hls = new Hls();
+          hls.loadSource(src);
+          hls.attachMedia(video);
+          hlsInstances[id] = hls;
+        } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+          video.src = src;
+        } else {
+          card.append(document.createElement('p')).textContent =
+            'HLS not supported in this browser';
+        }
       });
     };
 
     el('stopStreamBtn').onclick = () => {
-      Object.values(streamIntervals).forEach(clearInterval);
-      Object.keys(streamIntervals).forEach(k => delete streamIntervals[k]);
+      Object.values(hlsInstances).forEach(hls => hls.destroy());
+      hlsInstances = {};
       el('streamsContainer').innerHTML = '';
     };
 
-    // ─── CLIPS ─────────────────────────
+    // ─── CLIPS ──────────────────────────
     el('loadClipsBtn').onclick = async () => {
       const cam = el('clipsCameraInput').value.trim();
       if (!cam) return alert('Enter Camera ID');
       try {
         const { data } = await axios.get(`${baseUrl}/admin/cameras/${encodeURIComponent(cam)}/clips`);
-        if (!data.length) {
-          el('clipsListContainer').innerHTML = '<p>No clips found</p>';
-          return;
-        }
+        if (!data.length) return el('clipsListContainer').innerHTML = '<p>No clips found</p>';
         const rows = data.map(c => `
           <tr>
             <td>${c.filename}</td>
             <td>${new Date(c.datetime).toLocaleString()}</td>
             <td class="text-end">${c.size_mb}&nbsp;MB</td>
-            <td class="text-nowrap">
+            <td>
               <a class="btn btn-sm btn-outline-success me-1"
                  href="${baseUrl}/admin/cameras/${encodeURIComponent(cam)}/clips/${encodeURIComponent(c.filename)}/play"
                  target="_blank">Play</a>
@@ -249,13 +248,11 @@
                  target="_blank">Download</a>
             </td>
           </tr>`).join('');
-          el('clipsListContainer').innerHTML = `
-          <table class="table table-striped table-hover">
-            <thead class="table-light">
-              <tr>
-                <th>Filename</th><th>Date / Time</th><th class="text-end">Size</th><th>Actions</th>
-              </tr>
-            </thead>
+        el('clipsListContainer').innerHTML = `
+          <table class="table table-striped">
+            <thead><tr>
+              <th>Filename</th><th>Date / Time</th><th class="text-end">Size</th><th>Actions</th>
+            </tr></thead>
             <tbody>${rows}</tbody>
           </table>`;
       } catch (e) {
@@ -263,15 +260,12 @@
       }
     };
 
-    // ─── USERS ─────────────────────────
+    // ─── USERS ──────────────────────────
     el('refreshUsersBtn').onclick = loadUsers;
     async function loadUsers() {
       try {
         const { data } = await axios.get(`${baseUrl}/admin/users`);
-        if (!data.length) {
-          el('usersTableContainer').innerHTML = '<p>No users found.</p>';
-          return;
-        }
+        if (!data.length) return el('usersTableContainer').innerHTML = '<p>No users found.</p>';
         const rows = data.map(u => `
           <tr>
             <td>${u.id}</td><td>${u.email}</td><td>${u.role}</td>
@@ -291,41 +285,90 @@
         alert('Failed to load users: ' + (e.response?.data?.detail || e.message));
       }
     }
-    window.impersonate = async (id, email) => { if (!confirm(`Impersonate ${email}?`)) return; try { const { data } = await axios.post(`${baseUrl}/admin/users/impersonate/${id}`); jwtToken = data.access_token; axios.defaults.headers.common['Authorization'] = `Bearer ${jwtToken}`; el('welcomeMsg').textContent = `Impersonated ${data.impersonated_user}`; loadUsers(); } catch (e) { alert('Impersonation failed:' + (e.response?.data?.detail || e.message)); } };
-    window.editUser = async (id, email, role) => { const ne = prompt('New email:', email); if (ne === null) return; const nr = prompt('New role:', role); if (nr === null) return; try { await axios.put(`${baseUrl}/admin/users/${id}`, { email: ne, role: nr }); loadUsers(); } catch (e) { alert('Update failed:' + (e.response?.data?.detail || e.message)); } };
-    window.deleteUser = async id => { if (!confirm(`Delete user ${id}?`)) return; try { await axios.delete(`${baseUrl}/admin/users/${id}`); loadUsers(); } catch (e) { alert('Delete failed:' + (e.response?.data?.detail || e.message)); } };
+    window.impersonate = async (id, email) => {
+      if (!confirm(`Impersonate ${email}?`)) return;
+      try {
+        const { data } = await axios.post(`${baseUrl}/admin/users/impersonate/${id}`);
+        jwtToken = data.access_token;
+        axios.defaults.headers.common['Authorization'] = `Bearer ${jwtToken}`;
+        el('welcomeMsg').textContent = `Impersonated ${data.impersonated_user}`;
+        loadUsers();
+      } catch (e) {
+        alert('Impersonation failed:' + (e.response?.data?.detail || e.message));
+      }
+    };
+    window.editUser = async (id, email, role) => {
+      const ne = prompt('New email:', email); if (ne === null) return;
+      const nr = prompt('New role:', role);    if (nr === null) return;
+      try {
+        await axios.put(`${baseUrl}/admin/users/${id}`, { email: ne, role: nr });
+        loadUsers();
+      } catch (e) {
+        alert('Update failed:' + (e.response?.data?.detail || e.message));
+      }
+    };
+    window.deleteUser = async id => {
+      if (!confirm(`Delete user ${id}?`)) return;
+      try {
+        await axios.delete(`${baseUrl}/admin/users/${id}`);
+        loadUsers();
+      } catch (e) {
+        alert('Delete failed:' + (e.response?.data?.detail || e.message));
+      }
+    };
 
-    // ─── DEVICE KEYS ───────────────────────
+    // ─── DEVICE KEYS ───────────────────
     el('genActKeyBtn').onclick = async () => {
-      const dev = el('actDeviceId').value.trim(), pl = el('actPlanId').value.trim();
+      const dev = el('actDeviceId').value.trim(),
+            pl  = el('actPlanId').value.trim();
       if (!dev || !pl) return alert('Enter device & plan IDs');
       try {
-        const { data } = await axios.post(`${baseUrl}/admin/generate_device_activation_key`, null, { params: { device_id: dev, plan_id: pl } });
+        const { data } = await axios.post(`${baseUrl}/admin/generate_device_activation_key`, null, {
+          params: { device_id: dev, plan_id: pl }
+        });
         el('actKeyResult').textContent = JSON.stringify(data, null, 2);
-      } catch (e) { alert('Error:' + (e.response?.data?.detail || e.message)); }
+      } catch (e) {
+        alert('Error:' + (e.response?.data?.detail || e.message));
+      }
     };
 
-    // ─── CLOUD KEY ────────────────────────
+    // ─── CLOUD KEY ─────────────────────
     el('genCloudKeyBtn').onclick = async () => {
-      try { const { data } = await axios.post(`${baseUrl}/api/v1/cloud/admin/generate_cloud_key`); el('cloudKeyResult').textContent = JSON.stringify(data, null, 2); }
-      catch (e) { alert('Error:' + (e.response?.data?.detail || e.message)); }
+      try {
+        const { data } = await axios.post(`${baseUrl}/api/v1/cloud/admin/generate_cloud_key`);
+        el('cloudKeyResult').textContent = JSON.stringify(data, null, 2);
+      } catch (e) {
+        alert('Error:' + (e.response?.data?.detail || e.message));
+      }
     };
 
-    // ─── DEVICES ─────────────────────────
+    // ─── DEVICES ───────────────────────
     el('refreshDevicesBtn').onclick = loadDevices;
     async function loadDevices() {
       try {
         const { data } = await axios.get(`${baseUrl}/admin/devices`);
-        if (!Object.keys(data).length) return el('devicesTableContainer').innerHTML = '<p>No connected devices.</p>';
+        if (!Object.keys(data).length) {
+          el('devicesTableContainer').innerHTML = '<p>No connected devices.</p>';
+          return;
+        }
         const rows = Object.entries(data).map(([id, info]) => `
-          <tr><td>${id}</td><td>${info.ip}</td><td>${info.reachable}</td><td>${new Date(info.last_seen * 1000).toLocaleString()}</td></tr>`
-        ).join('');
+          <tr>
+            <td>${id}</td>
+            <td>${info.ip}</td>
+            <td>${info.reachable}</td>
+            <td>${new Date(info.last_seen * 1000).toLocaleString()}</td>
+          </tr>
+        `).join('');
         el('devicesTableContainer').innerHTML = `
           <table class="table table-bordered">
-            <thead><tr><th>Device ID</th><th>IP</th><th>Reachable</th><th>Last Seen</th></tr></thead>
+            <thead>
+              <tr><th>Device ID</th><th>IP</th><th>Reachable</th><th>Last Seen</th></tr>
+            </thead>
             <tbody>${rows}</tbody>
           </table>`;
-      } catch (e) { alert('Error:' + (e.response?.data?.detail || e.message)); }
+      } catch (e) {
+        alert('Error:' + (e.response?.data?.detail || e.message));
+      }
     }
   </script>
 </body>
