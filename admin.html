@@ -207,17 +207,8 @@
         col.append(card);
         el('streamsContainer').append(col);
 
-        streamIntervals[id] = setInterval(async () => {
-          try {
-            const res = await axios.get(
-              `${baseUrl}/api/v1/cameras/still/${encodeURIComponent(id)}?t=${Date.now()}`,
-              { responseType: 'blob' }
-            );
-            img.src = URL.createObjectURL(res.data);
-          } catch (e) {
-            console.error('Stream error for', id, e);
-          }
-        }, 1000);
+        img.src = `${baseUrl}/api/v1/cameras/stream/${encodeURIComponent(id)}`;
+
       });
     };
     el('stopStreamBtn').onclick = () => {
