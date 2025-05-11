@@ -23,31 +23,44 @@ from app.core.database import AsyncSessionLocal
 
 logger = logging.getLogger(__name__)
 
-# Clip length and frame rate
+# ───────── SETTINGS ─────────
 CLIP_DURATION = timedelta(minutes=10)
 FPS = 20
 
-# State for each camera
-_writers: dict[str, dict] = {}
-_locks: dict[str, asyncio.Lock] = {}
+# ───────── STATE ─────────
+_writers: dict[str, dict]        = {}
+_locks: dict[str, asyncio.Lock]  = {}
+
+# ───────── YOLO MODEL ─────────
+_MODEL_PATH = Path("models/yolov5s.onnx")
+_NAMES_PATH = Path("models/coco.names")
+
+_net = cv2.dnn.readNet(str(_MODEL_PATH))
+_net.setPreferableBackend(cv2.dnn.DNN_BACKEND_OPENCV)
+_net.setPreferableTarget(cv2.dnn.DNN_TARGET_CPU)
+
+with open(_NAMES_PATH) as f:
+    _LABELS = [l.strip() for l in f if l.strip()]
+
 
 def _ensure_dirs(cam_id: str):
     base = Path(DATA_ROOT) / cam_id
     for sub in (RAW_DIR, CLIPS_DIR, "hls"):
         (base / sub).mkdir(parents=True, exist_ok=True)
-    # separate day/night raw folders
+    # day/night folders
     (base / RAW_DIR / "day").mkdir(parents=True, exist_ok=True)
     (base / RAW_DIR / "night").mkdir(parents=True, exist_ok=True)
 
-def _start_writer(cam_id: str, h: int, w: int, start_ts: datetime):
-    """Begin a new MP4 file for this camera."""
+
+def _start_writer(cam_id: str, size: tuple[int,int], start_ts: datetime):
     clips_dir = Path(DATA_ROOT) / cam_id / CLIPS_DIR
     ts_ms = int(start_ts.timestamp() * 1000)
     path = clips_dir / f"{ts_ms}.mp4"
     fourcc = cv2.VideoWriter_fourcc(*"mp4v")
-    vw = cv2.VideoWriter(str(path), fourcc, FPS, (w, h))
+    vw = cv2.VideoWriter(str(path), fourcc, FPS, size)
     _writers[cam_id] = {"writer": vw, "start": start_ts, "path": path}
-    logger.info(f"[Encoder] Started clip {path.name} for camera {cam_id}")
+    logger.info(f"[Encoder] Started {path.name} for camera {cam_id}")
+
 
 def _close_writer(cam_id: str):
     info = _writers.pop(cam_id, None)
@@ -55,8 +68,8 @@ def _close_writer(cam_id: str):
         return
     info["writer"].release()
     path = info["path"]
-    logger.info(f"[Encoder] Closed clip {path.name} for camera {cam_id}")
-    # HLS segmentation
+    logger.info(f"[Encoder] Closed {path.name} for camera {cam_id}")
+
     hls_dir = path.parent.parent / "hls"
     try:
         subprocess.run([
@@ -68,94 +81,106 @@ def _close_writer(cam_id: str):
             "-hls_flags", "delete_segments",
             str(hls_dir / "index.m3u8"),
         ], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        logger.info(f"[HLS] Segmented {path.name}")
     except Exception as e:
-        logger.error(f"HLS segmentation failed for {cam_id}: {e}")
+        logger.error(f"[HLS] Segmentation failed for {cam_id}: {e}")
 
-def _process_image(img: np.ndarray, mode: str) -> np.ndarray:
-    """Add border, timestamp, and enhance for day/night."""
-    # 1) Black border
-    b = 5
-    img = cv2.copyMakeBorder(img, b, b, b, b, cv2.BORDER_CONSTANT, value=(0,0,0))
-    # 2) Overlay server timestamp
-    now = datetime.now(timezone.utc).astimezone().strftime("%Y-%m-%d %H:%M:%S")
-    cv2.putText(img, now, (b+10, b+30),
-                cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255,255,255), 2)
-    # 3) CLAHE enhancement
-    if mode == "night":
-        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-        clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8,8))
-        eq = clahe.apply(gray)
-        img = cv2.cvtColor(eq, cv2.COLOR_GRAY2BGR)
-    else:  # day
-        lab = cv2.cvtColor(img, cv2.COLOR_BGR2LAB)
-        l, a, b_ = cv2.split(lab)
-        clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8,8))
-        cl = clahe.apply(l)
-        lab = cv2.merge((cl, a, b_))
-        img = cv2.cvtColor(lab, cv2.COLOR_LAB2BGR)
+
+def _detect_and_draw(img: np.ndarray) -> np.ndarray:
+    """Run YOLO on the frame and draw boxes+labels."""
+    h, w = img.shape[:2]
+    blob = cv2.dnn.blobFromImage(img, 1/255, (640, 640), swapRB=True, crop=False)
+    _net.setInput(blob)
+    preds = _net.forward()[0]  # shape: Nx85 for YOLOv5
+
+    boxes, confidences, classIDs = [], [], []
+    for *xywh, conf, cls in preds:
+        if conf > 0.4:
+            cx, cy, bw, bh = xywh
+            x = int((cx - bw/2) * w)
+            y = int((cy - bh/2) * h)
+            bw = int(bw * w)
+            bh = int(bh * h)
+            boxes.append([x, y, bw, bh])
+            confidences.append(float(conf))
+            classIDs.append(int(cls))
+
+    idxs = cv2.dnn.NMSBoxes(boxes, confidences, 0.4, 0.5)
+    if len(idxs):
+        for i in idxs.flatten():
+            x, y, bw, bh = boxes[i]
+            label = f"{_LABELS[classIDs[i]]}:{confidences[i]:.2f}"
+            cv2.rectangle(img, (x, y), (x + bw, y + bh), (0, 255, 0), 2)
+            cv2.putText(img, label, (x, y - 5),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 1)
     return img
+
 
 async def encode_and_cleanup(cam_id: str):
     """
-    Grab all raw frames (day/night), stream them into the active writer,
-    rollover every 10 min, segment for HLS, update DB, and prune old clips.
+    1) Gather all raw frames (day/night),
+    2) YOLO-detect & write to a rolling MP4 (10 min clips),
+    3) Segment to HLS, update DB, and prune old clips.
     """
     lock = _locks.setdefault(cam_id, asyncio.Lock())
     if lock.locked():
         return
+
     async with lock:
         _ensure_dirs(cam_id)
         base = Path(DATA_ROOT) / cam_id / RAW_DIR
         day_dir = base / "day"
         night_dir = base / "night"
 
-        # Collect (timestamp, path, mode)
-        frames: list[tuple[int, Path, str]] = []
-        for d, mode in ((day_dir, "day"), (night_dir, "night")):
-            if d.exists():
-                for f in d.glob("*.jpg"):
-                    try:
-                        ts = int(f.stem)
-                        frames.append((ts, f, mode))
-                    except ValueError:
-                        continue
+        # Collect (timestamp, path)
+        frames: list[tuple[int, Path]] = []
+        for d in (day_dir, night_dir):
+            if not d.exists():
+                continue
+            for f in d.glob("*.jpg"):
+                try:
+                    ts = int(f.stem)
+                    frames.append((ts, f))
+                except ValueError:
+                    continue
+
         frames.sort(key=lambda x: x[0])
         if not frames:
             return
 
         # Initialize writer if needed
-        ts0, fp0, _ = frames[0]
-        dt0 = datetime.fromtimestamp(ts0/1000, timezone.utc)
+        ts0, fp0 = frames[0]
+        dt0 = datetime.fromtimestamp(ts0 / 1000, timezone.utc)
         img0 = cv2.imread(str(fp0))
         if img0 is None:
             fp0.unlink(missing_ok=True)
             return
-        h, w = img0.shape[:2]
+        size = (img0.shape[1], img0.shape[0])
+
         if cam_id not in _writers:
-            _start_writer(cam_id, h, w, dt0)
+            _start_writer(cam_id, size, dt0)
 
-        writer_info = _writers[cam_id]
-        vw = writer_info["writer"]
-        clip_start = writer_info["start"]
+        info = _writers[cam_id]
+        vw = info["writer"]
+        clip_start = info["start"]
 
-        # Write & process each frame
-        for ts, fp, mode in frames:
-            dt = datetime.fromtimestamp(ts/1000, timezone.utc)
-            # Rollover?
+        # Process & write each frame
+        for ts, fp in frames:
+            dt = datetime.fromtimestamp(ts / 1000, timezone.utc)
             if dt - clip_start >= CLIP_DURATION:
                 _close_writer(cam_id)
-                _start_writer(cam_id, h, w, dt)
-                writer_info = _writers[cam_id]
-                vw = writer_info["writer"]
-                clip_start = writer_info["start"]
+                _start_writer(cam_id, size, dt)
+                info = _writers[cam_id]
+                vw = info["writer"]
+                clip_start = info["start"]
 
             img = cv2.imread(str(fp))
             if img is not None:
-                proc = _process_image(img, mode)
-                vw.write(proc)
+                det = _detect_and_draw(img)
+                vw.write(det)
             fp.unlink(missing_ok=True)
 
-        # Update camera record with new HLS path
+        # Update hls_path in DB
         async with AsyncSessionLocal() as session:
             await session.execute(
                 update(Camera)
@@ -171,9 +196,10 @@ async def encode_and_cleanup(cam_id: str):
             if datetime.fromtimestamp(c.stat().st_mtime, timezone.utc) < cutoff:
                 c.unlink(missing_ok=True)
 
+
 async def offline_watcher(db_factory, interval_seconds: float = 30.0):
     """
-    Periodically mark cameras online/offline based on last_seen.
+    Every `interval_seconds`, mark cameras online/offline based on last_seen.
     """
     logger.info(f"Starting offline watcher every {interval_seconds}s")
     while True:
@@ -183,7 +209,7 @@ async def offline_watcher(db_factory, interval_seconds: float = 30.0):
             result = await session.execute(select(Camera))
             cams = result.scalars().all()
             for cam in cams:
-                last = cam.last_seen or datetime.fromtimestamp(0, timezone.utc)
+                last = cam.last_seen or datetime(1970,1,1, tzinfo=timezone.utc)
                 online = (now - last).total_seconds() <= OFFLINE_TIMEOUT
                 if cam.is_online != online:
                     cam.is_online = online
