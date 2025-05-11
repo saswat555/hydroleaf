@@ -62,9 +62,13 @@ def _ensure_dirs(cam_id: str):
 def _open_writer(cam_id: str, size: tuple[int, int], start: datetime):
     clips_dir = Path(DATA_ROOT) / cam_id / CLIPS_DIR
     ts = int(start.timestamp() * 1000)
-    out_path = clips_dir / f"{ts}.mp4"
-    fourcc = cv2.VideoWriter_fourcc(*"mp4v")
+    # write with MJPG in an AVI container (universally supported)
+    out_path = clips_dir / f"{ts}.avi"
+    fourcc = cv2.VideoWriter_fourcc(*"MJPG")
     writer = cv2.VideoWriter(str(out_path), fourcc, FPS, size)
+    if not writer.isOpened():
+        logger.error(f"Failed to open MJPG VideoWriter for {out_path}")
+        return
     _writers[cam_id] = {"writer": writer, "start": start, "path": out_path}
     logger.info(f"Started new clip {out_path.name}")
 
