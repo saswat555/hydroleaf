@@ -129,9 +129,7 @@
 
   <script src="https://cdn.jsdelivr.net/npm/axios@1.6.7/dist/axios.min.js"></script>
   <script>
-    // Use same origin for all calls
-    axios.defaults.baseURL = window.location.origin;
-    axios.defaults.headers.common['Content-Type'] = 'application/json';
+    const baseUrl = 'http://cloud.hydroleaf.in';
     const el = id => document.getElementById(id);
     let jwtToken = '';
     const streamIntervals = {};
@@ -139,11 +137,11 @@
     // ─── LOGIN ─────────────────────────
     el('loginBtn').onclick = async () => {
       const email = el('userInput').value.trim(),
-            pass = el('passInput').value;
+        pass = el('passInput').value;
       if (!email || !pass) return alert('Enter email & password');
       try {
         const params = new URLSearchParams({ username: email, password: pass });
-        const { data } = await axios.post(`/api/v1/auth/login`, params, {
+        const { data } = await axios.post(`${baseUrl}/api/v1/auth/login`, params, {
           headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
         });
         jwtToken = data.access_token;
@@ -178,27 +176,53 @@
 
     // ─── STREAMS ────────────────────────
     el('startStreamBtn').onclick = () => {
+      Object.values(streamIntervals).forEach(clearInterval);
+      Object.keys(streamIntervals).forEach(key => delete streamIntervals[key]);
       el('streamsContainer').innerHTML = '';
+
       const raw = el('cameraIdsInput').value.trim();
-      const ids = raw.split(/[,\s;]+/).filter(Boolean).slice(0,6);
+      const ids = raw
+        .split(/[,\s;]+/)
+        .map(id => id.trim())
+        .filter(Boolean)
+        .slice(0, 6);
+
       if (!ids.length) return alert('Enter at least one Camera ID (max 6).');
+
       ids.forEach(id => {
         const col = document.createElement('div');
         col.className = 'col-sm-6 col-md-4';
+
         const card = document.createElement('div');
         card.className = 'card';
+
         const hdr = document.createElement('div');
         hdr.className = 'card-header';
         hdr.textContent = id;
+
         const img = document.createElement('img');
         img.className = 'card-img-top';
-        img.src = `/api/v1/cameras/stream/${encodeURIComponent(id)}`;
+
         card.append(hdr, img);
         col.append(card);
         el('streamsContainer').append(col);
+
+        streamIntervals[id] = setInterval(async () => {
+          try {
+            const res = await axios.get(
+              `${baseUrl}/api/v1/cameras/still/${encodeURIComponent(id)}?t=${Date.now()}`,
+              { responseType: 'blob' }
+            );
+            img.src = URL.createObjectURL(res.data);
+          } catch (e) {
+            console.error('Stream error for', id, e);
+          }
+        }, 1000);
       });
     };
     el('stopStreamBtn').onclick = () => {
+      Object.values(streamIntervals).forEach(clearInterval);
+      Object.keys(streamIntervals).forEach(k => delete streamIntervals[k]);
       el('streamsContainer').innerHTML = '';
     };
 
@@ -207,7 +231,7 @@
       const cam = el('clipsCameraInput').value.trim();
       if (!cam) return alert('Enter Camera ID');
       try {
-        const { data } = await axios.get(`/admin/cameras/${encodeURIComponent(cam)}/clips`);
+        const { data } = await axios.get(`${baseUrl}/admin/cameras/${encodeURIComponent(cam)}/clips`);
         if (!data.length) {
           el('clipsListContainer').innerHTML = '<p>No clips found</p>';
           return;
@@ -219,10 +243,10 @@
             <td class="text-end">${c.size_mb}&nbsp;MB</td>
             <td class="text-nowrap">
               <a class="btn btn-sm btn-outline-success me-1"
-                 href="/admin/cameras/${encodeURIComponent(cam)}/clips/${encodeURIComponent(c.filename)}/play"
+                 href="${baseUrl}/admin/cameras/${encodeURIComponent(cam)}/clips/${encodeURIComponent(c.filename)}/play"
                  target="_blank">Play</a>
               <a class="btn btn-sm btn-outline-primary"
-                 href="/admin/cameras/${encodeURIComponent(cam)}/clips/${encodeURIComponent(c.filename)}/download"
+                 href="${baseUrl}/admin/cameras/${encodeURIComponent(cam)}/clips/${encodeURIComponent(c.filename)}/download"
                  target="_blank">Download</a>
             </td>
           </tr>`).join('');
@@ -244,7 +268,7 @@
     el('refreshUsersBtn').onclick = loadUsers;
     async function loadUsers() {
       try {
-        const { data } = await axios.get(`/admin/users`);
+        const { data } = await axios.get(`${baseUrl}/admin/users`);
         if (!data.length) {
           el('usersTableContainer').innerHTML = '<p>No users found.</p>';
           return;
@@ -271,7 +295,7 @@
     window.impersonate = async (id, email) => {
       if (!confirm(`Impersonate ${email}?`)) return;
       try {
-        const { data } = await axios.post(`/admin/users/impersonate/${id}`);
+        const { data } = await axios.post(`${baseUrl}/admin/users/impersonate/${id}`);
         jwtToken = data.access_token;
         axios.defaults.headers.common['Authorization'] = `Bearer ${jwtToken}`;
         el('welcomeMsg').textContent = `Impersonated ${data.impersonated_user}`;
@@ -286,7 +310,7 @@
       const nr = prompt('New role:', role);
       if (nr === null) return;
       try {
-        await axios.put(`/admin/users/${id}`, { email: ne, role: nr });
+        await axios.put(`${baseUrl}/admin/users/${id}`, { email: ne, role: nr });
         loadUsers();
       } catch (e) {
         alert('Update failed: ' + (e.response?.data?.detail || e.message));
@@ -295,21 +319,21 @@
     window.deleteUser = async id => {
       if (!confirm(`Delete user ${id}?`)) return;
       try {
-        await axios.delete(`/admin/users/${id}`);
+        await axios.delete(`${baseUrl}/admin/users/${id}`);
         loadUsers();
       } catch (e) {
         alert('Delete failed: ' + (e.response?.data?.detail || e.message));
       }
     };
 
-    // ─── DEVICE ACTIVATION KEY ───────────────────────
+    // ─── DEVICE KEYS ───────────────────────
     el('genActKeyBtn').onclick = async () => {
       const dev = el('actDeviceId').value.trim(),
-            pl = el('actPlanId').value.trim();
+        pl = el('actPlanId').value.trim();
       if (!dev || !pl) return alert('Enter device & plan IDs');
       try {
         const { data } = await axios.post(
-          `/admin/generate_device_activation_key`,
+          `${baseUrl}/admin/generate_device_activation_key`,
           null,
           { params: { device_id: dev, plan_id: pl } }
         );
@@ -322,18 +346,18 @@
     // ─── CLOUD KEY ────────────────────────
     el('genCloudKeyBtn').onclick = async () => {
       try {
-        const { data } = await axios.post(`/api/v1/cloud/admin/generate_cloud_key`);
+        const { data } = await axios.post(`${baseUrl}/api/v1/cloud/admin/generate_cloud_key`);
         el('cloudKeyResult').textContent = JSON.stringify(data, null, 2);
       } catch (e) {
         alert('Error: ' + (e.response?.data?.detail || e.message));
       }
     };
 
-    // ─── CONNECTED DEVICES ─────────────────────────
+    // ─── DEVICES ─────────────────────────
     el('refreshDevicesBtn').onclick = loadDevices;
     async function loadDevices() {
       try {
-        const { data } = await axios.get(`/admin/devices`);
+        const { data } = await axios.get(`${baseUrl}/admin/devices`);
         if (!Object.keys(data).length) {
           el('devicesTableContainer').innerHTML = '<p>No connected devices.</p>';
           return;
@@ -347,7 +371,7 @@
           </tr>`).join('');
         el('devicesTableContainer').innerHTML = `
           <table class="table table-bordered">
-            <thead><tr><th>Device ID</th><th>IP</th><th>Reachable</th><th>Last Seen</th></thead>
+            <thead><tr><th>Device ID</th><th>IP</th><th>Reachable</th><th>Last Seen</th></tr></thead>
             <tbody>${rows}</tbody>
           </table>`;
       } catch (e) {
@@ -359,7 +383,7 @@
     el('loadCameraListBtn').onclick = loadCameraList;
     async function loadCameraList() {
       try {
-        const { data } = await axios.get(`/admin/cameras/list`);
+        const { data } = await axios.get(`${baseUrl}/admin/cameras/list`);
         if (!data.length) {
           el('cameraListContainer').innerHTML = '<p>No cameras found.</p>';
           return;
