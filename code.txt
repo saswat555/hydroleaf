@@ -3927,14 +3927,16 @@ from app.core.config import (
     HLS_TARGET_DURATION,
     HLS_PLAYLIST_LENGTH,
     OFFLINE_TIMEOUT,
+    FPS as CONFIGURED_FPS
 )
 from app.core.database import AsyncSessionLocal
+from app.utils.image_utils import is_day, clean_frame
 
 logger = logging.getLogger(__name__)
 
 # ───────── SETTINGS ─────────
 CLIP_DURATION = timedelta(minutes=10)
-FPS = 20
+FPS = CONFIGURED_FPS or 20
 
 # ───────── STATE ─────────
 _writers: dict[str, dict]       = {}
@@ -3959,6 +3961,7 @@ def _download_file(url: str, dest: Path):
             f.write(chunk)
     logger.info(f"[Model] Download complete: {dest.name}")
 
+
 def _init_model():
     global model, _LABELS, _detection_enabled
     try:
@@ -3966,11 +3969,11 @@ def _init_model():
             _download_file(_WEIGHTS_URL, _WEIGHTS_PATH)
 
         model = YOLO(str(_WEIGHTS_PATH))
-        _LABELS = model.names  # dict idx→name
+        _LABELS = model.names
         _detection_enabled = True
-        logger.info("[Model] ultralytics YOLOv5s loaded, detection enabled")
+        logger.info("[Model] YOLOv5s loaded, detection enabled")
     except Exception as e:
-        logger.warning(f"❌ Failed to initialize YOLO model ({e}), detection disabled")
+        logger.warning(f"❌ YOLO init failed ({e}), detection disabled")
         model = None
         _detection_enabled = False
 
@@ -3980,10 +3983,8 @@ _init_model()
 
 def _ensure_dirs(cam_id: str):
     base = Path(DATA_ROOT) / cam_id
-    for sub in (RAW_DIR, CLIPS_DIR, "hls"):
+    for sub in (RAW_DIR, CLIPS_DIR, "hls", "processed"):
         (base / sub).mkdir(parents=True, exist_ok=True)
-    (base / RAW_DIR / "day").mkdir(parents=True, exist_ok=True)
-    (base / RAW_DIR / "night").mkdir(parents=True, exist_ok=True)
 
 
 def _start_writer(cam_id: str, size: tuple[int,int], start_ts: datetime):
@@ -4000,12 +4001,14 @@ def _close_writer(cam_id: str):
     info = _writers.pop(cam_id, None)
     if not info:
         return
-    info["writer"].release()
-    path = info["path"]
+    writer = info['writer']
+    writer.release()
+    path = info['path']
     logger.info(f"[Encoder] Closed clip {path.name} for camera {cam_id}")
 
     # HLS segmentation
-    hls_dir = path.parent.parent / "hls"
+    hls_dir = Path(DATA_ROOT) / cam_id / "hls"
+    hls_dir.mkdir(parents=True, exist_ok=True)
     try:
         subprocess.run([
             "ffmpeg", "-y", "-i", str(path),
@@ -4022,52 +4025,41 @@ def _close_writer(cam_id: str):
 
 
 def _detect_and_draw(img: np.ndarray) -> np.ndarray:
-    """
-    Run ultralytics YOLO model on img and overlay boxes+labels.
-    """
     if not _detection_enabled or model is None:
         return img
 
     results = model(img, imgsz=640, conf=0.4, verbose=False)[0]
-    # results.boxes.xyxy, results.boxes.conf, results.boxes.cls
     for box, conf, cls in zip(results.boxes.xyxy, results.boxes.conf, results.boxes.cls):
         x1, y1, x2, y2 = map(int, box.tolist())
         label = f"{_LABELS[int(cls)]}:{float(conf):.2f}"
         cv2.rectangle(img, (x1, y1), (x2, y2), (0,255,0), 2)
-        cv2.putText(img, label, (x1, y1-6),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0,255,0), 1)
+        cv2.putText(img, label, (x1, y1-6), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0,255,0), 1)
     return img
 
 
 async def encode_and_cleanup(cam_id: str):
-    """
-    1) Read raw frames (day/night) for cam_id
-    2) Draw YOLO detections, append to 10-min MP4 at 20 FPS
-    3) Segment to HLS, update DB, prune old clips
-    """
     lock = _locks.setdefault(cam_id, asyncio.Lock())
     if lock.locked():
         return
     async with lock:
+        base = Path(DATA_ROOT) / cam_id
+        raw_dir = base / RAW_DIR
+        proc_dir = base / "processed"
         _ensure_dirs(cam_id)
-        raw_base = Path(DATA_ROOT) / cam_id / RAW_DIR
-        dirs = [raw_base / "day", raw_base / "night"]
 
-        # collect and sort
-        frames: list[tuple[int,Path]] = []
-        for d in dirs:
-            if not d.exists(): continue
-            for f in d.glob("*.jpg"):
-                try:
-                    ts = int(f.stem)
-                    frames.append((ts, f))
-                except:
-                    continue
+        # collect and sort raw frames
+        frames = []
+        for f in raw_dir.glob("*.jpg"):
+            try:
+                ts = int(f.stem)
+                frames.append((ts, f))
+            except:
+                continue
         frames.sort(key=lambda x: x[0])
         if not frames:
             return
 
-        # init writer
+        # initialize writer if needed
         ts0, fp0 = frames[0]
         dt0 = datetime.fromtimestamp(ts0/1000, timezone.utc)
         img0 = cv2.imread(str(fp0))
@@ -4078,27 +4070,40 @@ async def encode_and_cleanup(cam_id: str):
         if cam_id not in _writers:
             _start_writer(cam_id, size, dt0)
 
-        info       = _writers[cam_id]
-        vw         = info["writer"]
-        clip_start = info["start"]
+        info = _writers[cam_id]
+        vw = info['writer']
+        clip_start = info['start']
 
-        # process each
+        # process frames
         for ts, fp in frames:
             dt = datetime.fromtimestamp(ts/1000, timezone.utc)
             if dt - clip_start >= CLIP_DURATION:
                 _close_writer(cam_id)
                 _start_writer(cam_id, size, dt)
-                info       = _writers[cam_id]
-                vw         = info["writer"]
-                clip_start = info["start"]
+                info = _writers[cam_id]
+                vw = info['writer']
+                clip_start = info['start']
 
             img = cv2.imread(str(fp))
-            if img is not None:
-                out = _detect_and_draw(img)
-                vw.write(out)
+            if img is None:
+                fp.unlink(missing_ok=True)
+                continue
+
+            # cleaning and enhancement
+            try:
+                day = is_day(img)
+                cleaned = clean_frame(img, day)
+            except Exception as e:
+                logger.warning(f"[Cleaner] failed for {fp.name}: {e}")
+                cleaned = img
+
+            # detection overlay
+            annotated = _detect_and_draw(cleaned)
+
+            vw.write(annotated)
             fp.unlink(missing_ok=True)
 
-        # update HLS path in DB
+        # commit HLS path in DB
         async with AsyncSessionLocal() as session:
             await session.execute(
                 update(Camera)
@@ -4107,19 +4112,16 @@ async def encode_and_cleanup(cam_id: str):
             )
             await session.commit()
 
-        # prune old
+        # prune old clips
         cutoff = datetime.now(timezone.utc) - timedelta(days=RETENTION_DAYS)
-        clips_dir = Path(DATA_ROOT) / cam_id / CLIPS_DIR
+        clips_dir = base / CLIPS_DIR
         for c in clips_dir.glob("*.mp4"):
             if datetime.fromtimestamp(c.stat().st_mtime, timezone.utc) < cutoff:
                 c.unlink(missing_ok=True)
 
 
 async def offline_watcher(db_factory, interval_seconds: float = 30.0):
-    """
-    Periodically mark cameras online/offline based on last_seen.
-    """
-    logger.info(f"Starting offline watcher every {interval_seconds}s")
+    logger.info(f"Offline watcher every {interval_seconds}s")
     while True:
         await asyncio.sleep(interval_seconds)
         now = datetime.now(timezone.utc)
@@ -4127,13 +4129,12 @@ async def offline_watcher(db_factory, interval_seconds: float = 30.0):
             result = await session.execute(select(Camera))
             cams = result.scalars().all()
             for cam in cams:
-                last   = cam.last_seen or datetime(1970,1,1,tzinfo=timezone.utc)
+                last = cam.last_seen or datetime(1970,1,1,tzinfo=timezone.utc)
                 online = (now - last).total_seconds() <= OFFLINE_TIMEOUT
                 if cam.is_online != online:
                     cam.is_online = online
                     logger.info(f"Camera {cam.id} online={online}")
             await session.commit()
-
 
 ----- app/utils/json_utils.py -----
 from datetime import datetime
