@@ -196,14 +196,13 @@
         card.append(hdr, img);
         col.append(card);
         el('streamsContainer').append(col);
-        // polling loop
         streamIntervals[id] = setInterval(async () => {
           try {
             const resp = await axios.get(`${baseUrl}/api/v1/cameras/stream/${encodeURIComponent(id)}?mode=poll`, {
               responseType: 'blob'
             });
             img.src = URL.createObjectURL(resp.data);
-          } catch (_) { /* ignore */ }
+          } catch (_) { }
         }, 2000);
       });
     };
@@ -219,15 +218,22 @@
       if (!cam) return alert('Enter Camera ID');
       try {
         const { data } = await axios.get(`${baseUrl}/admin/cameras/${encodeURIComponent(cam)}/clips`);
-        if (!data.length) { el('clipsListContainer').innerHTML = '<p>No clips found</p>'; return; }
+        if (!data.length) {
+          el('clipsListContainer').innerHTML = '<p>No clips found</p>';
+          return;
+        }
         const rows = data.map(c => `
           <tr>
             <td>${c.filename}</td>
             <td>${new Date(c.datetime).toLocaleString()}</td>
             <td class="text-end">${c.size_mb}&nbsp;MB</td>
             <td class="text-nowrap">
-              <a class="btn btn-sm btn-outline-success me-1" href="${baseUrl}/admin/cameras/${encodeURIComponent(cam)}/clips/${encodeURIComponent(c.filename)}/play" target="_blank">Play</a>
-              <a class="btn btn-sm btn-outline-primary" href="${baseUrl}/admin/cameras/${encodeURIComponent(cam)}/clips/${encodeURIComponent(c.filename)}/download" target="_blank">Download</a>
+              <a class="btn btn-sm btn-outline-success me-1"
+                 href="${baseUrl}/admin/cameras/${encodeURIComponent(cam)}/clips/${encodeURIComponent(c.filename)}/play"
+                 target="_blank">Play</a>
+              <a class="btn btn-sm btn-outline-primary"
+                 href="${baseUrl}/admin/cameras/${encodeURIComponent(cam)}/clips/${encodeURIComponent(c.filename)}/download"
+                 target="_blank">Download</a>
             </td>
           </tr>
         `).join('');
@@ -237,9 +243,10 @@
               <tr><th>Filename</th><th>Date / Time</th><th class="text-end">Size</th><th>Actions</th></tr>
             </thead>
             <tbody>${rows}</tbody>
-          </table>
-        `;
-      } catch (e) { alert('Failed to load clips: ' + (e.response?.data?.detail || e.message)); }
+          </table>`;
+      } catch (e) {
+        alert('Failed to load clips: ' + (e.response?.data?.detail || e.message));
+      }
     };
 
     // ─── USERS ─────────────────────────
@@ -247,39 +254,154 @@
     async function loadUsers() {
       try {
         const { data } = await axios.get(`${baseUrl}/admin/users`);
-        if (!data.length) { el('usersTableContainer').innerHTML = '<p>No users found.</p>'; return; }
+        if (!data.length) {
+          el('usersTableContainer').innerHTML = '<p>No users found.</p>';
+          return;
+        }
         const rows = data.map(u => `
           <tr>
-            <td>${u.id}</td><td>${u.email}</td><td>${u.role}</td><td>${new Date(u.created_at).toLocaleString()}</td>
+            <td>${u.id}</td>
+            <td>${u.email}</td>
+            <td>${u.role}</td>
+            <td>${new Date(u.created_at).toLocaleString()}</td>
             <td>
-              <button class="btn btn-sm btn-secondary me-1" onclick="impersonate(${u.id}, '${u.email}')">Impersonate</button>
-              <button class="btn btn-sm btn-warning me-1" onclick="editUser(${u.id}, '${u.email}', '${u.role}')">Edit</button>
-              <button class="btn btn-sm btn-danger" onclick="deleteUser(${u.id})">Delete</button>
+              <button class="btn btn-sm btn-secondary me-1"
+                      onclick="impersonate(${u.id}, '${u.email}')">Impersonate</button>
+              <button class="btn btn-sm btn-warning me-1"
+                      onclick="editUser(${u.id}, '${u.email}', '${u.role}')">Edit</button>
+              <button class="btn btn-sm btn-danger"
+                      onclick="deleteUser(${u.id})">Delete</button>
             </td>
           </tr>
         `).join('');
         el('usersTableContainer').innerHTML = `
-          <table class="table table-striped"><thead><tr><th>ID</th><th>Email</th><th>Role</th><th>Created At</th><th>Actions</th></tr></thead><tbody>${rows}</tbody></table>
-        `;
-      } catch (e) { alert('Failed to load users: ' + (e.response?.data?.detail || e.message)); }
+          <table class="table table-striped">
+            <thead>
+              <tr><th>ID</th><th>Email</th><th>Role</th><th>Created At</th><th>Actions</th></tr>
+            </thead>
+            <tbody>${rows}</tbody>
+          </table>`;
+      } catch (e) {
+        alert('Failed to load users: ' + (e.response?.data?.detail || e.message));
+      }
     }
-    window.impersonate = async (id, email) => { if (!confirm(`Impersonate ${email}?`)) return; try { const { data } = await axios.post(`${baseUrl}/admin/users/impersonate/${id}`); jwtToken = data.access_token; axios.defaults.headers.common['Authorization'] = `Bearer ${jwtToken}`; el('welcomeMsg').textContent = `Impersonated ${data.impersonated_user}`; loadUsers(); } catch (e) { alert('Impersonation failed: ' + (e.response?.data?.detail || e.message)); } };
-    window.editUser = async (id, email, role) => { const ne = prompt('New email:', email); if (ne === null) return; const nr = prompt('New role:', role); if (nr === null) return; try { await axios.put(`${baseUrl}/admin/users/${id}`, { email: ne, role: nr }); loadUsers(); } catch (e) { alert('Update failed: ' + (e.response?.data?.detail || e.message)); } };
-    window.deleteUser = async (id) => { if (!confirm(`Delete user ${id}?`)) return; try { await axios.delete(`${baseUrl}/admin/users/${id}`); loadUsers(); } catch (e) { alert('Delete failed: ' + (e.response?.data?.detail || e.message)); } };
+    window.impersonate = async (id, email) => {
+      if (!confirm(`Impersonate ${email}?`)) return;
+      try {
+        const { data } = await axios.post(`${baseUrl}/admin/users/impersonate/${id}`);
+        jwtToken = data.access_token;
+        axios.defaults.headers.common['Authorization'] = `Bearer ${jwtToken}`;
+        el('welcomeMsg').textContent = `Impersonated ${data.impersonated_user}`;
+        loadUsers();
+      } catch (e) {
+        alert('Impersonation failed: ' + (e.response?.data?.detail || e.message));
+      }
+    };
+    window.editUser = async (id, email, role) => {
+      const ne = prompt('New email:', email);
+      if (ne === null) return;
+      const nr = prompt('New role:', role);
+      if (nr === null) return;
+      try {
+        await axios.put(`${baseUrl}/admin/users/${id}`, { email: ne, role: nr });
+        loadUsers();
+      } catch (e) {
+        alert('Update failed: ' + (e.response?.data?.detail || e.message));
+      }
+    };
+    window.deleteUser = async (id) => {
+      if (!confirm(`Delete user ${id}?`)) return;
+      try {
+        await axios.delete(`${baseUrl}/admin/users/${id}`);
+        loadUsers();
+      } catch (e) {
+        alert('Delete failed: ' + (e.response?.data?.detail || e.message));
+      }
+    };
 
     // ─── DEVICE KEYS ───────────────────────
-    el('genActKeyBtn').onclick = async () => { const dev = el('actDeviceId').value.trim(), pl = el('actPlanId').value.trim(); if (!dev || !pl) return alert('Enter device & plan IDs'); try { const { data } = await axios.post(`${baseUrl}/admin/generate_device_activation_key`, null, { params: { device_id: dev, plan_id: pl } }); el('actKeyResult').textContent = JSON.stringify(data, null, 2); } catch (e) { alert('Error: ' + (e.response?.data?.detail || e.message)); } };
+    el('genActKeyBtn').onclick = async () => {
+      const dev = el('actDeviceId').value.trim();
+      const pl = el('actPlanId').value.trim();
+      if (!dev || !pl) return alert('Enter device & plan IDs');
+      try {
+        const { data } = await axios.post(`${baseUrl}/admin/generate_device_activation_key`, null, {
+          params: { device_id: dev, plan_id: pl }
+        });
+        el('actKeyResult').textContent = JSON.stringify(data, null, 2);
+      } catch (e) {
+        alert('Error: ' + (e.response?.data?.detail || e.message));
+      }
+    };
 
     // ─── CLOUD KEY ────────────────────────
-    el('genCloudKeyBtn').onclick = async () => { try { const { data } = await axios.post(`${baseUrl}/api/v1/cloud/admin/generate_cloud_key`); el('cloudKeyResult').textContent = JSON.stringify(data, null, 2); } catch (e) { alert('Error: ' + (e.response?.data?.detail || e.message)); } };
+    el('genCloudKeyBtn').onclick = async () => {
+      try {
+        const { data } = await axios.post(`${baseUrl}/api/v1/cloud/admin/generate_cloud_key`);
+        el('cloudKeyResult').textContent = JSON.stringify(data, null, 2);
+      } catch (e) {
+        alert('Error: ' + (e.response?.data?.detail || e.message));
+      }
+    };
 
     // ─── DEVICES ─────────────────────────
     el('refreshDevicesBtn').onclick = loadDevices;
-    async function loadDevices() { try { const { data } = await axios.get(`${baseUrl}/admin/devices`); if (!Object.keys(data).length) { el('devicesTableContainer').innerHTML = '<p>No connected devices.</p>'; return; } const rows = Object.entries(data).map(([id, info]) => `<tr><td>${id}</td><td>${info.ip}</td><td>${info.reachable}</td><td>${new Date(info.last_seen * 1000).toLocaleString()}</td></tr>`).join(''); el('devicesTableContainer').innerHTML = `<table class="table table-bordered"><thead><tr><th>Device ID</th><th>IP</th><th>Reachable</th><th>Last Seen</th></tr></thead><tbody>${rows}</tbody></table>`; } catch (e) { alert('Error: ' + (e.response?.data?.detail || e.message)); } }
+    async function loadDevices() {
+      try {
+        const { data } = await axios.get(`${baseUrl}/admin/devices`);
+        if (!Object.keys(data).length) {
+          el('devicesTableContainer').innerHTML = '<p>No connected devices.</p>';
+          return;
+        }
+        const rows = Object.entries(data).map(([id, info]) => `
+          <tr>
+            <td>${id}</td>
+            <td>${info.ip}</td>
+            <td>${info.reachable}</td>
+            <td>${new Date(info.last_seen * 1000).toLocaleString()}</td>
+          </tr>
+        `).join('');
+        el('devicesTableContainer').innerHTML = `
+          <table class="table table-bordered">
+            <thead>
+              <tr><th>Device ID</th><th>IP</th><th>Reachable</th><th>Last Seen</th></tr>
+            </thead>
+            <tbody>${rows}</tbody>
+          </table>`;
+      } catch (e) {
+        alert('Error: ' + (e.response?.data?.detail || e.message));
+      }
+    }
 
     // ─── CAMERA LIST ─────────────────────────
     el('loadCameraListBtn').onclick = loadCameraList;
-    async function loadCameraList() { try { const { data } = await axios.get(`${baseUrl}/admin/cameras/list`); if (!data.length) { el('cameraListContainer').innerHTML = '<p>No cameras found.</p>'; return; } const rows = data.map(c => `<tr><td>${c.camera_id}</td><td>${c.is_online}</td><td>${new Date(c.last_seen).toLocaleString()}</td><td>${c.frames_received}</td><td>${c.clips_count}</td></tr>`).join(''); el('cameraListContainer').innerHTML = `<table class="table table-bordered"><thead><tr><th>Camera ID</th><th>Online</th><th>Last Seen</th><th>Frames</th><th>Clips</th></tr></thead><tbody>${rows}</tbody></table>`; } catch (e) { alert('Failed to load cameras: ' + (e.response?.data?.detail || e.message)); } }
+    async function loadCameraList() {
+      try {
+        const { data } = await axios.get(`${baseUrl}/admin/cameras/list`);
+        if (!data.length) {
+          el('cameraListContainer').innerHTML = '<p>No cameras found.</p>';
+          return;
+        }
+        const rows = data.map(c => `
+          <tr>
+            <td>${c.camera_id}</td>
+            <td>${c.is_online}</td>
+            <td>${new Date(c.last_seen).toLocaleString()}</td>
+            <td>${c.frames_received}</td>
+            <td>${c.clips_count}</td>
+          </tr>
+        `).join('');
+        el('cameraListContainer').innerHTML = `
+          <table class="table table-bordered">
+            <thead>
+              <tr><th>Camera ID</th><th>Online</th><th>Last Seen</th><th>Frames</th><th>Clips</th></tr>
+            </thead>
+            <tbody>${rows}</tbody>
+          </table>`;
+      } catch (e) {
+        alert('Failed to load cameras: ' + (e.response?.data?.detail || e.message));
+      }
+    }
   </script>
 </body>
 
