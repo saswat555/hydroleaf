@@ -26,6 +26,7 @@ from app.schemas import (
     DeviceResponse,
     DeviceType,
     ValveDeviceCreate,
+    SwitchDeviceCreate,
 )
 
 logger = logging.getLogger(__name__)
@@ -324,3 +325,46 @@ async def list_my_devices(
     )
     result = await db.execute(q)
     return result.scalars().all()
+
+
+@router.post("/switch", response_model=DeviceResponse, summary="Register a new smart switch")
+async def create_switch_device(
+    device: SwitchDeviceCreate,
+    session: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Create/register a new smart-switch (1–8 channels).
+    """
+    endpoint = device.http_endpoint
+    if not endpoint.startswith("http"):
+        endpoint = f"http://{endpoint}"
+    controller = DeviceController(device_ip=endpoint)
+    discovered = await controller.discover()
+    if not discovered:
+        raise HTTPException(status_code=500, detail="Smart-switch discovery failed")
+
+    # enforce uniqueness
+    existing = await session.execute(select(Device).where(Device.mac_id == device.mac_id))
+    if existing.scalar_one_or_none():
+        raise HTTPException(status_code=400, detail="Device already registered")
+
+    new_device = Device(
+        name=discovered.get("name", device.name),
+        user_id=current_user.id,
+        mac_id=device.mac_id,
+        type=DeviceType.SMART_SWITCH,
+        http_endpoint=endpoint,
+        location_description=device.location_description or "",
+        pump_configurations=None,
+        sensor_parameters=None,
+        valve_configurations=None,
+        switch_configurations=[s.model_dump() for s in device.switch_configurations],
+        is_active=True,
+        farm_id=device.farm_id,
+    )
+
+    session.add(new_device)
+    await session.commit()
+    await session.refresh(new_device)
+    return new_device

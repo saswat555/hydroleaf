@@ -24,7 +24,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import API_V1_STR
 from app.core.database import get_db
 from app.dependencies import verify_dosing_device_token, verify_valve_device_token
-from app.models import Device, Task
+from app.dependencies import verify_switch_device_token
+from app.models import SwitchState
+from app.models import Device, Task, ValveState
 from app.schemas import SimpleDosingCommand, DeviceType
 
 router = APIRouter(tags=["device_comm"])
@@ -119,8 +121,74 @@ class ValveEventPayload(BaseModel):
     device_id: str
     valve_id: int
     state: str  # "on" or "off"
+class SwitchEventPayload(BaseModel):
+    device_id: str
+    channel: int
+    state: str  # "on" or "off"
+@router.post(
+    "/switch_event",
+    summary="Record a switch toggle event (smart switch)",
+    dependencies=[Depends(verify_switch_device_token)],
+)
+async def switch_event(
+    payload: SwitchEventPayload,
+    db: AsyncSession = Depends(get_db),
+):
+    # store a Task log
+    task = Task(
+        device_id=payload.device_id,
+        type="switch_event",
+        parameters={"channel": payload.channel, "state": payload.state},
+        status="received",
+    )
+    db.add(task)
+    # update cached state
+    ss = await db.get(SwitchState, payload.device_id)
+    if ss:
+        ss.states[str(payload.channel)] = payload.state
+    else:
+        ss = SwitchState(device_id=payload.device_id,
+                         states={str(payload.channel): payload.state})
+        db.add(ss)
+    await db.commit()
+    return {"message": "Switch event recorded"}
+@router.post(
+    "/switch/{device_id}/toggle",
+    summary="Toggle a single switch channel",
+    dependencies=[Depends(verify_switch_device_token)],
+)
+async def toggle_switch(
+    device_id: str = PathParam(..., description="MAC ID of the smart switch"),
+    body: dict = Body(..., media_type="application/json"),
+    db: AsyncSession = Depends(get_db),
+):
+    channel = body.get("channel")
+    if not isinstance(channel, int) or not (1 <= channel <= 8):
+        raise HTTPException(status_code=400, detail="Invalid channel (must be 1–8)")
 
+    device = await db.get(Device, device_id)
+    if not device or device.type != DeviceType.SMART_SWITCH:
+        raise HTTPException(status_code=404, detail="Smart switch not found")
 
+    async with httpx.AsyncClient() as client:
+        resp = await client.post(
+            f"{device.http_endpoint.rstrip('/')}/toggle",
+            json={"channel": channel},
+            timeout=5,
+        )
+        resp.raise_for_status()
+        data = resp.json()
+
+    # enqueue a Task record
+    task = Task(
+        device_id=device_id,
+        type="switch",
+        parameters={"channel": channel, "new_state": data.get("new_state")},
+    )
+    db.add(task)
+    await db.commit()
+
+    return data
 @router.post(
     "/valve_event",
     summary="Record a valve toggle event (valve controller)",
@@ -137,6 +205,14 @@ async def valve_event(
         status="received",
     )
     db.add(task)
+    await db.commit()
+    vs = await db.get(ValveState, payload.device_id)
+    if vs:
+        vs.states[str(payload.valve_id)] = payload.state
+    else:
+        vs = ValveState(device_id=payload.device_id,
+                        states={ str(payload.valve_id): payload.state })
+        db.add(vs)
     await db.commit()
     return {"message": "Valve event recorded"}
 
@@ -155,9 +231,22 @@ async def get_valve_state(
         raise HTTPException(status_code=404, detail="Valve controller not found")
 
     async with httpx.AsyncClient() as client:
-        resp = await client.get(f"{device.http_endpoint.rstrip('/')}/state", timeout=5)
-        resp.raise_for_status()
-        return resp.json()
+        try:
+            resp = await client.get(f"{device.http_endpoint.rstrip('/')}/state", timeout=5)
+            resp.raise_for_status()
+            return resp.json()
+        except Exception:
+            # fallback to last‐saved DB state
+            vs = await db.get(ValveState, device_id)
+            if not vs:
+                raise HTTPException(status_code=503, detail="Device unreachable, no cached state")
+            return {
+                "device_id": device_id,
+                "valves": [
+                    {"id": int(k), "state": v}
+                    for k, v in vs.states.items()
+                ]
+            }
 
 
 @router.post(
@@ -283,3 +372,36 @@ async def enqueue_pump(
     db.add(task)
     await db.commit()
     return {"message": "Pump task enqueued", "task": task.parameters}
+
+@router.get(
+    "/switch/{device_id}/state",
+    summary="Fetch current switch states",
+    dependencies=[Depends(verify_switch_device_token)],
+)
+async def get_switch_state(
+    device_id: str = PathParam(..., description="MAC ID of the smart switch"),
+    db: AsyncSession = Depends(get_db),
+):
+    device = await db.get(Device, device_id)
+    if not device or device.type != DeviceType.SMART_SWITCH:
+        raise HTTPException(status_code=404, detail="Smart switch not found")
+
+    # Try the live device first
+    try:
+        async with httpx.AsyncClient() as client:
+            resp = await client.get(f"{device.http_endpoint.rstrip('/')}/state", timeout=5)
+            resp.raise_for_status()
+            return resp.json()
+    except Exception:
+        # Fallback to cached DB state
+        ss = await db.get(SwitchState, device_id)
+        if not ss:
+            raise HTTPException(status_code=503, detail="Device unreachable, no cached state")
+        return {
+            "device_id": device_id,
+            "switches": [
+                {"channel": int(k), "state": v}
+                for k, v in ss.states.items()
+            ]
+        }
+

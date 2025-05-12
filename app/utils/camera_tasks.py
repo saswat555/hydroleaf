@@ -1,3 +1,5 @@
+# app/utils/camera_tasks.py
+
 import os
 import asyncio
 import logging
@@ -8,6 +10,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import cv2
+import numpy as np
 from sqlalchemy import update
 from sqlalchemy.future import select as future_select
 from ultralytics import YOLO
@@ -62,12 +65,12 @@ def _ensure_dirs(cam_id: str):
 def _open_writer(cam_id: str, size: tuple[int, int], start: datetime):
     clips_dir = Path(DATA_ROOT) / cam_id / CLIPS_DIR
     ts = int(start.timestamp() * 1000)
-    # write with MJPG in an AVI container (universally supported)
-    out_path = clips_dir / f"{ts}.avi"
-    fourcc = cv2.VideoWriter_fourcc(*"MJPG")
+    # write with MP4 container (mp4v)
+    out_path = clips_dir / f"{ts}.mp4"
+    fourcc = cv2.VideoWriter_fourcc(*"mp4v")
     writer = cv2.VideoWriter(str(out_path), fourcc, FPS, size)
     if not writer.isOpened():
-        logger.error(f"Failed to open MJPG VideoWriter for {out_path}")
+        logger.error(f"Failed to open MP4 VideoWriter for {out_path}")
         return
     _writers[cam_id] = {"writer": writer, "start": start, "path": out_path}
     logger.info(f"Started new clip {out_path.name}")
@@ -140,7 +143,7 @@ def _detect_sync(img):
         x1, y1, x2, y2 = map(int, box.tolist())
         label = f"{_labels[int(cls)]}:{conf:.2f}"
         cv2.rectangle(img, (x1, y1), (x2, y2), (0, 255, 0), 2)
-        cv2.putText(img, label, (x1, y1-6), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0,255,0), 1)
+        cv2.putText(img, label, (x1, y1 - 6), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 1)
     return img
 
 
@@ -152,43 +155,59 @@ async def encode_and_cleanup(cam_id: str):
         base = Path(DATA_ROOT) / cam_id
         raw_dir = base / RAW_DIR
         _ensure_dirs(cam_id)
-        # collect day/night under raw
+
+        # collect all raw JPEGs
         frames = sorted(
             raw_dir.rglob("*.jpg"),
             key=lambda p: int(p.stem),
         )
         if not frames:
             return
+
         ts0 = int(frames[0].stem)
-        start = datetime.fromtimestamp(ts0/1000, timezone.utc)
+        start = datetime.fromtimestamp(ts0 / 1000, timezone.utc)
         info = _writers.get(cam_id)
+
         if not info or (datetime.now(timezone.utc) - info["start"] >= AUTO_CLOSE_DELAY):
             _close_writer(cam_id)
-            img0 = cv2.imread(str(frames[0]))
+
+            # manually decode frame[0]
+            raw_bytes = frames[0].read_bytes()
+            arr = np.frombuffer(raw_bytes, dtype=np.uint8)
+            img0 = cv2.imdecode(arr, cv2.IMREAD_COLOR)
             if img0 is None:
                 frames[0].unlink(missing_ok=True)
                 return
+
             size = (img0.shape[1], img0.shape[0])
             _open_writer(cam_id, size, start)
-            info = _writers[cam_id]
+            info = _writers.get(cam_id)
+
         vw = info["writer"]
+
         for f in frames:
-            img = cv2.imread(str(f))
+            raw_bytes = f.read_bytes()
+            arr = np.frombuffer(raw_bytes, dtype=np.uint8)
+            img = cv2.imdecode(arr, cv2.IMREAD_COLOR)
             f.unlink(missing_ok=True)
             if img is None:
                 continue
             vw.write(img)
-            tsf = datetime.fromtimestamp(int(f.stem)/1000, timezone.utc)
+
+            tsf = datetime.fromtimestamp(int(f.stem) / 1000, timezone.utc)
             if tsf - info["start"] >= CLIP_DURATION:
                 _close_writer(cam_id)
-                img0 = cv2.imread(str(f))
+                raw_bytes = f.read_bytes()
+                arr = np.frombuffer(raw_bytes, dtype=np.uint8)
+                img0 = cv2.imdecode(arr, cv2.IMREAD_COLOR)
                 if img0 is None:
                     continue
                 size = (img0.shape[1], img0.shape[0])
                 _open_writer(cam_id, size, tsf)
-                info = _writers[cam_id]
+                info = _writers.get(cam_id)
                 vw = info["writer"]
-        # update HLS path
+
+        # update HLS path in DB
         async with AsyncSessionLocal() as sess:
             await sess.execute(
                 update(Camera)
@@ -196,7 +215,8 @@ async def encode_and_cleanup(cam_id: str):
                 .values(hls_path=f"hls/{cam_id}/index.m3u8")
             )
             await sess.commit()
-        # prune old MP4s
+
+        # prune old MP4 clips
         cutoff = datetime.now(timezone.utc) - timedelta(days=RETENTION_DAYS)
         for clip in (base / CLIPS_DIR).glob("*.mp4"):
             if datetime.fromtimestamp(clip.stat().st_mtime, timezone.utc) < cutoff:
@@ -211,7 +231,7 @@ async def offline_watcher(db_factory, interval_seconds: float = 30.0):
         async with db_factory() as sess:
             result = await sess.execute(future_select(Camera))
             for cam in result.scalars().all():
-                last = cam.last_seen or datetime(1970,1,1,tzinfo=timezone.utc)
+                last = cam.last_seen or datetime(1970, 1, 1, tzinfo=timezone.utc)
                 online = (now - last).total_seconds() <= OFFLINE_TIMEOUT
                 if cam.is_online != online:
                     cam.is_online = online

@@ -1,5 +1,5 @@
 from enum import Enum
-from typing import Optional, List, Dict
+from typing import Any, Optional, List, Dict
 from datetime import datetime
 
 from pydantic import BaseModel, Field, ConfigDict, field_validator, EmailStr
@@ -11,7 +11,7 @@ class DeviceType(str, Enum):
     PH_TDS_SENSOR = "ph_tds_sensor"
     ENVIRONMENT_SENSOR = "environment_sensor"
     VALVE_CONTROLLER = "valve_controller"
-   
+    SMART_SWITCH     = "smart_switch"
 class PumpConfig(BaseModel):
     pump_number: int = Field(..., ge=1, le=4)
     chemical_name: str = Field(..., max_length=50)
@@ -24,6 +24,13 @@ class ValveConfig(BaseModel):
     name: Optional[str] = Field(None, max_length=50)
 
     model_config = ConfigDict(from_attributes=True)
+
+class SwitchConfig(BaseModel):
+    channel: int = Field(..., ge=1, le=8)
+    name: Optional[str] = Field(None, max_length=50)
+
+    model_config = ConfigDict(from_attributes=True)
+
 
 class DeviceBase(BaseModel):
     mac_id: str = Field(..., max_length=64)
@@ -57,14 +64,14 @@ class SensorDeviceCreate(DeviceBase):
         return v
 
 class DeviceResponse(DeviceBase):
-    id: int
+    id: str
     created_at: datetime
     updated_at: datetime
     is_active: bool
     last_seen: Optional[datetime] = None
     pump_configurations: Optional[List[PumpConfig]] = None
     sensor_parameters: Optional[Dict[str, str]] = None
-
+    switch_configurations: Optional[List[SwitchConfig]] = None
     model_config = ConfigDict(from_attributes=True)
 
 # -------------------- Dosing Related Schemas -------------------- #
@@ -367,3 +374,17 @@ class DetectionRange(BaseModel):
 class CameraReportResponse(BaseModel):
     camera_id: str
     detections: List[DetectionRange]
+
+class SwitchDeviceCreate(DeviceBase):
+    switch_configurations: List[SwitchConfig] = Field(..., min_length=1, max_length=8)
+    @field_validator('type')
+    @classmethod
+    def validate_device_type(cls, v):
+        if v != DeviceType.SMART_SWITCH:
+            raise ValueError("Device type must be smart_switch for SwitchDeviceCreate")
+        return v
+    
+
+class PlantDosingResponse(BaseModel):
+    plant_id: int
+    actions: List[Dict[str,Any]]

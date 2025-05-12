@@ -6,7 +6,7 @@ from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.future import select
-from app.models import ActivationKey, CameraToken, Device, DosingDeviceToken, Subscription, SubscriptionPlan, User, Admin, ValveDeviceToken
+from app.models import ActivationKey, CameraToken, Device, DosingDeviceToken, Subscription, SubscriptionPlan, SwitchDeviceToken, User, Admin, ValveDeviceToken
 from app.core.database import get_db
 bearer_scheme = HTTPBearer() 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login")
@@ -128,4 +128,20 @@ async def verify_valve_device_token(
     )
     if not tok:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid valve device token")
+    return tok.device_id
+
+
+async def verify_switch_device_token(
+    creds: HTTPAuthorizationCredentials = Depends(bearer_scheme),
+    db=Depends(get_db),
+) -> str:
+    """
+    Validates a smart-switch’s bearer token and returns its device_id.
+    """
+    token = creds.credentials
+    tok = await db.scalar(
+        select(SwitchDeviceToken).where(SwitchDeviceToken.token == token)
+    )
+    if not tok:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid switch device token")
     return tok.device_id

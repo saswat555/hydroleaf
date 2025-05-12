@@ -1,169 +1,202 @@
-#include <WiFi.h>
-#include <WebServer.h>
-#include <HTTPClient.h>
+#include <ESP8266WiFi.h>
+#include <ESP8266WebServer.h>
+#include <DNSServer.h>
+#include <ESP8266HTTPClient.h>
 #include <ArduinoJson.h>
-#include <Preferences.h>
+#include <LittleFS.h>
 
-// ─── CONFIG ────────────────────────────────────────────────────────────
-// Your Wi-Fi credentials:
-const char *WIFI_SSID = "YOUR_SSID";
-const char *WIFI_PASSWORD = "YOUR_PASS";
+// ───── configuration ────────────────────────────────────────────────
+static const char BACKEND_HOST[]   = "cloud.hydroleaf.in";
+static const char AUTH_PATH[]      = "/api/v1/cloud/authenticate";
+static const char CMD_PATH_FMT[]   = "/api/v1/device_comm/valve/%s/commands";
+static const char EVT_PATH[]       = "/api/v1/device_comm/valve_event";
 
-// Your Hydroleaf Cloud host (HTTP) & valve-device token:
-const char *CLOUD_HOST = "http://cloud.hydroleaf.in";
-const char *DEVICE_TOKEN = "YOUR_VALVE_DEVICE_TOKEN";
+// ───── pins (active-LOW) ─────────────────────────────────────────────
+const uint8_t RELAY_PINS[8] = { D1, D2, D5, D6, D7, D0, D3, D8 };
 
-// Unique ID for this switch (must match backend registration):
-// e.g. "SWITCH_ABC123"
-const char *DEVICE_ID = "SWITCH_<unique_id>";
+// ───── globals ───────────────────────────────────────────────────────
+String deviceId, ssid, pass, cloudKey, jwtToken;
+ESP8266WebServer  http(80);
+DNSServer          dns;
+unsigned long      lastPoll = 0;
 
-// HTTP server port
-const uint16_t HTTP_PORT = 80;
-
-// ─── HARDWARE ──────────────────────────────────────────────────────────
-// Eight relay pins (active-low)
-const uint8_t RELAY_PINS[8] = {2, 4, 5, 12, 13, 14, 15, 16};
-
-WebServer server(HTTP_PORT);
-Preferences prefs;
-
-// ─── HELPERS ──────────────────────────────────────────────────────────
-void setRelay(uint8_t idx, bool on)
-{
-    // idx: 1–8
-    uint8_t pin = RELAY_PINS[idx - 1];
-    digitalWrite(pin, on ? LOW : HIGH);
+// ───── LittleFS KV ───────────────────────────────────────────────────
+String getKV(const char *path) {
+  File f = LittleFS.open(path, "r");
+  if(!f) return "";
+  String s = f.readString(); f.close();
+  s.trim(); return s;
+}
+void putKV(const char *path, const String &v) {
+  File f = LittleFS.open(path, "w");
+  if(!f) return;
+  f.println(v); f.close();
 }
 
-bool reportValveEvent(uint8_t vid, const char *state)
-{
-    HTTPClient http;
-    String url = String(CLOUD_HOST) + "/api/v1/device_comm/valve_event";
-    http.begin(url);
-    http.addHeader("Content-Type", "application/json");
-    http.addHeader("Authorization", String("Bearer ") + DEVICE_TOKEN);
+// ───── captive-portal HTML ───────────────────────────────────────────
+const char HTML_FORM[] PROGMEM = R"rawliteral(
+<!doctype html>
+<meta name=viewport content="width=device-width,initial-scale=1">
+<title>Setup HL-SWITCH</title>
+<style>
+ body{font-family:sans-serif;padding:10px}
+ label,input,button{display:block;width:100%%;margin:8px 0}
+ button{background:#007bff;color:#fff;border:none;padding:10px;border-radius:4px}
+</style>
+<h2>Configure</h2>
+<form action="/save" method="POST">
+  <label>Wi-Fi SSID<input name="ssid" value="%s"></label>
+  <label>Wi-Fi Pass<input type="password" name="pass" value="%s"></label>
+  <label>Cloud Key<input name="key" value="%s"></label>
+  <button>Save & Restart</button>
+</form>
+)rawliteral";
 
-    StaticJsonDocument<128> doc;
-    doc["device_id"] = DEVICE_ID;
-    doc["valve_id"] = vid;
-    doc["state"] = state;
-    String body;
-    serializeJson(doc, body);
-
-    int code = http.POST(body);
-    http.end();
-    return (code >= 200 && code < 300);
+// ───── Web handlers ──────────────────────────────────────────────────
+void handleRoot() {
+  char buf[512];
+  snprintf(buf,sizeof(buf),HTML_FORM,
+           ssid.c_str(), pass.c_str(), cloudKey.c_str());
+  http.send(200, "text/html", buf);
+}
+void handleSave() {
+  ssid     = http.arg("ssid");
+  pass     = http.arg("pass");
+  cloudKey = http.arg("key");
+  putKV("/ssid", ssid);
+  putKV("/pass", pass);
+  putKV("/key",  cloudKey);
+  http.send(200,"text/html","<h3>Saved. Rebooting…</h3>");
+  delay(1500);
+  ESP.restart();
+}
+void setupWeb() {
+  http.on("/",        HTTP_GET,  handleRoot);
+  http.on("/save",    HTTP_POST, handleSave);
+  http.onNotFound([](){ http.send(404,"text/plain","Not found"); });
+  http.begin();
 }
 
-// ─── HTTP HANDLERS ────────────────────────────────────────────────────
+// ───── start AP + DNS for captive portal ─────────────────────────────
+void startCaptive() {
+  String ap = "HL-SWITCH-" + deviceId.substring(deviceId.length()-4);
+  WiFi.softAP(ap, "configme");
+  dns.start(53, "*", WiFi.softAPIP());
+}
 
-// GET /discovery
-void handleDiscovery()
-{
+// ───── join Wi-Fi in parallel with AP ────────────────────────────────
+bool joinWiFi() {
+  WiFi.begin(ssid, pass);
+  for(int i=0;i<40;i++){
+    if(WiFi.status()==WL_CONNECTED) return true;
+    delay(250);
+  }
+  return false;
+}
+
+// ───── cloud authenticate → JWT ──────────────────────────────────────
+bool cloudAuth() {
+  HTTPClient c;
+  String url = String("http://") + BACKEND_HOST + AUTH_PATH;
+  c.begin(url);
+  c.addHeader("Content-Type","application/json");
+  StaticJsonDocument<128> req;
+  req["device_id"] = deviceId;
+  req["cloud_key"] = cloudKey;
+  String body; serializeJson(req,body);
+  if(c.POST(body) != 200){
+    c.end();
+    return false;
+  }
+  String resp = c.getString(); c.end();
+  StaticJsonDocument<256> d;
+  if(deserializeJson(d,resp)!=DeserializationError::Ok) return false;
+  jwtToken = d["token"].as<String>();
+  putKV("/token", jwtToken);
+  return true;
+}
+
+// ───── execute a single toggle ───────────────────────────────────────
+void execToggle(uint8_t vid) {
+  if(vid<1||vid>8) return;
+  uint8_t pin = RELAY_PINS[vid-1];
+  bool on = digitalRead(pin)==LOW;
+  digitalWrite(pin, on?HIGH:LOW);
+}
+
+// ───── poll cloud for pending toggles ───────────────────────────────
+void pollCommands() {
+  if(WiFi.status()!=WL_CONNECTED || jwtToken.isEmpty()) return;
+  HTTPClient c;
+  char p[80];
+  snprintf(p,sizeof(p),CMD_PATH_FMT,deviceId.c_str());
+  String url = String("http://") + BACKEND_HOST + p + "?device_id=" + deviceId;
+  c.begin(url);
+  c.addHeader("Authorization","Bearer "+jwtToken);
+  if(c.GET()==200){
+    String rsp = c.getString();
+    c.end();
     StaticJsonDocument<256> doc;
-    doc["device_id"] = DEVICE_ID;
-    doc["name"] = "Hydroleaf 8-Ch Switch";
-    doc["type"] = "valve_controller";
-    doc["version"] = "1.0.0";
-    doc["status"] = "online";
-    doc["ip"] = WiFi.localIP().toString();
-    String out;
-    serializeJson(doc, out);
-    server.send(200, "application/json", out);
+    if(deserializeJson(doc,rsp)!=DeserializationError::Ok) return;
+    for(auto cmd: doc["commands"].as<JsonArray>()){
+      uint8_t vid = cmd["valve_id"];
+      execToggle(vid);
+      // report back
+      HTTPClient r;
+      String u2 = String("http://") + BACKEND_HOST + EVT_PATH;
+      r.begin(u2);
+      r.addHeader("Content-Type","application/json");
+      r.addHeader("Authorization","Bearer "+jwtToken);
+      StaticJsonDocument<128> ev;
+      ev["device_id"]=deviceId;
+      ev["valve_id"]=vid;
+      ev["state"]  = (digitalRead(RELAY_PINS[vid-1])==LOW?"on":"off");
+      String b2; serializeJson(ev,b2);
+      r.POST(b2);
+      r.end();
+    }
+  } else {
+    c.end();
+  }
 }
 
-// GET /state
-void handleState()
-{
-    StaticJsonDocument<256> doc;
-    doc["device_id"] = DEVICE_ID;
-    JsonArray arr = doc.createNestedArray("valves");
-    for (uint8_t i = 1; i <= 8; i++)
-    {
-        JsonObject v = arr.createNestedObject();
-        v["id"] = i;
-        v["state"] = (digitalRead(RELAY_PINS[i - 1]) == LOW ? "on" : "off");
-    }
-    String out;
-    serializeJson(doc, out);
-    server.send(200, "application/json", out);
+void setup() {
+  Serial.begin(115200);
+  LittleFS.begin();
+
+  // init relays OFF
+  for(auto p:RELAY_PINS){
+    pinMode(p,OUTPUT);
+    digitalWrite(p,HIGH);
+  }
+
+  // load/generate IDs
+  deviceId = getKV("/id");
+  if(deviceId.isEmpty()){
+    deviceId = "SW_"+String(ESP.getChipId(),HEX);
+    putKV("/id",deviceId);
+  }
+  ssid     = getKV("/ssid");
+  pass     = getKV("/pass");
+  cloudKey = getKV("/key");
+  jwtToken = getKV("/token");
+
+  // start AP/captive + web UI
+  WiFi.mode(WIFI_AP_STA);
+  startCaptive();
+  setupWeb();
+
+  // attempt join + auth
+  if(ssid.length() && joinWiFi()){
+    cloudAuth();
+  }
 }
 
-// POST /toggle
-void handleToggle()
-{
-    if (!server.hasArg("plain"))
-    {
-        server.send(400, "application/json", "{\"detail\":\"Missing JSON\"}");
-        return;
-    }
-    StaticJsonDocument<128> req;
-    auto err = deserializeJson(req, server.arg("plain"));
-    if (err)
-    {
-        server.send(400, "application/json", "{\"detail\":\"Bad JSON\"}");
-        return;
-    }
-    uint8_t vid = req["valve_id"] | 0;
-    if (vid < 1 || vid > 8)
-    {
-        server.send(400, "application/json", "{\"detail\":\"Invalid valve_id\"}");
-        return;
-    }
-    // toggle
-    bool nowOn = (digitalRead(RELAY_PINS[vid - 1]) == HIGH);
-    setRelay(vid, !nowOn);
-
-    // build response
-    StaticJsonDocument<128> resp;
-    resp["device_id"] = DEVICE_ID;
-    resp["valve_id"] = vid;
-    resp["new_state"] = (!nowOn ? "on" : "off");
-    String out;
-    serializeJson(resp, out);
-    server.send(200, "application/json", out);
-
-    // report event upstream (best-effort)
-    reportValveEvent(vid, !nowOn ? "on" : "off");
-}
-
-// 404
-void handleNotFound()
-{
-    server.send(404, "application/json", "{\"detail\":\"Not found\"}");
-}
-
-// ─── SETUP & LOOP ──────────────────────────────────────────────────────
-void setup()
-{
-    Serial.begin(115200);
-
-    // Relay pins
-    for (auto p : RELAY_PINS)
-    {
-        pinMode(p, OUTPUT);
-        digitalWrite(p, HIGH); // OFF
-    }
-
-    // Wi-Fi
-    WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
-    Serial.print("Wi-Fi connecting");
-    while (WiFi.status() != WL_CONNECTED)
-    {
-        delay(500);
-        Serial.print('.');
-    }
-    Serial.println("\nWi-Fi up: " + WiFi.localIP().toString());
-
-    // HTTP routes
-    server.on("/discovery", HTTP_GET, handleDiscovery);
-    server.on("/state", HTTP_GET, handleState);
-    server.on("/toggle", HTTP_POST, handleToggle);
-    server.onNotFound(handleNotFound);
-    server.begin();
-}
-
-void loop()
-{
-    server.handleClient();
+void loop() {
+  dns.processNextRequest();
+  http.handleClient();
+  if(millis() - lastPoll > 5000){
+    lastPoll = millis();
+    pollCommands();
+  }
 }

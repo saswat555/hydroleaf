@@ -3,7 +3,7 @@ from fastapi.logger import logger
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List
-from app.schemas import DosingOperation, PlantCreate, PlantResponse, SensorReading
+from app.schemas import DosingOperation, PlantCreate, PlantDosingResponse, PlantResponse, SensorReading
 from app.core.database import get_db
 from app.services.plant_service import (
     get_all_plants,
@@ -36,7 +36,7 @@ async def remove_plant(plant_id: int, db: AsyncSession = Depends(get_db)):
     """Delete a plant by ID."""
     return await delete_plant(plant_id, db)
 
-@router.post("/execute-dosing/{plant_id}", response_model=DosingOperation)
+@router.post("/execute-dosing/{plant_id}", response_model=PlantDosingResponse)
 async def execute_dosing(plant_id: int, db: AsyncSession = Depends(get_db)):
     """
     Execute a dosing operation by checking the latest sensor readings and applying the correct amount of nutrients.

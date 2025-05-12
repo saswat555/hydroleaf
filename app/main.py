@@ -9,7 +9,7 @@ from contextlib import asynccontextmanager
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException, Request, status
+from fastapi import Depends, FastAPI, HTTPException, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.sessions import SessionMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -153,10 +153,20 @@ async def system_health():
     db = await database_health()
     return {"system": sys, "database": db, "timestamp": datetime.now(timezone.utc)}
 
-# ─── Override Camera Upload Endpoints ─────────────────────────────────────────
-app.add_api_route("/upload/{camera_id}/day", upload_day_frame, methods=["POST"])
-app.add_api_route("/upload/{camera_id}/night", upload_night_frame, methods=["POST"])
+from app.dependencies import verify_camera_token
 
+app.add_api_route(
+    "/upload/{camera_id}/day",
+    upload_day_frame,
+    methods=["POST"],
+    dependencies=[Depends(verify_camera_token)],
+)
+app.add_api_route(
+    "/upload/{camera_id}/night",
+    upload_night_frame,
+    methods=["POST"],
+    dependencies=[Depends(verify_camera_token)],
+)
 # ─── Exception Handlers ───────────────────────────────────────────────────────
 @app.exception_handler(HTTPException)
 async def http_exc_handler(request: Request, exc: HTTPException):

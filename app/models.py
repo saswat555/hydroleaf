@@ -124,7 +124,7 @@ class Device(Base):
     pump_configurations = Column(JSON)
     sensor_parameters   = Column(JSON)
     valve_configurations= Column(JSON)
-
+    switch_configurations= Column(JSON)
     # relationships
     user               = relationship("User", back_populates="devices")
     farm               = relationship("Farm", back_populates="devices")
@@ -173,7 +173,7 @@ class Task(Base):
     __tablename__ = "tasks"
 
     id           = Column(Integer, primary_key=True, index=True)
-    device_mac_id= Column(String(64), ForeignKey("devices.mac_id", ondelete="CASCADE"), nullable=False, index=True)
+    device_id= Column(String(64), ForeignKey("devices.id", ondelete="CASCADE"), nullable=False, index=True)
     type         = Column(String(50), nullable=False)
     parameters   = Column(JSON)
     status       = Column(String(50), nullable=False, default="pending")
@@ -450,3 +450,33 @@ class ValveDeviceToken(Base):
     )
     token     = Column(String(64), unique=True, nullable=False, index=True)
     issued_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+class ValveState(Base):
+    __tablename__ = "valve_states"
+    device_id  = Column(String(64), primary_key=True, index=True)
+    states     = Column(JSON, nullable=False, default={})
+    updated_at = Column(DateTime(timezone=True),
+                        server_default=func.now(),
+                        onupdate=func.now(),
+                        nullable=False)
+    
+
+class SwitchDeviceToken(Base):
+    __tablename__ = "switch_device_tokens"
+
+    device_id = Column(
+        String(64),
+        ForeignKey("devices.id", ondelete="CASCADE"),
+        primary_key=True,
+    )
+    token     = Column(String(64), unique=True, nullable=False, index=True)
+    issued_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+class SwitchState(Base):
+    __tablename__ = "switch_states"
+    device_id  = Column(String(64), primary_key=True, index=True)
+    states     = Column(JSON, nullable=False, default={})
+    updated_at = Column(DateTime(timezone=True),
+                        server_default=func.now(),
+                        onupdate=func.now(),
+                        nullable=False)
