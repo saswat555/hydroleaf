@@ -151,77 +151,99 @@ async def encode_and_cleanup(cam_id: str):
     lock = _locks.setdefault(cam_id, asyncio.Lock())
     if lock.locked():
         return
+
     async with lock:
         base = Path(DATA_ROOT) / cam_id
         raw_dir = base / RAW_DIR
         _ensure_dirs(cam_id)
 
-        # collect all raw JPEGs
-        frames = sorted(
-            raw_dir.rglob("*.jpg"),
-            key=lambda p: int(p.stem),
-        )
+        # Gather all raw frames
+        frames = sorted(raw_dir.rglob("*.jpg"), key=lambda p: int(p.stem))
         if not frames:
             return
 
+        # Determine clip start time
         ts0 = int(frames[0].stem)
         start = datetime.fromtimestamp(ts0 / 1000, timezone.utc)
         info = _writers.get(cam_id)
 
+        # If no open writer or clip aged out, close and reopen
         if not info or (datetime.now(timezone.utc) - info["start"] >= AUTO_CLOSE_DELAY):
             _close_writer(cam_id)
 
-            # manually decode frame[0]
-            raw_bytes = frames[0].read_bytes()
-            arr = np.frombuffer(raw_bytes, dtype=np.uint8)
-            img0 = cv2.imdecode(arr, cv2.IMREAD_COLOR)
-            if img0 is None:
-                frames[0].unlink(missing_ok=True)
+            first = frames[0]
+            if not first.exists():
+                logger.warning("First raw frame missing, skipping clip start: %s", first)
                 return
 
-            size = (img0.shape[1], img0.shape[0])
-            _open_writer(cam_id, size, start)
-            info = _writers.get(cam_id)
-
-        vw = info["writer"]
-
-        for f in frames:
-            raw_bytes = f.read_bytes()
-            arr = np.frombuffer(raw_bytes, dtype=np.uint8)
-            img = cv2.imdecode(arr, cv2.IMREAD_COLOR)
-            f.unlink(missing_ok=True)
-            if img is None:
-                continue
-            vw.write(img)
-
-            tsf = datetime.fromtimestamp(int(f.stem) / 1000, timezone.utc)
-            if tsf - info["start"] >= CLIP_DURATION:
-                _close_writer(cam_id)
-                raw_bytes = f.read_bytes()
+            try:
+                raw_bytes = first.read_bytes()
                 arr = np.frombuffer(raw_bytes, dtype=np.uint8)
                 img0 = cv2.imdecode(arr, cv2.IMREAD_COLOR)
                 if img0 is None:
-                    continue
+                    raise ValueError("cv2.imdecode returned None")
                 size = (img0.shape[1], img0.shape[0])
-                _open_writer(cam_id, size, tsf)
+                _open_writer(cam_id, size, start)
                 info = _writers.get(cam_id)
-                vw = info["writer"]
+                if not info:
+                    return
+            except Exception as e:
+                logger.exception("Error opening writer for %s: %s", first, e)
+                first.unlink(missing_ok=True)
+                return
 
-        # update HLS path in DB
-        async with AsyncSessionLocal() as sess:
-            await sess.execute(
-                update(Camera)
-                .where(Camera.id == cam_id)
-                .values(hls_path=f"hls/{cam_id}/index.m3u8")
-            )
-            await sess.commit()
+        vw = info["writer"]
 
-        # prune old MP4 clips
+        # Append each frame to the writer
+        for f in frames:
+            try:
+                if not f.exists():
+                    logger.warning("Raw frame disappeared, skipping: %s", f)
+                    continue
+                raw_bytes = f.read_bytes()
+                arr = np.frombuffer(raw_bytes, dtype=np.uint8)
+                img = cv2.imdecode(arr, cv2.IMREAD_COLOR)
+                f.unlink(missing_ok=True)
+                if img is None:
+                    logger.warning("Could not decode frame, skipping: %s", f)
+                    continue
+
+                vw.write(img)
+
+                # Roll clip if duration exceeded
+                tsf = datetime.fromtimestamp(int(f.stem) / 1000, timezone.utc)
+                if tsf - info["start"] >= CLIP_DURATION:
+                    _close_writer(cam_id)
+                    # open next clip
+                    size = (img.shape[1], img.shape[0])
+                    _open_writer(cam_id, size, tsf)
+                    info = _writers.get(cam_id)
+                    vw = info["writer"]
+            except Exception as e:
+                logger.exception("Error processing frame %s: %s", f, e)
+                f.unlink(missing_ok=True)
+
+        # Update HLS path in the DB
+        try:
+            async with AsyncSessionLocal() as sess:
+                await sess.execute(
+                    update(Camera)
+                    .where(Camera.id == cam_id)
+                    .values(hls_path=f"hls/{cam_id}/index.m3u8")
+                )
+                await sess.commit()
+        except Exception:
+            logger.exception("Failed to update HLS path for camera %s", cam_id)
+
+        # Prune old MP4 clips
         cutoff = datetime.now(timezone.utc) - timedelta(days=RETENTION_DAYS)
         for clip in (base / CLIPS_DIR).glob("*.mp4"):
-            if datetime.fromtimestamp(clip.stat().st_mtime, timezone.utc) < cutoff:
-                clip.unlink(missing_ok=True)
-
+            try:
+                if datetime.fromtimestamp(clip.stat().st_mtime, timezone.utc) < cutoff:
+                    clip.unlink(missing_ok=True)
+                    logger.info("Pruned old clip %s", clip.name)
+            except Exception as e:
+                logger.warning("Could not prune clip %s: %s", clip, e)
 
 async def offline_watcher(db_factory, interval_seconds: float = 30.0):
     logger.info(f"Offline watcher every {interval_seconds}s")
