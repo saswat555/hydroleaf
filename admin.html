@@ -384,16 +384,38 @@
           el('cameraListContainer').innerHTML = '<p>No cameras found.</p>';
           return;
         }
+        // build rows
         const rows = data.map(c => `
           <tr>
-            <td>${c.camera_id}</td><td>${c.is_online}</td><td>${new Date(c.last_seen).toLocaleString()}</td>
-            <td>${c.frames_received}</td><td>${c.clips_count}</td>
+            <td>${c.camera_id}</td>
+            <td>${c.name || '—'}</td>
+            <td>${c.is_online ? '✅' : '❌'}</td>
+            <td>${c.last_seen 
+                  ? new Date(c.last_seen).toLocaleString() 
+                  : '–'}</td>
+            <td>
+              <button class="btn btn-sm btn-outline-primary me-1"
+                      onclick="window.open('/admin/cameras/stream/${encodeURIComponent(c.camera_id)}?mode=poll','_blank')">
+                Stream
+              </button>
+              <button class="btn btn-sm btn-outline-secondary"
+                      onclick="window.open('/admin/cameras/${encodeURIComponent(c.camera_id)}/clips','_blank')">
+                Clips
+              </button>
+            </td>
           </tr>
         `).join('');
+        // inject table
         el('cameraListContainer').innerHTML = `
           <table class="table table-bordered">
-            <thead>
-              <tr><th>Camera ID</th><th>Online</th><th>Last Seen</th><th>Frames</th><th>Clips</th></tr>
+            <thead class="table-light">
+              <tr>
+                <th>Camera ID</th>
+                <th>Name</th>
+                <th>Online</th>
+                <th>Last Seen</th>
+                <th>Actions</th>
+              </tr>
             </thead>
             <tbody>${rows}</tbody>
           </table>`;
