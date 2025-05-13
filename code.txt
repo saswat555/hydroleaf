@@ -1094,7 +1094,6 @@ app.include_router(plants_router,        prefix=f"{API_V1_STR}/plants",        t
 app.include_router(farms_router,         prefix=f"{API_V1_STR}/farms",         tags=["farms"])
 app.include_router(supply_chain_router,  prefix=f"{API_V1_STR}/supply_chain",  tags=["supply_chain"])
 app.include_router(cloud_router,         prefix=f"{API_V1_STR}/cloud",         tags=["cloud"])
-app.include_router(admin_router,         prefix="/admin",                      tags=["admin"])
 app.include_router(device_comm_router,   prefix=f"{API_V1_STR}/device_comm",   tags=["device_comm"])
 app.include_router(cameras_router,       prefix=f"{API_V1_STR}/cameras",       tags=["cameras"])
 app.include_router(admin_clips_router)

@@ -45,7 +45,6 @@ async def _process_upload(
     camera_id: str,
     request: Request,
     background_tasks: BackgroundTasks,
-    db: AsyncSession,
     day_flag: bool,
 ) -> dict:
     # 1) Validate content-type
@@ -95,21 +94,14 @@ async def _process_upload(
     tmp2.write_bytes(image_bytes)
     tmp2.rename(latest_file)
 
-    # 6) Update or insert Camera record
-    camera = await db.get(Camera, camera_id)
-    if not camera:
-        camera = Camera(id=camera_id, name=camera_id)
-        db.add(camera)
-    camera.is_online = True
-    camera.last_seen = datetime.now(timezone.utc)
-    await db.commit()
+    # -- remove database updates to Camera table --
 
-    # 7) Schedule background tasks
+    # 6) Schedule background tasks
     loop = asyncio.get_running_loop()
     loop.create_task(encode_and_cleanup(camera_id))
     loop.create_task(camera_queue.enqueue(camera_id, latest_file))
 
-    # 8) Broadcast to WebSocket clients
+    # 7) Broadcast to WebSocket clients
     for ws in list(ws_clients.get(camera_id, [])):
         try:
             await ws.send_bytes(image_bytes)
@@ -124,9 +116,8 @@ async def upload_day_frame(
     camera_id: str,
     request: Request,
     background_tasks: BackgroundTasks,
-    db: AsyncSession = Depends(get_db),
 ) -> dict:
-    return await _process_upload(camera_id, request, background_tasks, db, day_flag=True)
+    return await _process_upload(camera_id, request, background_tasks, day_flag=True)
 
 
 @router.post("/upload/{camera_id}/night", dependencies=[Depends(verify_camera_token)])
@@ -134,9 +125,8 @@ async def upload_night_frame(
     camera_id: str,
     request: Request,
     background_tasks: BackgroundTasks,
-    db: AsyncSession = Depends(get_db),
 ) -> dict:
-    return await _process_upload(camera_id, request, background_tasks, db, day_flag=False)
+    return await _process_upload(camera_id, request, background_tasks, day_flag=False)
 
 
 @router.get("/stream/{camera_id}", dependencies=[Depends(get_current_admin)])
@@ -306,7 +296,6 @@ async def ws_stream(websocket: WebSocket, camera_id: str):
 # ─────────────────────────────────────────────────────────────────────────────
 # Internal helpers for day & night enhancement
 # ─────────────────────────────────────────────────────────────────────────────
-
 
 def _enhance_day(frame: np.ndarray) -> np.ndarray:
     lab = cv2.cvtColor(frame, cv2.COLOR_BGR2LAB)
