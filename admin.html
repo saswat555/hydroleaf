@@ -10,17 +10,22 @@
     body {
       background: #f7f9fc;
     }
+
     .card-img-top {
       object-fit: cover;
       height: 200px;
     }
+
     .tabSection {
       padding: 1rem;
     }
+
     .nav-link {
       cursor: pointer;
     }
   </style>
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+
 </head>
 
 <body class="p-4">
@@ -135,89 +140,129 @@
       const u = el('userInput').value.trim(), p = el('passInput').value;
       if (!u || !p) return alert('Enter email & password');
       try {
-        const body = new URLSearchParams({ grant_type:'password', username:u, password:p });
+        const body = new URLSearchParams({ grant_type: 'password', username: u, password: p });
         const res = await axios.post(`${base}/api/v1/auth/login`, body, {
-          headers:{'Content-Type':'application/x-www-form-urlencoded'}
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
         });
         jwt = res.data.access_token;
         axios.defaults.headers.common['Authorization'] = `Bearer ${jwt}`;
         el('loginSection').classList.add('d-none');
         el('dashboard').classList.remove('d-none');
         el('welcomeMsg').textContent = `Admin: ${u}`;
-      } catch(e) {
-        alert('Login failed: '+(e.response?.data?.detail||e.message));
+      } catch (e) {
+        alert('Login failed: ' + (e.response?.data?.detail || e.message));
       }
     };
-    el('logoutBtn').onclick = ()=> location.reload();
+    el('logoutBtn').onclick = () => location.reload();
 
     // — TABS —
     const links = document.querySelectorAll('#adminTabs .nav-link');
     links.forEach(a => a.onclick = () => {
-      links.forEach(x=>x.classList.remove('active'));
+      links.forEach(x => x.classList.remove('active'));
       a.classList.add('active');
-      document.querySelectorAll('.tabSection').forEach(s=>s.classList.add('d-none'));
+      document.querySelectorAll('.tabSection').forEach(s => s.classList.add('d-none'));
       el(a.dataset.section).classList.remove('d-none');
-      if(a.dataset.section==='usersSection') loadUsers();
-      if(a.dataset.section==='devicesSection') loadDevices();
-      if(a.dataset.section==='cameraListSection') loadCameraList();
+      if (a.dataset.section === 'usersSection') loadUsers();
+      if (a.dataset.section === 'devicesSection') loadDevices();
+      if (a.dataset.section === 'cameraListSection') loadCameraList();
     });
+    
+    async function playClip(cameraId, filename) {
+      try {
+        // fetch the MP4 as a blob with your Authorization header
+        const res = await axios.get(
+          `${base}/admin/cameras/${encodeURIComponent(cameraId)}/clips/${encodeURIComponent(filename)}/download`,
+          { responseType: 'blob' }
+        );
+        const url = URL.createObjectURL(res.data);
+
+        // build & show a simple modal
+        const modalHtml = `
+      <div class="modal fade" id="clipModal" tabindex="-1">
+        <div class="modal-dialog modal-xl">
+          <div class="modal-content">
+            <div class="modal-header">
+              <h5 class="modal-title">${filename}</h5>
+              <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body text-center">
+              <video controls style="max-width:100%;" src="${url}"></video>
+            </div>
+          </div>
+        </div>
+      </div>`;
+        // remove any old one
+        document.getElementById('clipModal')?.remove();
+        document.body.insertAdjacentHTML('beforeend', modalHtml);
+        const modal = new bootstrap.Modal(document.getElementById('clipModal'));
+        modal.show();
+
+        // clean up URL when modal closed
+        document.getElementById('clipModal').addEventListener('hidden.bs.modal', () => {
+          URL.revokeObjectURL(url);
+          document.getElementById('clipModal').remove();
+        });
+      } catch (err) {
+        alert('Failed to load clip: ' + (err.response?.data?.detail || err.message));
+      }
+    }
 
     // — STREAMS —
-    el('startStreamBtn').onclick = ()=> {
+    el('startStreamBtn').onclick = () => {
       streams = {};
-      el('streamsContainer').innerHTML='';
-      const ids = el('cameraIdsInput').value.match(/\S+/g)?.slice(0,6)||[];
-      if(!ids.length) return alert('Enter up to 6 IDs');
-      ids.forEach(id=>{
-        const col = document.createElement('div'); col.className='col-sm-6 col-md-4';
-        const card = document.createElement('div'); card.className='card';
-        const hdr = document.createElement('div'); hdr.className='card-header'; hdr.textContent=id;
-        const img = document.createElement('img'); img.className='card-img-top';
-        card.append(hdr,img); col.append(card); el('streamsContainer').append(col);
-        streams[id] = setInterval(async()=>{
+      el('streamsContainer').innerHTML = '';
+      const ids = el('cameraIdsInput').value.match(/\S+/g)?.slice(0, 6) || [];
+      if (!ids.length) return alert('Enter up to 6 IDs');
+      ids.forEach(id => {
+        const col = document.createElement('div'); col.className = 'col-sm-6 col-md-4';
+        const card = document.createElement('div'); card.className = 'card';
+        const hdr = document.createElement('div'); hdr.className = 'card-header'; hdr.textContent = id;
+        const img = document.createElement('img'); img.className = 'card-img-top';
+        card.append(hdr, img); col.append(card); el('streamsContainer').append(col);
+        streams[id] = setInterval(async () => {
           try {
-            const b = await axios.get(`${base}/api/v1/cameras/stream/${encodeURIComponent(id)}?mode=poll`,{responseType:'blob'});
+            const b = await axios.get(`${base}/api/v1/cameras/stream/${encodeURIComponent(id)}?mode=poll`, { responseType: 'blob' });
             img.src = URL.createObjectURL(b.data);
-          } catch{}
-        },2000);
+          } catch { }
+        }, 2000);
       });
     };
-    el('stopStreamBtn').onclick = ()=>{
+    el('stopStreamBtn').onclick = () => {
       Object.values(streams).forEach(clearInterval);
-      el('streamsContainer').innerHTML='';
+      el('streamsContainer').innerHTML = '';
     };
 
     // — CLIPS —
-    el('loadClipsBtn').onclick = async()=>{
-      const cam=el('clipsCameraInput').value.trim();
-      if(!cam) return alert('Enter Camera ID');
+    el('loadClipsBtn').onclick = async () => {
+      const cam = el('clipsCameraInput').value.trim();
+      if (!cam) return alert('Enter Camera ID');
       try {
-        const {data} = await axios.get(`${base}/admin/cameras/${encodeURIComponent(cam)}/clips`);
-        if(!data.length) return el('clipsListContainer').innerHTML='<p>No clips</p>';
-        const rows = data.map(c=>`
+        const { data } = await axios.get(`${base}/admin/cameras/${encodeURIComponent(cam)}/clips`);
+        if (!data.length) return el('clipsListContainer').innerHTML = '<p>No clips</p>';
+        const rows = data.map(c => `
           <tr>
             <td>${c.filename}</td>
             <td>${new Date(c.datetime).toLocaleString()}</td>
             <td class="text-end">${c.size_mb} MB</td>
             <td>
-              <a class="btn btn-sm btn-outline-success" href="${base}/admin/cameras/${cam}/clips/${c.filename}/play" target="_blank">Play</a>
+              <button class="btn btn-sm btn-outline-success" onclick="playClip('${cam}', '${c.filename}')">Play</button>
               <a class="btn btn-sm btn-outline-primary" href="${base}/admin/cameras/${cam}/clips/${c.filename}/download" target="_blank">Download</a>
             </td>
           </tr>`).join('');
-        el('clipsListContainer').innerHTML=`
+        el('clipsListContainer').innerHTML = `
           <table class="table"><thead><tr>
             <th>File</th><th>Date</th><th class="text-end">Size</th><th>Actions</th>
           </tr></thead><tbody>${rows}</tbody></table>`;
-      } catch(e){ alert('Error: '+(e.response?.data?.detail||e.message)); }
+      } catch (e) { alert('Error: ' + (e.response?.data?.detail || e.message)); }
     };
 
     // — USERS —
     el('refreshUsersBtn').onclick = loadUsers;
-    async function loadUsers(){
+    async function loadUsers() {
       try {
-        const {data} = await axios.get(`${base}/admin/users`);
-        if(!data.length) return el('usersTableContainer').innerHTML='<p>No users.</p>';
-        const rows = data.map(u=>`
+        const { data } = await axios.get(`${base}/admin/users`);
+        if (!data.length) return el('usersTableContainer').innerHTML = '<p>No users.</p>';
+        const rows = data.map(u => `
           <tr>
             <td>${u.id}</td><td>${u.email}</td><td>${u.role}</td><td>${new Date(u.created_at).toLocaleString()}</td>
             <td>
@@ -227,63 +272,63 @@
             </td>
           </tr>
         `).join('');
-        el('usersTableContainer').innerHTML=`
+        el('usersTableContainer').innerHTML = `
           <table class="table"><thead><tr>
             <th>ID</th><th>Email</th><th>Role</th><th>Created</th><th>Actions</th>
           </tr></thead><tbody>${rows}</tbody></table>`;
-      } catch(e){ alert('Error: '+(e.response?.data?.detail||e.message)); }
+      } catch (e) { alert('Error: ' + (e.response?.data?.detail || e.message)); }
     }
-    window.impersonate = async id=>{
-      if(!confirm('Impersonate user '+id+'?'))return;
-      const {data} = await axios.post(`${base}/admin/users/impersonate/${id}`);
-      jwt=data.access_token;
-      axios.defaults.headers.common['Authorization']=`Bearer ${jwt}`;
-      el('welcomeMsg').textContent='Impersonated user';
+    window.impersonate = async id => {
+      if (!confirm('Impersonate user ' + id + '?')) return;
+      const { data } = await axios.post(`${base}/admin/users/impersonate/${id}`);
+      jwt = data.access_token;
+      axios.defaults.headers.common['Authorization'] = `Bearer ${jwt}`;
+      el('welcomeMsg').textContent = 'Impersonated user';
       loadUsers();
     };
-    window.editUser = async id=>{
-      const e=prompt('New email?'); if(e===null)return;
-      const r=prompt('New role?'); if(r===null)return;
-      await axios.put(`${base}/admin/users/${id}`,{email:e,role:r});
+    window.editUser = async id => {
+      const e = prompt('New email?'); if (e === null) return;
+      const r = prompt('New role?'); if (r === null) return;
+      await axios.put(`${base}/admin/users/${id}`, { email: e, role: r });
       loadUsers();
     };
-    window.deleteUser = async id=>{
-      if(!confirm('Delete user '+id+'?'))return;
+    window.deleteUser = async id => {
+      if (!confirm('Delete user ' + id + '?')) return;
       await axios.delete(`${base}/admin/users/${id}`);
       loadUsers();
     };
 
     // — DEVICE ACTIVATION KEY —
-    el('genActKeyBtn').onclick = async()=>{
-      const d=el('actDeviceId').value.trim(), p=el('actPlanId').value.trim();
-      if(!d||!p)return alert('Enter both');
-      const {data} = await axios.post(`${base}/admin/generate_device_activation_key`,null,{ params:{device_id:d,plan_id:p} });
-      el('actKeyResult').textContent=JSON.stringify(data,null,2);
+    el('genActKeyBtn').onclick = async () => {
+      const d = el('actDeviceId').value.trim(), p = el('actPlanId').value.trim();
+      if (!d || !p) return alert('Enter both');
+      const { data } = await axios.post(`${base}/admin/generate_device_activation_key`, null, { params: { device_id: d, plan_id: p } });
+      el('actKeyResult').textContent = JSON.stringify(data, null, 2);
     };
 
     // — CLOUD KEY —
-    el('genCloudKeyBtn').onclick = async()=>{
-      const {data} = await axios.post(`${base}/api/v1/cloud/admin/generate_cloud_key`);
-      el('cloudKeyResult').textContent=JSON.stringify(data,null,2);
+    el('genCloudKeyBtn').onclick = async () => {
+      const { data } = await axios.post(`${base}/api/v1/cloud/admin/generate_cloud_key`);
+      el('cloudKeyResult').textContent = JSON.stringify(data, null, 2);
     };
 
     // — DEVICES —
     el('refreshDevicesBtn').onclick = loadDevices;
-    async function loadDevices(){
+    async function loadDevices() {
       let html = '';
       const types = [
-        {key:'dosing',label:'Dosing Units',url:`${base}/admin/devices/dosing`},
-        {key:'valves',label:'Valve Controllers',url:`${base}/admin/devices/valves`},
-        {key:'switches',label:'Smart Switches',url:`${base}/admin/devices/switches`}
+        { key: 'dosing', label: 'Dosing Units', url: `${base}/admin/devices/dosing` },
+        { key: 'valves', label: 'Valve Controllers', url: `${base}/admin/devices/valves` },
+        { key: 'switches', label: 'Smart Switches', url: `${base}/admin/devices/switches` }
       ];
-      for(const t of types){
-        const {data} = await axios.get(t.url);
+      for (const t of types) {
+        const { data } = await axios.get(t.url);
         html += `<h5>${t.label}</h5>`;
-        if(!data.length){
+        if (!data.length) {
           html += '<p>None.</p>';
           continue;
         }
-        const rows = data.map(d=>`
+        const rows = data.map(d => `
           <tr>
             <td>${d.id}</td><td>${d.name}</td><td>${d.type}</td><td>${d.http_endpoint}</td><td>${d.created_at}</td>
           </tr>`).join('');
@@ -297,14 +342,14 @@
 
     // — CAMERA LIST —
     el('loadCameraListBtn').onclick = loadCameraList;
-    async function loadCameraList(){
-      const {data} = await axios.get(`${base}/admin/cameras/list`);
-      if(!data.length) return el('cameraListContainer').innerHTML='<p>No cameras.</p>';
-      const rows = data.map(c=>`
+    async function loadCameraList() {
+      const { data } = await axios.get(`${base}/admin/cameras/list`);
+      if (!data.length) return el('cameraListContainer').innerHTML = '<p>No cameras.</p>';
+      const rows = data.map(c => `
         <tr>
           <td>${c.camera_id}</td><td>${c.is_online}</td><td>${new Date(c.last_seen).toLocaleString()}</td>
         </tr>`).join('');
-      el('cameraListContainer').innerHTML=`
+      el('cameraListContainer').innerHTML = `
         <table class="table"><thead><tr>
           <th>Camera ID</th><th>Online</th><th>Last Seen</th>
         </tr></thead><tbody>${rows}</tbody></table>`;
