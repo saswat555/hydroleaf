@@ -44,7 +44,7 @@ def write_code_to_file(directories: List[str], output_file: str):
 
 if __name__ == "__main__":
     # List all directories to aggregate code from
-    directories = ["app", "device code"]
+    directories = ["app"]
     output_filename = "code.txt"
     write_code_to_file(directories, output_filename)
     print(f"Code from directories {directories} has been written to '{output_filename}'.")

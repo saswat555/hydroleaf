@@ -35,8 +35,8 @@ logger = logging.getLogger(__name__)
 os.environ.setdefault("OPENCV_LOG_LEVEL", "SILENT")
 
 # Clip roll-over settings
-CLIP_DURATION = timedelta(seconds=300)
-AUTO_CLOSE_DELAY = timedelta(seconds=600)
+CLIP_DURATION = timedelta(minutes=10)
+AUTO_CLOSE_DELAY = timedelta(minutes=15)
 
 # Thread pool for YOLO inference
 _executor = ThreadPoolExecutor(max_workers=4)
@@ -112,6 +112,7 @@ async def _segment_hls(raw_path: Path):
 
 
 async def _generate_cv_version(raw_path: Path):
+    await asyncio.sleep(60)
     stem = raw_path.stem
     cv_path = raw_path.parent / f"{stem}_cv.mp4"
     cap = cv2.VideoCapture(str(raw_path))

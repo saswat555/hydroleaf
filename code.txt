@@ -2724,18 +2724,27 @@ async def list_camera_stream_times():
 
 
 ----- app/routers/cameras.py -----
+# app/routers/cameras.py
+
 from datetime import datetime, timedelta, timezone
-import mimetypes
 import asyncio
 import time
 from pathlib import Path
+import mimetypes
 from collections import defaultdict
 
 import numpy as np
 import cv2
-from fastapi import APIRouter, Depends, Request, BackgroundTasks, HTTPException, Query, WebSocket
+from fastapi import (
+    APIRouter,
+    Depends,
+    Request,
+    BackgroundTasks,
+    HTTPException,
+    Query,
+    WebSocket,
+)
 from fastapi.responses import FileResponse, StreamingResponse, JSONResponse
-from starlette.exceptions import ClientDisconnect
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -2744,9 +2753,8 @@ from app.core.config import (
     DATA_ROOT,
     RAW_DIR,
     CLIPS_DIR,
-    PROCESSED_DIR,
     BOUNDARY,
-    RETENTION_DAYS,
+    PROCESSED_DIR,
 )
 from app.core.database import get_db
 from app.dependencies import get_current_admin, verify_camera_token
@@ -2756,27 +2764,28 @@ from app.utils.camera_tasks import encode_and_cleanup
 from app.utils.camera_queue import camera_queue
 
 router = APIRouter()
-# WebSocket clients per camera
 ws_clients: dict[str, list[WebSocket]] = defaultdict(list)
+
 
 async def _process_upload(
     camera_id: str,
     request: Request,
     background_tasks: BackgroundTasks,
     db: AsyncSession,
-    day_flag: bool
+    day_flag: bool,
 ) -> dict:
     # 1) Validate content-type
     ct = request.headers.get("content-type", "")
     if not ct.startswith("image/"):
         raise HTTPException(status_code=415, detail="Unsupported Media Type; expected image/jpeg")
 
-    # 2) Stream & accumulate
+    # 2) Stream & accumulate body
     body = bytearray()
     try:
         async for chunk in request.stream():
             body.extend(chunk)
-    except ClientDisconnect:
+    except Exception:
+        # treat any streaming error as client disconnect
         raise HTTPException(status_code=499, detail="Client disconnected during upload")
 
     if not body:
@@ -2788,7 +2797,7 @@ async def _process_upload(
     if frame is None:
         raise HTTPException(status_code=400, detail="Invalid JPEG data")
 
-    # 4) Enhance
+    # 4) Enhance (day/night)
     try:
         proc = _enhance_day(frame) if day_flag else _enhance_night(frame)
         ok, buf = cv2.imencode(".jpg", proc)
@@ -2812,7 +2821,7 @@ async def _process_upload(
     tmp2.write_bytes(image_bytes)
     tmp2.rename(latest_file)
 
-    # 6) DB update/insert
+    # 6) Update or insert Camera record
     camera = await db.get(Camera, camera_id)
     if not camera:
         camera = Camera(id=camera_id, name=camera_id)
@@ -2821,12 +2830,12 @@ async def _process_upload(
     camera.last_seen = datetime.now(timezone.utc)
     await db.commit()
 
-    # 7) Schedule tasks
+    # 7) Schedule background tasks
     loop = asyncio.get_running_loop()
     loop.create_task(encode_and_cleanup(camera_id))
     loop.create_task(camera_queue.enqueue(camera_id, latest_file))
 
-    # 8) Broadcast over WebSocket
+    # 8) Broadcast to WebSocket clients
     for ws in list(ws_clients.get(camera_id, [])):
         try:
             await ws.send_bytes(image_bytes)
@@ -2836,12 +2845,12 @@ async def _process_upload(
     return {"ok": True, "ts": ts, "mode": "day" if day_flag else "night"}
 
 
-# Upload endpoints for cameras\:@router.post("/upload/{camera_id}/day", dependencies=[Depends(verify_camera_token)])
+@router.post("/upload/{camera_id}/day", dependencies=[Depends(verify_camera_token)])
 async def upload_day_frame(
     camera_id: str,
     request: Request,
     background_tasks: BackgroundTasks,
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
 ) -> dict:
     return await _process_upload(camera_id, request, background_tasks, db, day_flag=True)
 
@@ -2851,215 +2860,119 @@ async def upload_night_frame(
     camera_id: str,
     request: Request,
     background_tasks: BackgroundTasks,
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
 ) -> dict:
     return await _process_upload(camera_id, request, background_tasks, db, day_flag=False)
 
 
-# Admin-only: list all cameras and their stats
-@router.get("/cameras/list", dependencies=[Depends(get_current_admin)])
-async def list_cameras(db: AsyncSession = Depends(get_db)):
-    cams = []
-    base_root = Path(DATA_ROOT)
-    for d in sorted(base_root.iterdir()):
-        if not d.is_dir():
-            continue
-        cam_id = d.name
-        # DB record
-        cam = await db.get(Camera, cam_id)
-        is_online = bool(cam and cam.is_online)
-        last_seen = cam.last_seen if cam else None
-        # frame count
-        proc_dir = d / PROCESSED_DIR
-        try:
-            frames_received = len(list(proc_dir.glob("*.jpg"))) if proc_dir.exists() else 0
-        except Exception:
-            frames_received = 0
-        # clips count
-        clips_dir = d / CLIPS_DIR
-        try:
-            clips_count = len(list(clips_dir.glob("*.mp4"))) if clips_dir.exists() else 0
-        except Exception:
-            clips_count = 0
-        cams.append({
-            "camera_id": cam_id,
-            "is_online": is_online,
-            "last_seen": last_seen,
-            "frames_received": frames_received,
-            "clips_count": clips_count,
-        })
-    return JSONResponse(cams)
-
-
-# Admin-only: list and serve clips
-@router.get("/cameras/{camera_id}/clips", dependencies=[Depends(get_current_admin)])
-async def admin_list_clips(camera_id: str):
-    clip_dir = Path(DATA_ROOT) / camera_id / CLIPS_DIR
-    if not clip_dir.exists():
-        return JSONResponse([])
-    clips = sorted(clip_dir.glob("*.mp4"), key=lambda p: p.stat().st_mtime)
-    out = []
-    for c in clips:
-        try:
-            ts = int(c.stem)
-            out.append({
-                "filename": c.name,
-                "datetime": datetime.fromtimestamp(ts/1000, timezone.utc).isoformat(),
-                "size_mb": round(c.stat().st_size / 1024**2, 2)
-            })
-        except Exception:
-            continue
-    return JSONResponse(out)
-
-
-@router.get(
-    "/cameras/{camera_id}/clips/{clip_name}/play",
-    dependencies=[Depends(get_current_admin)]
-)
-def admin_play_clip(camera_id: str, clip_name: str):
-    clip = Path(DATA_ROOT) / camera_id / CLIPS_DIR / clip_name
-    if not clip.exists():
-        raise HTTPException(404, "Clip not found")
-    mime = mimetypes.guess_type(clip_name)[0] or "video/mp4"
-    # direct FileResponse; browser can play natively
-    return FileResponse(clip, media_type=mime, filename=clip_name)
-
-
-@router.get(
-    "/cameras/{camera_id}/clips/{clip_name}/download",
-    dependencies=[Depends(get_current_admin)]
-)
-def admin_download_clip(camera_id: str, clip_name: str):
-    clip = Path(DATA_ROOT) / camera_id / CLIPS_DIR / clip_name
-    if not clip.exists():
-        raise HTTPException(404, "Clip not found")
-    mime = mimetypes.guess_type(clip_name)[0] or "application/octet-stream"
-    return FileResponse(clip, media_type=mime, filename=clip_name)
-
-
-# Streaming (poll or MJPEG)
 @router.get("/stream/{camera_id}", dependencies=[Depends(get_current_admin)])
 def stream(
     camera_id: str,
     mode: str = Query(
         "mjpeg",
         pattern="^(mjpeg|poll)$",
-        description="`mjpeg` for live MJPEG (~20 FPS), `poll` for single-frame snapshot"
-    )
+        description="`mjpeg` for live MJPEG (~20 FPS), `poll` for single-frame snapshot",
+    ),
 ):
-    base = Path(DATA_ROOT) / camera_id
-    if not base.exists():
-        raise HTTPException(404, "Camera not found")
+    cam_dir = Path(DATA_ROOT) / camera_id
+    if not cam_dir.exists():
+        raise HTTPException(status_code=404, detail="Camera not found")
 
-    # Poll: latest processed or raw
+    # Poll mode: return a single JPEG
     if mode == "poll":
-        proc = base / PROCESSED_DIR
-        img = None
-        if proc.exists():
-            jpgs = sorted(proc.glob("*.jpg"), key=lambda p: p.stat().st_mtime, reverse=True)
-            if jpgs:
-                img = jpgs[0]
-        if not img or not img.exists():
-            img = base / "latest.jpg"
-        if not img.exists():
-            raise HTTPException(404, "Image not found")
-        return FileResponse(img, media_type="image/jpeg")
+        proc = cam_dir / PROCESSED_DIR
+        img_path = (
+            sorted(proc.glob("*.jpg"), key=lambda p: p.stat().st_mtime, reverse=True)[0]
+            if proc.exists() and any(proc.glob("*.jpg"))
+            else cam_dir / "latest.jpg"
+        )
+        if not img_path.exists():
+            raise HTTPException(status_code=404, detail="Image not found")
+        return FileResponse(img_path, media_type="image/jpeg")
 
-    # MJPEG streaming
+    # MJPEG mode: multipart stream
     async def gen():
-        last_mtime = None
+        last_mtime = 0
         while True:
-            try:
-                proc = base / PROCESSED_DIR
-                if proc.exists():
-                    jpgs = sorted(proc.glob("*.jpg"), key=lambda p: p.stat().st_mtime)
-                    img_path = jpgs[-1] if jpgs else base / "latest.jpg"
-                else:
-                    img_path = base / "latest.jpg"
-                if img_path.exists():
-                    mtime = img_path.stat().st_mtime_ns
-                    if mtime != last_mtime:
-                        last_mtime = mtime
-                        data = img_path.read_bytes()
-                        header = (
-                            f"--{BOUNDARY}\r\n"
-                            f"Content-Type: image/jpeg\r\n"
-                            f"Content-Length: {len(data)}\r\n\r\n"
-                        )
-                        yield header.encode() + data + b"\r\n"
-                await asyncio.sleep(0.03)
-            except asyncio.CancelledError:
-                break
-            except Exception:
-                await asyncio.sleep(1)
+            proc = cam_dir / PROCESSED_DIR
+            img_path = (
+                sorted(proc.glob("*.jpg"), key=lambda p: p.stat().st_mtime)[-1]
+                if proc.exists() and any(proc.glob("*.jpg"))
+                else cam_dir / "latest.jpg"
+            )
+
+            if img_path.exists():
+                m = img_path.stat().st_mtime_ns
+                if m != last_mtime:
+                    last_mtime = m
+                    data = img_path.read_bytes()
+                    yield (
+                        f"--{BOUNDARY}\r\n"
+                        f"Content-Type: image/jpeg\r\n"
+                        f"Content-Length: {len(data)}\r\n\r\n"
+                    ).encode() + data + b"\r\n"
+            await asyncio.sleep(0.03)
 
     return StreamingResponse(
-        gen(),
-        media_type=f"multipart/x-mixed-replace; boundary={BOUNDARY}"
+        gen(), media_type=f"multipart/x-mixed-replace; boundary={BOUNDARY}"
     )
 
 
-# Single-frame still
 @router.get("/still/{camera_id}", dependencies=[Depends(get_current_admin)])
 def still(camera_id: str):
     base = Path(DATA_ROOT) / camera_id
     proc = base / PROCESSED_DIR
-    p = None
-    if proc.exists():
-        jpgs = sorted(proc.glob("*.jpg"), key=lambda p: p.stat().st_mtime, reverse=True)
-        if jpgs:
-            p = jpgs[0]
-    if not p or not p.exists():
-        p = base / "latest.jpg"
+    p = (
+        sorted(proc.glob("*.jpg"), key=lambda p: p.stat().st_mtime, reverse=True)[0]
+        if proc.exists() and any(proc.glob("*.jpg"))
+        else base / "latest.jpg"
+    )
     if not p.exists():
-        raise HTTPException(404, "Image not found")
+        raise HTTPException(status_code=404, detail="Image not found")
     return FileResponse(p, media_type="image/jpeg")
 
 
-# Public API: list clips (if needed)
 @router.get("/api/clips/{camera_id}")
-def api_list_clips(camera_id: str):
+def list_clips(camera_id: str):
     clip_dir = Path(DATA_ROOT) / camera_id / CLIPS_DIR
-    if not clip_dir.exists():
-        return JSONResponse([])
-    clips = sorted(clip_dir.glob("*.mp4"), key=lambda p: p.stat().st_mtime, reverse=True)
+    clips = sorted(
+        clip_dir.glob("*.mp4"), key=lambda p: p.stat().st_mtime, reverse=True
+    )
     out = []
     for c in clips:
-        ts = None
-        try:
-            ts = int(c.stem)
-        except ValueError:
-            continue
-        out.append({
-            "filename": c.name,
-            "datetime": datetime.fromtimestamp(ts/1000, timezone.utc).isoformat(),
-            "size_mb": round(c.stat().st_size / 1024**2, 2)
-        })
+        ts = int(c.stem)
+        out.append(
+            {
+                "filename": c.name,
+                "datetime": datetime.fromtimestamp(ts / 1000, timezone.utc).isoformat(),
+                "size_mb": round(c.stat().st_size / 1024**2, 2),
+            }
+        )
     return JSONResponse(out)
+
+
+@router.get("/clips/{camera_id}/{clip_name}")
+def serve_clip(camera_id: str, clip_name: str):
+    clip = Path(DATA_ROOT) / camera_id / CLIPS_DIR / clip_name
+    if not clip.exists():
+        raise HTTPException(status_code=404, detail="Clip not found")
+    mime = mimetypes.guess_type(clip_name)[0] or "video/mp4"
+    return FileResponse(clip, media_type=mime)
 
 
 @router.get("/api/status/{camera_id}")
 async def cam_status(camera_id: str, db: AsyncSession = Depends(get_db)):
     cam = await db.get(Camera, camera_id)
     if not cam:
-        raise HTTPException(404, "Camera not registered")
+        raise HTTPException(status_code=404, detail="Camera not registered")
     return {"is_online": cam.is_online, "last_seen": cam.last_seen}
 
 
-@router.get(
-    "/commands/{camera_id}",
-    dependencies=[Depends(verify_camera_token)]
-)
-async def next_command(
-    camera_id: str,
-    db: AsyncSession = Depends(get_db)
-):
+@router.get("/commands/{camera_id}", dependencies=[Depends(verify_camera_token)])
+async def next_command(camera_id: str, db: AsyncSession = Depends(get_db)):
     cmd = await db.scalar(
         select(DeviceCommand)
-        .where(
-            DeviceCommand.device_id == camera_id,
-            DeviceCommand.dispatched == False
-        )
+        .where(DeviceCommand.device_id == camera_id, DeviceCommand.dispatched == False)
         .order_by(DeviceCommand.issued_at)
         .limit(1)
     )
@@ -3070,7 +2983,56 @@ async def next_command(
     return {"command": cmd.action, "parameters": cmd.parameters or {}}
 
 
-# Internal helpers
+@router.get(
+    "/api/report/{camera_id}",
+    response_model=CameraReportResponse,
+)
+async def get_camera_report(camera_id: str, db: AsyncSession = Depends(get_db)):
+    q = await db.execute(
+        select(DetectionRecord).where(DetectionRecord.camera_id == camera_id).order_by(DetectionRecord.timestamp)
+    )
+    records = q.scalars().all()
+
+    grouped: dict[str, list[dict]] = {}
+    gap = timedelta(seconds=CAM_EVENT_GAP_SECONDS)
+
+    for rec in records:
+        lst = grouped.setdefault(rec.object_name, [])
+        if not lst:
+            lst.append({"start": rec.timestamp, "end": rec.timestamp})
+        else:
+            last = lst[-1]
+            if rec.timestamp - last["end"] <= gap:
+                last["end"] = rec.timestamp
+            else:
+                lst.append({"start": rec.timestamp, "end": rec.timestamp})
+
+    detections: list[DetectionRange] = []
+    for obj, ranges in grouped.items():
+        for r in ranges:
+            detections.append(
+                DetectionRange(object_name=obj, start_time=r["start"], end_time=r["end"])
+            )
+
+    return CameraReportResponse(camera_id=camera_id, detections=detections)
+
+
+@router.websocket("/ws/stream/{camera_id}")
+async def ws_stream(websocket: WebSocket, camera_id: str):
+    await websocket.accept()
+    ws_clients[camera_id].append(websocket)
+    try:
+        while True:
+            # keep-alive ping
+            await asyncio.sleep(30)
+    finally:
+        ws_clients[camera_id].remove(websocket)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Internal helpers for day & night enhancement
+# ─────────────────────────────────────────────────────────────────────────────
+
 
 def _enhance_day(frame: np.ndarray) -> np.ndarray:
     lab = cv2.cvtColor(frame, cv2.COLOR_BGR2LAB)
@@ -3095,61 +3057,6 @@ def _enhance_night(frame: np.ndarray) -> np.ndarray:
     denoised = cv2.fastNlMeansDenoisingColored(merged, None, 10, 10, 7, 21)
     blur = cv2.GaussianBlur(denoised, (0, 0), sigmaX=3, sigmaY=3)
     return cv2.addWeighted(denoised, 1.5, blur, -0.5, 0)
-
-
-@router.get(
-    "/api/report/{camera_id}",
-    response_model=CameraReportResponse
-)
-async def get_camera_report(
-    camera_id: str,
-    db: AsyncSession = Depends(get_db)
-):
-    q = await db.execute(
-        select(DetectionRecord)
-        .where(DetectionRecord.camera_id == camera_id)
-        .order_by(DetectionRecord.timestamp)
-    )
-    records = q.scalars().all()
-    grouped: dict[str, list[dict]] = {}
-    gap = timedelta(seconds=CAM_EVENT_GAP_SECONDS)
-
-    for rec in records:
-        lst = grouped.setdefault(rec.object_name, [])
-        if not lst:
-            lst.append({"start": rec.timestamp, "end": rec.timestamp})
-        else:
-            last = lst[-1]
-            if rec.timestamp - last["end"] <= gap:
-                last["end"] = rec.timestamp
-            else:
-                lst.append({"start": rec.timestamp, "end": rec.timestamp})
-
-    detections: list[DetectionRange] = []
-    for obj, ranges in grouped.items():
-        for r in ranges:
-            detections.append(
-                DetectionRange(
-                    object_name=obj,
-                    start_time=r["start"],
-                    end_time=r["end"],
-                )
-            )
-
-    return CameraReportResponse(camera_id=camera_id, detections=detections)
-
-
-# WebSocket for live push\:@router.websocket("/ws/stream/{camera_id}")
-async def ws_stream(websocket: WebSocket, camera_id: str):
-    await websocket.accept()
-    ws_clients[camera_id].append(websocket)
-    try:
-        while True:
-            await asyncio.sleep(30)
-    except asyncio.CancelledError:
-        pass
-    finally:
-        ws_clients[camera_id].remove(websocket)
 
 
 ----- app/routers/devices.py -----
@@ -5789,1495 +5696,5 @@ async def delete_plant(plant_id: int, db: AsyncSession):
     await db.delete(plant)
     await db.commit()
     return {"message": "Plant deleted successfully"}
-
-
-======= Directory: device code =======
-
------ device code/CCTV/code.ino -----
-/*****************************************************************************************
- *  HYDROLEAF SMART-CAM  –  Production Firmware  v4.3
- *  Target  : ESP32-CAM (AI-Thinker) – 4 MB flash, PSRAM enabled
- *  Author  : ChatGPT (o4-mini)
- *
- *  • Always-on AP + captive portal on 192.168.0.1  
- *  • /wifi & /save_wifi for credentials  
- *  • /status for IPs & cloud auth state  
- *  • /logs, /, OTA push, day/night LDR, HTTP frame streaming (~30 FPS)  
- *****************************************************************************************/
-
-#include <ArduinoJson.h>
-#include <WiFi.h>
-#include <WebServer.h>
-#include <DNSServer.h>
-#include <Preferences.h>
-#include <esp_camera.h>
-#include <Update.h>
-#include <time.h>
-#include <HTTPClient.h>
-#include <esp_wifi.h>
-// ───────── GPIO MAP (AI-Thinker) ─────────
-#define PWDN_GPIO_NUM 32
-#define RESET_GPIO_NUM -1
-#define XCLK_GPIO_NUM 0
-#define SIOD_GPIO_NUM 26
-#define SIOC_GPIO_NUM 27
-#define Y9_GPIO_NUM 35
-#define Y8_GPIO_NUM 34
-#define Y7_GPIO_NUM 39
-#define Y6_GPIO_NUM 36
-#define Y5_GPIO_NUM 21
-#define Y4_GPIO_NUM 19
-#define Y3_GPIO_NUM 18
-#define Y2_GPIO_NUM 5
-#define VSYNC_GPIO_NUM 25
-#define HREF_GPIO_NUM 23
-#define PCLK_GPIO_NUM 22
-
-#define LED_STATUS 33
-#define BTN_CONFIG 4
-#define PIN_LDR 14
-#define PIN_IRLED 12
-
-#define DEFAULT_CLOUD_KEY ""
-
-// ───────── CLOUD ENDPOINTS ─────────
-static const char BACKEND_HOST[] = "cloud.hydroleaf.in";
-static const char AUTH_PATH[] = "/api/v1/cloud/authenticate";
-static const char UPLOAD_PRFX[] = "/upload/";
-
-// ───────── TIMINGS ─────────
-#define WIFI_RETRY_MS 30000UL
-
-// ───────── HTML TEMPLATES ─────────
-#include <pgmspace.h>
-static const char PAGE_KEY_TPL[] PROGMEM = R"rawliteral(
-<!doctype html><html lang=en><meta charset=utf-8>
-<meta name=viewport content=width=device-width,initial-scale=1>
-<title>Hydroleaf Smart‑Cam · Cloud Key</title>
-<style>
- body{margin:0;background:#f7f9fc;font:16px system-ui,sans-serif}
- .card{max-width:420px;margin:48px auto;background:#fff;border-radius:12px;
-       box-shadow:0 4px 18px rgba(0,0,0,.08);padding:24px}
- h1{margin:0 0 24px;font-size:20px}
- input,button{width:100%;font-size:15px;padding:10px;border-radius:6px;
-       border:1px solid #ccc;box-sizing:border-box}
- button{margin-top:24px;background:#007bff;border:none;color:#fff;font-weight:600}
- button:hover{opacity:.9;cursor:pointer}
- small{display:block;margin-top:18px;text-align:center}
-</style>
-<div class=card>
-<h1>Cloud Key</h1>
-<form action=/save_key method=POST>
-<input id=cloudkey name=cloudkey value="%s" placeholder="key from HydroLeaf app">
-<button type=submit>Save Key</button>
-</form>
-<small><a href="/">← back</a></small>
-</div>
-)rawliteral";
-
-static const char PAGE_MENU_TPL[] PROGMEM = R"rawliteral(
-<!doctype html><html lang=en><meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>HydroLeaf Smart‑Cam · Dashboard</title>
-<style>
- :root{--accent:#007bff;--bg:#fafafa;--r:12px}
- body{margin:0;font:16px/1.4 system-ui,sans-serif;background:var(--bg);padding:24px;color:#222}
- .card{max-width:480px;margin:auto;background:#fff;border-radius:var(--r);
-       box-shadow:0 4px 16px rgba(0,0,0,.07);padding:24px}
- h1{margin:0 0 20px;font-size:22px;font-weight:600}
- p{margin:0 0 20px}
- a{display:block;width:100%;padding:12px;margin:8px 0;border-radius:var(--r);
-   background:var(--accent);color:#fff;text-align:center;font-weight:600;
-   text-decoration:none}
- a:hover{filter:brightness(1.05)}
- small{display:block;margin-top:16px;text-align:center;font-size:13px;color:#666}
-</style>
-<main class=card>
- <h1>HydroLeaf Smart‑Cam</h1>
- <p><b>ID:</b> %s<br>
-    <b>STA IP:</b> %s<br>
-    <b>AP IP:</b> %s<br>
-    <b>Cloud Key:</b> %s</p>
- <a href="/wifi">Configure Wi‑Fi</a>
- <a href="/cloudkey">Set Cloud Key</a>
- <a href="/status">Device Status</a>
- <a href="/logs">Logs</a>
- <small>Firmware v4.3</small>
-</main>
-</html>
-)rawliteral";
-
-
-static const char PAGE_WIFI_TPL[] PROGMEM = R"rawliteral(
-<!doctype html><html lang=en><meta charset=utf-8>
-<meta name=viewport content=width=device-width,initial-scale=1>
-<title>Hydroleaf Smart‑Cam · Wi‑Fi setup</title>
-<style>
- body{margin:0;background:#f7f9fc;font:16px system-ui,sans-serif;color:#333}
- .card{max-width:420px;margin:48px auto;background:#fff;border-radius:12px;
-       box-shadow:0 4px 18px rgba(0,0,0,.08);padding:24px}
- h1{margin:0 0 24px;font-size:20px}
- label{display:block;margin:12px 0 6px;font-weight:600}
- input,select,button{width:100%;font-size:15px;padding:10px;border-radius:6px;
-       border:1px solid #ccc;box-sizing:border-box}
- button{margin-top:24px;background:#28a745;border:none;color:#fff;font-weight:600}
- button:hover{opacity:.9;cursor:pointer}
- small{display:block;margin-top:18px;text-align:center}
-</style>
-<div class=card>
-<h1>Connect to Wi‑Fi</h1>
-<form action=/save_wifi method=POST>
-<label for=ssid>Networks</label>
-<select id=ssid name=ssid>%s</select>
-<label for=ssid_manual>…or type SSID manually</label>
-<input id=ssid_manual oninput="ssid.value=this.value">
-<label for=pass>Password</label>
-<input id=pass name=pass type=password value="%s" placeholder="network password">
-<label for=cloudkey>Cloud Key</label>
-<input id=cloudkey name=cloudkey value="%s" placeholder="key from HydroLeaf app">
-<button type=submit>Save & Connect</button>
-</form>
-<small><a href="/">← back</a></small>
-</div>
-<script>
-// auto‑select manual SSID field if dropdown stays on custom value
-const s=document.getElementById('ssid'),m=document.getElementById('ssid_manual');
-s.addEventListener('change',()=>{if(s.selectedIndex===0)m.focus();});
-</script>
-)rawliteral";
-
-
-static const char PAGE_STATUS_TPL[] PROGMEM = R"rawliteral(
-<!doctype html><html><head><meta charset=utf-8>
-<meta name=viewport content='width=device-width,initial-scale=1'>
-<title>Device Status</title>
-<style>body{font-family:system-ui;background:#fafafa;margin:0;padding:18px}</style>
-</head><body>
-<h1>Status</h1>
-<p><b>Camera ID:</b> %s<br>
-   <b>AP IP:</b> %s<br>
-   <b>STA IP:</b> %s<br>
-   <b>Cloud Auth:</b> %s</p>
-<a href="/">Back</a>
-</body></html>
-)rawliteral";
-
-static const char PAGE_LOGS_TPL[] PROGMEM = R"rawliteral(
-<!doctype html><html><head><meta charset=utf-8>
-<meta name=viewport content='width=device-width,initial-scale=1'>
-<title>Hydroleaf Logs</title>
-<style>body{font-family:system-ui;background:#fafafa;margin:0;padding:18px}
-pre{background:#222;color:#0f0;padding:12px;overflow:auto;height:80vh}
-a{display:block;width:100%;padding:10px;margin:8px 0;border:0;
-background:#007bff;color:#fff;font-size:16px;text-align:center;text-decoration:none;border-radius:4px}
-</style></head><body>
-<h1>Logs</h1><pre>%s</pre>
-<a href="/">Back to Menu</a>
-</body></html>
-)rawliteral";
-
-// ───────── GLOBALS ─────────
-Preferences prefs;
-WebServer server(80);
-DNSServer dns;
-WiFiClient client;
-HTTPClient http;
-sensor_t* cam = nullptr;
-bool camReady = false;
-bool nightMode = false;
-
-String ssid, pass, apPass, camId, jwt, cloudKey;
-bool activated = false;
-unsigned long lastWifiTry = 0;
-void handleCloudKey() {
-  prefs.begin("cam_cfg", true);
-  String curK = prefs.getString("cloudkey", DEFAULT_CLOUD_KEY);
-  prefs.end();
-
-  char page[600];
-  snprintf_P(page, sizeof(page), PAGE_KEY_TPL, curK.c_str());
-  server.send(200, "text/html", page);
-}
-
-void handleSaveKey() {
-  if (server.hasArg("cloudkey")) {
-    cloudKey = server.arg("cloudkey");
-    prefs.begin("cam_cfg", false);
-    prefs.putString("cloudkey", cloudKey);
-    prefs.end();
-
-    if (WiFi.isConnected()) cloudAuthenticate();  // re‑auth immediately
-  }
-  server.sendHeader("Location", "/status", true);
-  server.send(302, "text/plain", "");
-}
-
-// ───────── LOG BUFFER ─────────
-#define LOG_BUF_SZ 2048
-static char logBuf[LOG_BUF_SZ];
-static size_t logHead = 0;
-void logLine(const char* msg) {
-  size_t n = strlen(msg);
-  if (n + 2 > LOG_BUF_SZ) return;
-  if (logHead + n + 2 >= LOG_BUF_SZ) logHead = 0;
-  memcpy(logBuf + logHead, msg, n);
-  logBuf[logHead + n] = '\n';
-  logBuf[logHead + n + 1] = 0;
-  logHead += n + 1;
-  Serial.println(msg);
-}
-
-// ───────── NVS HELPERS ─────────
-inline void storeString(const char* key, const String& val) {
-  prefs.begin("cam_cfg", false);
-  prefs.putString(key, val);
-  prefs.end();
-}
-inline void storeBool(const char* key, bool v) {
-  prefs.begin("cam_cfg", false);
-  prefs.putBool(key, v);
-  prefs.end();
-}
-
-// ───────── PROTOTYPES ─────────
-void generateCameraId();
-bool wifiConnect(uint8_t retries = 5);
-bool cloudAuthenticate();
-void initCamera();
-void applyDayParams();
-bool sendFrame();
-void updateLDR();
-void handleButton();
-void portalStart();
-void setupRoutes();
-void handleMenu();
-void handleWiFi();
-void handleSaveWiFi();
-void handleStatus();
-void handleLogs();
-void handleOtaPush();
-
-// ───────── LED HEARTBEAT ─────────
-inline void beatLED() {
-  static uint32_t t = 0;
-  if (millis() - t < 3000) return;
-  t = millis();
-  digitalWrite(LED_STATUS, HIGH);
-  digitalWrite(LED_STATUS, LOW);
-}
-
-// ───────── PAGE HANDLERS ─────────
-void handleMenu() {
-  char buf[512];
-  String staStr = WiFi.isConnected() ? WiFi.localIP().toString() : String("Not connected");
-  IPAddress apIP(192, 168, 0, 1);
-  snprintf_P(buf, sizeof(buf), PAGE_MENU_TPL,
-             camId.c_str(),
-             staStr.c_str(),
-             apIP.toString().c_str(),
-             cloudKey.c_str());
-  server.send(200, "text/html", buf);
-}
-
-void handleWiFi() {
-  prefs.begin("cam_cfg", true);
-  String curS = prefs.getString("ssid", ""),
-         curP = prefs.getString("pass", ""),
-         curK = prefs.getString("cloudkey", DEFAULT_CLOUD_KEY);
-  prefs.end();
-
-  /* Scan once (blocking, but we’re inside a request handler). */
-  int n = WiFi.scanNetworks(false, true);
-  String opts = "<option value='' selected hidden>– select –</option>";
-  for (int i = 0; i < n && opts.length() < 850; ++i) {  // protect 1 kB buffer
-    String ss = WiFi.SSID(i);
-    opts += "<option value='" + ss + "'";
-    if (ss == curS) opts += " selected";
-    opts += ">" + ss + " (" + String(WiFi.RSSI(i)) + " dBm)</option>";
-  }
-  WiFi.scanDelete();
-
-  char page[1800];
-  snprintf_P(page, sizeof(page), PAGE_WIFI_TPL,
-             opts.c_str(), /* NEW */
-             curP.c_str(),
-             curK.c_str());
-  server.send(200, "text/html", page);
-}
-
-
-void handleSaveWiFi() {
-  if (server.hasArg("ssid") && server.hasArg("pass") && server.hasArg("cloudkey")) {
-    ssid = server.arg("ssid");
-    pass = server.arg("pass");
-    cloudKey = server.arg("cloudkey");
-
-    prefs.begin("cam_cfg", false);
-    prefs.putString("ssid", ssid);
-    prefs.putString("pass", pass);
-    prefs.putString("cloudkey", cloudKey);
-    prefs.end();
-    if (WiFi.isConnected()) cloudAuthenticate();
-
-    /* Don’t block here – let the main loop do the reconnect.   */
-    lastWifiTry = 0;  // forces an immediate attempt in loop()
-  }
-  server.sendHeader("Location", "/status", true);
-  server.send(302, "text/plain", "");
-}
-
-
-void handleStatus() {
-  IPAddress apIP(192, 168, 0, 1);
-  IPAddress staIP = WiFi.isConnected() ? WiFi.localIP() : IPAddress(0, 0, 0, 0);
-  const char* cloudSt = activated ? "OK" : "Not Auth";
-  char buf[512];
-  snprintf_P(buf, sizeof(buf), PAGE_STATUS_TPL,
-             camId.c_str(),
-             apIP.toString().c_str(),
-             staIP.toString().c_str(),
-             cloudSt);
-  server.send(200, "text/html", buf);
-}
-
-void handleLogs() {
-  static char tmp[LOG_BUF_SZ * 2];
-  size_t fp = strnlen(logBuf + logHead, LOG_BUF_SZ - logHead);
-  memcpy(tmp, logBuf + logHead, fp);
-  memcpy(tmp + fp, logBuf, logHead);
-  tmp[fp + logHead] = 0;
-  char page[LOG_BUF_SZ * 2 + 64];
-  snprintf_P(page, sizeof(page), PAGE_LOGS_TPL, tmp);
-  server.send(200, "text/html", page);
-}
-
-void handleOtaPush() {
-  HTTPUpload& up = server.upload();
-  if (up.status == UPLOAD_FILE_START) {
-    if (!server.hasHeader("X-OTA-KEY") || server.header("X-OTA-KEY") != cloudKey) {
-      server.send(403, "text/plain", "Forbidden");
-      return;
-    }
-    logLine("[OTA] push-start");
-    Update.begin(UPDATE_SIZE_UNKNOWN);
-  } else if (up.status == UPLOAD_FILE_WRITE) {
-    Update.write(up.buf, up.currentSize);
-  } else if (up.status == UPLOAD_FILE_END) {
-    bool ok = Update.end(true);
-    logLine(ok ? "[OTA] push-done" : "[OTA] push-fail");
-    server.send(ok ? 200 : 500, "text/plain", ok ? "OK" : "FAIL");
-    delay(400);
-    ESP.restart();
-  }
-}
-
-void setupRoutes() {
-  server.on("/", HTTP_GET, handleMenu);
-  server.on("/wifi", HTTP_GET, handleWiFi);
-  server.on("/save_wifi", HTTP_POST, handleSaveWiFi);
-  server.on("/status", HTTP_GET, handleStatus);
-  server.on("/logs", HTTP_GET, handleLogs);
-  server.on("/cloudkey", HTTP_GET, handleCloudKey);
-  server.on("/save_key", HTTP_POST, handleSaveKey);
-
-  server.on(
-    "/manual_update", HTTP_POST, []() {}, handleOtaPush);
-  server.begin();
-}
-
-
-// ───────── CAMERA INIT ─────────
-void applyDayParams() {
-  prefs.begin("cam_cfg", true);
-  int b = prefs.getInt("bright", 1),
-      c = prefs.getInt("contr", 1),
-      s = prefs.getInt("sat", 1),
-      d = prefs.getInt("dn", 5);
-  prefs.end();
-  cam->set_brightness(cam, b);
-  cam->set_contrast(cam, c);
-  cam->set_saturation(cam, s);
-  cam->set_denoise(cam, d);
-}
-
-void initCamera() {
-  camera_config_t cfg{};
-  cfg.ledc_channel = LEDC_CHANNEL_0;
-  cfg.ledc_timer = LEDC_TIMER_0;
-  cfg.pin_d0 = Y2_GPIO_NUM;
-  cfg.pin_d1 = Y3_GPIO_NUM;
-  cfg.pin_d2 = Y4_GPIO_NUM;
-  cfg.pin_d3 = Y5_GPIO_NUM;
-  cfg.pin_d4 = Y6_GPIO_NUM;
-  cfg.pin_d5 = Y7_GPIO_NUM;
-  cfg.pin_d6 = Y8_GPIO_NUM;
-  cfg.pin_d7 = Y9_GPIO_NUM;
-  cfg.pin_xclk = XCLK_GPIO_NUM;
-  cfg.pin_pclk = PCLK_GPIO_NUM;
-  cfg.pin_vsync = VSYNC_GPIO_NUM;
-  cfg.pin_href = HREF_GPIO_NUM;
-  cfg.pin_sscb_sda = SIOD_GPIO_NUM;
-  cfg.pin_sscb_scl = SIOC_GPIO_NUM;
-  cfg.pin_pwdn = PWDN_GPIO_NUM;
-  cfg.pin_reset = RESET_GPIO_NUM;
-  cfg.xclk_freq_hz = 20000000;
-  cfg.pixel_format = PIXFORMAT_JPEG;
-
-  if (psramFound()) {
-    cfg.frame_size = FRAMESIZE_HD;
-    cfg.fb_count = 3;
-    cfg.jpeg_quality = 6;
-  } else {
-    cfg.frame_size = FRAMESIZE_QVGA;
-    cfg.fb_count = 1;
-    cfg.jpeg_quality = 12;
-  }
-
-  if (esp_camera_init(&cfg) != ESP_OK) {
-    logLine("[CAM] init fail");
-    delay(500);
-    ESP.restart();
-  }
-  cam = esp_camera_sensor_get();
-  cam->set_hmirror(cam, 1);
-  cam->set_vflip(cam, 0);
-  applyDayParams();
-  camReady = true;
-  logLine("[CAM] ready");
-}
-void portalStart() {
-  /* Use a fixed channel inside 1‑11 to avoid country‑code resets.   */
-  wifi_country_t in = { "IN", 1, 11, 0, WIFI_COUNTRY_POLICY_MANUAL };
-  esp_wifi_set_country(&in);
-
-  WiFi.mode(WIFI_AP_STA);  // dual‑mode from the start
-  IPAddress apIP(192, 168, 0, 1);
-  WiFi.softAPConfig(apIP, apIP, IPAddress(255, 255, 255, 0));
-  WiFi.softAP(camId.c_str(), apPass.c_str(), 6, false);
-
-  dns.start(53, "*", apIP);
-  setupRoutes();
-  logLine("[AP] portal ready (192.168.0.1)");
-}
-
-// ───────── WIFI & CLOUD AUTH ─────────
-// ───── wifiConnect() – replace the whole function ─────
-bool wifiConnect(uint8_t retries) {
-  /* 1.  Never drop the AP: use dual mode.
-     * 2.  Give the AP a predictable hostname (good for mDNS later).    */
-  WiFi.mode(WIFI_AP_STA);
-  WiFi.setHostname(camId.c_str());
-
-  for (uint8_t i = 0; i < retries; ++i) {
-    logLine("[NET] connecting…");
-    WiFi.begin(ssid.c_str(), pass.c_str());
-
-    for (uint8_t t = 0; t < 50; ++t) {
-      if (WiFi.status() == WL_CONNECTED) {
-        logLine(("[NET] IP " + WiFi.localIP().toString()).c_str());
-        return true;
-      }
-      delay(100);
-      yield();
-    }
-
-    /* 3.  ONLY drop the *station* connection; leave the AP intact.   */
-    WiFi.disconnect(false /* keep STA object */, true /* erase cred */);
-  }
-  return false;
-}
-
-
-void generateCameraId() {
-  prefs.begin("cam_cfg", false);
-  camId = prefs.getString("camId", "");
-  apPass = prefs.getString("apPass", "configme");
-  prefs.end();
-
-  if (camId.length()) return;
-  // time needed for reproducible ID
-  configTime(0, 0, "pool.ntp.org", "time.google.com");
-  struct tm tm;
-  char buf[32] = "CAM";
-  if (getLocalTime(&tm, 4000))
-    strftime(buf, sizeof(buf), "CAM_%Y%m%d_%H%M%S", &tm);
-
-  camId = String(buf) + "_" + String((uint32_t)esp_random(), HEX);
-  storeString("camId", camId);
-}
-
-bool cloudAuthenticate() {
-  String url = String("http://") + BACKEND_HOST + AUTH_PATH;
-  http.begin(client, url);
-  http.addHeader("Content-Type", "application/json");
-
-  StaticJsonDocument<128> d;
-  d["device_id"] = camId;
-  d["cloud_key"] = cloudKey;
-  String body;
-  serializeJson(d, body);
-
-  int code = http.POST(body);
-  String resp = http.getString();
-  http.end();
-
-  if (code != 200) {
-    logLine("[AUTH] fail");
-    return false;
-  }
-  StaticJsonDocument<256> rd;
-  if (deserializeJson(rd, resp) || !rd["token"].is<const char*>()) {
-    logLine("[AUTH] bad JSON");
-    return false;
-  }
-
-  jwt = rd["token"].as<const char*>();
-  storeString("token", jwt);
-  activated = true;
-  storeBool("activated", true);
-  logLine("[AUTH] success");
-  return true;
-}
-
-// ───────── FRAME STREAMING ─────────
-bool sendFrame() {
-  if (!camReady) return false;
-  camera_fb_t* fb = esp_camera_fb_get();
-  if (!fb) return false;
-
-  String url = String("http://") + BACKEND_HOST + UPLOAD_PRFX + camId + (nightMode ? "/night" : "/day");
-
-  http.begin(client, url);
-  http.setTimeout(3000);  // 3 s hard wall
-  http.addHeader("Content-Type", "image/jpeg");
-  if (jwt.length()) http.addHeader("Authorization", "Bearer " + jwt);
-
-  int code = http.sendRequest("POST", fb->buf, fb->len);
-  esp_camera_fb_return(fb);
-  http.end();
-  yield();  // keep the WDT happy
-
-  if (code == 401) { cloudAuthenticate(); }
-  return code >= 200 && code < 300;
-}
-
-
-// ───────── LDR DAY/NIGHT SWITCH ─────────
-uint8_t ldrRing[5] = { 1, 1, 1, 1, 1 }, ldrIdx = 0;
-void updateLDR() {
-  ldrRing[ldrIdx++] = digitalRead(PIN_LDR);
-  if (ldrIdx >= 5) ldrIdx = 0;
-  uint8_t dark = 0;
-  for (auto v : ldrRing)
-    if (v == LOW) ++dark;
-
-  if (dark >= 4 && !nightMode) {
-    nightMode = true;
-    digitalWrite(PIN_IRLED, HIGH);
-    cam->set_pixformat(cam, PIXFORMAT_GRAYSCALE);
-    cam->set_brightness(cam, 3);
-    cam->set_contrast(cam, 3);
-    cam->set_saturation(cam, 0);
-    cam->set_gain_ctrl(cam, 1);      // enable AGC
-    cam->set_exposure_ctrl(cam, 1);  // enable AEC
-    cam->set_denoise(cam, 7);
-  } else if (dark <= 1 && nightMode) {
-    nightMode = false;
-    digitalWrite(PIN_IRLED, LOW);
-    applyDayParams();
-    cam->set_whitebal(cam, 1);
-    cam->set_awb_gain(cam, 1);
-  }
-}
-
-// ───────── BUTTON HANDLER ─────────
-void handleButton() {
-  static unsigned long down = 0;
-  bool pressed = digitalRead(BTN_CONFIG) == LOW;
-  if (pressed && !down) down = millis();
-  if (!pressed && down) {
-    unsigned long held = millis() - down;
-    down = 0;
-    if (held >= 3000) {
-      prefs.begin("cam_cfg", false);
-      prefs.clear();
-      prefs.end();
-      logLine("[BTN] factory reset");
-      delay(500);
-      ESP.restart();
-    } else if (held >= 100) {
-      portalStart();
-    }
-  }
-}
-
-// ───────── SETUP & LOOP ─────────
-void setup() {
-  Serial.begin(115200);
-  pinMode(LED_STATUS, OUTPUT);
-  digitalWrite(LED_STATUS, LOW);
-  pinMode(BTN_CONFIG, INPUT_PULLUP);
-  pinMode(PIN_LDR, INPUT_PULLUP);
-  pinMode(PIN_IRLED, OUTPUT);
-  digitalWrite(PIN_IRLED, LOW);
-
-  prefs.begin("cam_cfg", false);
-  ssid = prefs.getString("ssid", "");
-  pass = prefs.getString("pass", "");
-  apPass = prefs.getString("apPass", "configme");
-  jwt = prefs.getString("token", "");
-  activated = prefs.getBool("activated", false);
-  cloudKey = prefs.getString("cloudkey", DEFAULT_CLOUD_KEY);
-  prefs.end();
-
-  generateCameraId();
-
-  if (ssid.length() && wifiConnect()) {
-    // sync time for initial ID + future logging
-    configTime(0, 0, "pool.ntp.org", "time.google.com");
-    if (!activated) activated = cloudAuthenticate();
-    if (activated && !camReady) initCamera();
-  }
-
-  portalStart();
-}
-
-void loop() {
-  handleButton();
-  updateLDR();
-  beatLED();
-
-  // retry Wi-Fi
-  if (WiFi.status() != WL_CONNECTED && millis() - lastWifiTry > WIFI_RETRY_MS) {
-    lastWifiTry = millis();
-    logLine("[NET] retry");
-    if (wifiConnect() && activated && !camReady) {
-      initCamera();
-    }
-  }
-
-  // continuous streaming
-  if (activated && WiFi.status() == WL_CONNECTED && camReady) {
-    bool ok = sendFrame();
-    logLine(ok ? "[TX] ok" : "[TX] fail");
-  }
-
-  dns.processNextRequest();
-  server.handleClient();
-}
-
-
------ device code/Smart Switch/code.ino -----
-#include <ESP8266WiFi.h>
-#include <ESP8266WebServer.h>
-#include <DNSServer.h>
-#include <ESP8266HTTPClient.h>
-#include <ArduinoJson.h>
-#include <LittleFS.h>
-
-// ───── configuration ────────────────────────────────────────────────
-static const char BACKEND_HOST[]   = "cloud.hydroleaf.in";
-static const char AUTH_PATH[]      = "/api/v1/cloud/authenticate";
-static const char CMD_PATH_FMT[]   = "/api/v1/device_comm/valve/%s/commands";
-static const char EVT_PATH[]       = "/api/v1/device_comm/valve_event";
-
-// ───── pins (active-LOW) ─────────────────────────────────────────────
-const uint8_t RELAY_PINS[8] = { D1, D2, D5, D6, D7, D0, D3, D8 };
-
-// ───── globals ───────────────────────────────────────────────────────
-String deviceId, ssid, pass, cloudKey, jwtToken;
-ESP8266WebServer  http(80);
-DNSServer          dns;
-unsigned long      lastPoll = 0;
-
-// ───── LittleFS KV ───────────────────────────────────────────────────
-String getKV(const char *path) {
-  File f = LittleFS.open(path, "r");
-  if(!f) return "";
-  String s = f.readString(); f.close();
-  s.trim(); return s;
-}
-void putKV(const char *path, const String &v) {
-  File f = LittleFS.open(path, "w");
-  if(!f) return;
-  f.println(v); f.close();
-}
-
-// ───── captive-portal HTML ───────────────────────────────────────────
-const char HTML_FORM[] PROGMEM = R"rawliteral(
-<!doctype html>
-<meta name=viewport content="width=device-width,initial-scale=1">
-<title>Setup HL-SWITCH</title>
-<style>
- body{font-family:sans-serif;padding:10px}
- label,input,button{display:block;width:100%%;margin:8px 0}
- button{background:#007bff;color:#fff;border:none;padding:10px;border-radius:4px}
-</style>
-<h2>Configure</h2>
-<form action="/save" method="POST">
-  <label>Wi-Fi SSID<input name="ssid" value="%s"></label>
-  <label>Wi-Fi Pass<input type="password" name="pass" value="%s"></label>
-  <label>Cloud Key<input name="key" value="%s"></label>
-  <button>Save & Restart</button>
-</form>
-)rawliteral";
-
-// ───── Web handlers ──────────────────────────────────────────────────
-void handleRoot() {
-  char buf[512];
-  snprintf(buf,sizeof(buf),HTML_FORM,
-           ssid.c_str(), pass.c_str(), cloudKey.c_str());
-  http.send(200, "text/html", buf);
-}
-void handleSave() {
-  ssid     = http.arg("ssid");
-  pass     = http.arg("pass");
-  cloudKey = http.arg("key");
-  putKV("/ssid", ssid);
-  putKV("/pass", pass);
-  putKV("/key",  cloudKey);
-  http.send(200,"text/html","<h3>Saved. Rebooting…</h3>");
-  delay(1500);
-  ESP.restart();
-}
-void setupWeb() {
-  http.on("/",        HTTP_GET,  handleRoot);
-  http.on("/save",    HTTP_POST, handleSave);
-  http.onNotFound([](){ http.send(404,"text/plain","Not found"); });
-  http.begin();
-}
-
-// ───── start AP + DNS for captive portal ─────────────────────────────
-void startCaptive() {
-  String ap = "HL-SWITCH-" + deviceId.substring(deviceId.length()-4);
-  WiFi.softAP(ap, "configme");
-  dns.start(53, "*", WiFi.softAPIP());
-}
-
-// ───── join Wi-Fi in parallel with AP ────────────────────────────────
-bool joinWiFi() {
-  WiFi.begin(ssid, pass);
-  for(int i=0;i<40;i++){
-    if(WiFi.status()==WL_CONNECTED) return true;
-    delay(250);
-  }
-  return false;
-}
-
-// ───── cloud authenticate → JWT ──────────────────────────────────────
-bool cloudAuth() {
-  HTTPClient c;
-  String url = String("http://") + BACKEND_HOST + AUTH_PATH;
-  c.begin(url);
-  c.addHeader("Content-Type","application/json");
-  StaticJsonDocument<128> req;
-  req["device_id"] = deviceId;
-  req["cloud_key"] = cloudKey;
-  String body; serializeJson(req,body);
-  if(c.POST(body) != 200){
-    c.end();
-    return false;
-  }
-  String resp = c.getString(); c.end();
-  StaticJsonDocument<256> d;
-  if(deserializeJson(d,resp)!=DeserializationError::Ok) return false;
-  jwtToken = d["token"].as<String>();
-  putKV("/token", jwtToken);
-  return true;
-}
-
-// ───── execute a single toggle ───────────────────────────────────────
-void execToggle(uint8_t vid) {
-  if(vid<1||vid>8) return;
-  uint8_t pin = RELAY_PINS[vid-1];
-  bool on = digitalRead(pin)==LOW;
-  digitalWrite(pin, on?HIGH:LOW);
-}
-
-// ───── poll cloud for pending toggles ───────────────────────────────
-void pollCommands() {
-  if(WiFi.status()!=WL_CONNECTED || jwtToken.isEmpty()) return;
-  HTTPClient c;
-  char p[80];
-  snprintf(p,sizeof(p),CMD_PATH_FMT,deviceId.c_str());
-  String url = String("http://") + BACKEND_HOST + p + "?device_id=" + deviceId;
-  c.begin(url);
-  c.addHeader("Authorization","Bearer "+jwtToken);
-  if(c.GET()==200){
-    String rsp = c.getString();
-    c.end();
-    StaticJsonDocument<256> doc;
-    if(deserializeJson(doc,rsp)!=DeserializationError::Ok) return;
-    for(auto cmd: doc["commands"].as<JsonArray>()){
-      uint8_t vid = cmd["valve_id"];
-      execToggle(vid);
-      // report back
-      HTTPClient r;
-      String u2 = String("http://") + BACKEND_HOST + EVT_PATH;
-      r.begin(u2);
-      r.addHeader("Content-Type","application/json");
-      r.addHeader("Authorization","Bearer "+jwtToken);
-      StaticJsonDocument<128> ev;
-      ev["device_id"]=deviceId;
-      ev["valve_id"]=vid;
-      ev["state"]  = (digitalRead(RELAY_PINS[vid-1])==LOW?"on":"off");
-      String b2; serializeJson(ev,b2);
-      r.POST(b2);
-      r.end();
-    }
-  } else {
-    c.end();
-  }
-}
-
-void setup() {
-  Serial.begin(115200);
-  LittleFS.begin();
-
-  // init relays OFF
-  for(auto p:RELAY_PINS){
-    pinMode(p,OUTPUT);
-    digitalWrite(p,HIGH);
-  }
-
-  // load/generate IDs
-  deviceId = getKV("/id");
-  if(deviceId.isEmpty()){
-    deviceId = "SW_"+String(ESP.getChipId(),HEX);
-    putKV("/id",deviceId);
-  }
-  ssid     = getKV("/ssid");
-  pass     = getKV("/pass");
-  cloudKey = getKV("/key");
-  jwtToken = getKV("/token");
-
-  // start AP/captive + web UI
-  WiFi.mode(WIFI_AP_STA);
-  startCaptive();
-  setupWeb();
-
-  // attempt join + auth
-  if(ssid.length() && joinWiFi()){
-    cloudAuth();
-  }
-}
-
-void loop() {
-  dns.processNextRequest();
-  http.handleClient();
-  if(millis() - lastPoll > 5000){
-    lastPoll = millis();
-    pollCommands();
-  }
-}
-
-
------ device code/Smart Dosing Unit/code.ino -----
-/**
- * Hydroleaf Smart Dosing Controller – HTTP‑only build (v3.1.1)
- * ------------------------------------------------------------
- *  ✦  Non‑blocking pumps   ✦  Wi‑Fi watchdog                 *
- *  ✦  Cloud API heartbeat  ✦  HTTP OTA (no TLS certificate)  *
- */
-
-#pragma GCC optimize("Os")
-
-/* ───────── 1. INCLUDES ─────────────────────────────────────────── */
-#include <WiFi.h>
-#include <WebServer.h>
-#include <DNSServer.h>
-#include <Preferences.h>
-#include <TFT_eSPI.h>
-#include <HTTPClient.h>
-#include <HTTPUpdate.h>  //  ← fixes ESPhttpUpdate error
-#include <Update.h>
-#include <ArduinoJson.h>
-#include <esp_adc_cal.h>
-
-/* ───────── 2. HARDWARE MAP ─────────────────────────────────────── */
-#define RELAY_PUMP_1 26
-#define RELAY_PUMP_2 27
-#define RELAY_PUMP_3 14
-#define RELAY_PUMP_4 12
-#define PH_SENSOR_PIN 34
-#define TDS_SENSOR_PIN 35
-#define LED_STATUS 2
-
-/* ───────── 3. CONSTANTS ────────────────────────────────────────── */
-static const uint8_t DNS_PORT = 53;
-static const char* DEFAULT_AP_PASS = "hydroleaf";
-static const char* CLOUD_HOST = "http://cloud.hydroleaf.in";  // HTTP!
-static const char* OTA_PATH = "/api/v1/device_comm/update/pull?device_id=";
-static const char* UPDATE_CHECK_PATH = "/api/v1/device_comm/update?device_id=";
-static const char* HEARTBEAT_PATH = "/api/v1/device_comm/heartbeat";
-static const char* FW_VERSION = "3.1.1";
-static const char* DEVICE_TYPE = "dosing_unit";
-
-/*  Timing  */
-static const uint32_t HB_INTERVAL = 60UL * 1000;             // 1 min
-static const uint32_t UPDATE_INTERVAL = 60UL * 60UL * 1000;  // 1 hr
-static const uint32_t WIFI_WATCHDOG_MS = 120UL * 1000;       // 2 min
-
-/* ───────── 4. GLOBALS ─────────────────────────────────────────── */
-Preferences prefs;
-WebServer http(80);
-DNSServer dns;
-TFT_eSPI tft;
-esp_adc_cal_characteristics_t* adc_chars = nullptr;
-
-String g_ssid, g_pass, g_apPass, g_deviceId;
-bool g_wifiConnected = false;
-uint32_t wifiLostSince = 0;
-
-/*  Sensor cache  */
-float pHValue = -1.0f;
-float tdsValue = -1.0f;
-
-/*  Non‑blocking pump state  */
-struct PumpState {
-  bool active = false;
-  uint32_t startMs = 0, durMs = 0;
-} pumps[4];
-
-/* ───────── 5. UTILITIES ───────────────────────────────────────── */
-void showStatus(const String& msg) {
-  tft.fillScreen(TFT_BLACK);
-  tft.setCursor(10, 100);
-  tft.setTextColor(TFT_WHITE, TFT_BLACK);
-  tft.setTextSize(2);
-  tft.println(msg);
-}
-void setRelay(int idx, bool on) {
-  digitalWrite(RELAY_PUMP_1 + idx - 1, on ? LOW : HIGH);
-}
-void savePref(const char* key, const String& v) {
-  prefs.begin("doser_cfg", false);
-  prefs.putString(key, v);
-  prefs.end();
-}
-
-/* ───────── 6. PUMP CONTROL ────────────────────────────────────── */
-void schedulePump(int pump, uint32_t ms) {
-  if (pump < 1 || pump > 4 || ms == 0) return;
-  pumps[pump - 1] = { true, millis(), ms };
-  setRelay(pump, true);
-  showStatus("Pump#" + String(pump) + " ON");
-}
-void updatePumps() {
-  uint32_t now = millis();
-  for (int i = 0; i < 4; ++i)
-    if (pumps[i].active && now - pumps[i].startMs >= pumps[i].durMs) {
-      setRelay(i + 1, false);
-      pumps[i].active = false;
-      showStatus("Pump#" + String(i + 1) + " OFF");
-    }
-}
-
-/* ───────── 7. SENSOR READ ─────────────────────────────────────── */
-void readSensors() {
-  static uint32_t last = 0;
-  if (millis() - last < 1000) return;
-  last = millis();
-  uint32_t sum = 0;
-  for (int i = 0; i < 30; ++i) sum += analogRead(PH_SENSOR_PIN);
-  float v = esp_adc_cal_raw_to_voltage(sum / 30, adc_chars) / 1000.0f;
-  pHValue = constrain(7.0f + ((2.5f - v) / 0.18f), 0.0f, 14.0f);
-  sum = 0;
-  for (int i = 0; i < 30; ++i) sum += analogRead(TDS_SENSOR_PIN);
-  float v2 = esp_adc_cal_raw_to_voltage(sum / 30, adc_chars) / 1000.0f;
-  float cv = max(0.0f, v2 * (100.0f / 110.0f) - 0.12f);
-  tdsValue = constrain(133.42f * pow(cv, 3) - 255.86f * pow(cv, 2) + 857.39f * cv, 0.0f, 2500.0f);
-}
-
-/* ───────── 8. CLOUD I/O (HTTP) ────────────────────────────────── */
-bool cloudGET(const String& url, String& payload) {
-  HTTPClient cli;
-  if (!cli.begin(url)) return false;
-  int code = cli.GET();
-  if (code == HTTP_CODE_OK) payload = cli.getString();
-  cli.end();
-  return code == HTTP_CODE_OK;
-}
-bool cloudPOST(const String& url, const String& body, String& resp) {
-  HTTPClient cli;
-  if (!cli.begin(url)) return false;
-  cli.addHeader("Content-Type", "application/json");
-  int code = cli.POST(body);
-  if (code == HTTP_CODE_OK) resp = cli.getString();
-  cli.end();
-  return code == HTTP_CODE_OK;
-}
-
-/* OTA (HTTP) */
-void checkForUpdate() {
-  if (!g_wifiConnected) return;
-  String body;
-  if (!cloudGET(String(CLOUD_HOST) + UPDATE_CHECK_PATH + g_deviceId, body)) return;
-  if (body.indexOf("\"update_available\":true") < 0) return;
-
-  showStatus("OTA updating…");
-  WiFiClient client;
-  httpUpdate.setLedPin(LED_STATUS, LOW);  // Blink LED while flashing
-  httpUpdate.rebootOnUpdate(true);
-  httpUpdate.update(client, String(CLOUD_HOST) + OTA_PATH + g_deviceId);
-}
-
-/* Heartbeat */
-void sendHeartbeat() {
-  if (!g_wifiConnected) return;
-  StaticJsonDocument<256> d;
-  d["device_id"] = g_deviceId;
-  d["type"] = DEVICE_TYPE;
-  d["version"] = FW_VERSION;
-  String out;
-  serializeJson(d, out);
-  String resp;
-  if (!cloudPOST(String(CLOUD_HOST) + HEARTBEAT_PATH, out, resp)) return;
-
-  StaticJsonDocument<512> r;
-  if (deserializeJson(r, resp) != DeserializationError::Ok) return;
-  for (JsonObject t : r["tasks"].as<JsonArray>()) schedulePump(t["pump"] | 0, t["amount"] | 0);
-}
-
-/* ───────── 9. WEB ROUTES (unchanged + API) ────────────────────── */
-String htmlHeader(const String& title) {
-  return "<!doctype html><html><head><meta charset='utf-8' "
-         "name='viewport' content='width=device-width,initial-scale=1'><title>"
-         + title + "</title><style>body{font-family:Arial;margin:0;padding:20px;}h2{margin-top:0;}"
-                   "input,button{width:100%;padding:10px;margin:8px 0;font-size:16px;}"
-                   "button{background:#007bff;border:none;color:#fff;}button:hover{background:#0069d9}"
-                   "a{display:block;margin:8px 0;color:#007bff;}</style></head><body>";
-}
-
-void sendJSON(int code, const JsonDocument& doc) {
-  String o;
-  serializeJson(doc, o);
-  http.send(code, "application/json", o);
-}
-
-void handleDiscovery() {
-  StaticJsonDocument<160> d;
-  d["device_id"] = g_deviceId;
-  d["name"] = "Hydroleaf Smart Doser";
-  d["type"] = DEVICE_TYPE;
-  d["version"] = FW_VERSION;
-  d["status"] = g_wifiConnected ? "online" : "offline";
-  d["ip"] = WiFi.localIP().toString();
-  sendJSON(200, d);
-}
-void handleVersion() {
-  StaticJsonDocument<32> d;
-  d["version"] = FW_VERSION;
-  sendJSON(200, d);
-}
-
-void handlePumpPOST() {
-  if (!http.hasArg("plain")) {
-    http.send(400, "text/plain", "Missing JSON");
-    return;
-  }
-  StaticJsonDocument<128> j;
-  if (deserializeJson(j, http.arg("plain"))) {
-    http.send(400, "Bad JSON");
-    return;
-  }
-  int pump = j["pump"] | 0, amt = j["amount"] | 0;
-  schedulePump(pump, amt);
-  j["timestamp"] = millis();
-  sendJSON(200, j);
-}
-void handleDoseMonitor() {
-  if (!http.hasArg("plain")) {
-    http.send(400, "Missing");
-    return;
-  }
-  StaticJsonDocument<128> j;
-  if (deserializeJson(j, http.arg("plain"))) {
-    http.send(400, "Bad");
-    return;
-  }
-  int pump = j["pump"] | 0, amt = j["amount"] | 0;
-  schedulePump(pump, amt);
-  StaticJsonDocument<160> r;
-  r["message"] = "Started";
-  r["pump"] = pump;
-  r["dose_ms"] = amt;
-  r["ph"] = pHValue;
-  r["tds"] = tdsValue;
-  r["timestamp"] = millis();
-  sendJSON(200, r);
-}
-void handlePumpCal() {
-  if (!http.hasArg("plain")) {
-    http.send(400, "Missing");
-    return;
-  }
-  StaticJsonDocument<64> j;
-  if (deserializeJson(j, http.arg("plain"))) {
-    http.send(400, "Bad");
-    return;
-  }
-  String cmd = j["command"] | "";
-  if (cmd == "start") {
-    for (int p = 1; p <= 4; ++p) schedulePump(p, 50000);
-    http.send(200, "application/json", "{\"message\":\"calibration started\"}");
-  } else if (cmd == "stop") {
-    for (int i = 0; i < 4; ++i) {
-      pumps[i].active = false;
-      setRelay(i + 1, false);
-    }
-    http.send(200, "application/json", "{\"message\":\"calibration stopped\"}");
-  } else http.send(400, "text/plain", "Invalid command");
-}
-void handleMonitor() {
-  StaticJsonDocument<128> d;
-  d["ph"] = pHValue;
-  d["tds"] = tdsValue;
-  sendJSON(200, d);
-}
-
-/* Register routes (+ keep existing portal pages if any) */
-void setupRoutes() {
-  http.on("/discovery", HTTP_GET, handleDiscovery);
-  http.on("/version", HTTP_GET, handleVersion);
-  http.on("/pump", HTTP_POST, handlePumpPOST);
-  http.on("/dose_monitor", HTTP_POST, handleDoseMonitor);
-  http.on("/pump_calibration", HTTP_POST, handlePumpCal);
-  http.on("/monitor", HTTP_GET, handleMonitor);
-
-  http.onNotFound([]() {
-    http.sendHeader("Location", "/", true);
-    http.send(302);
-  });
-  http.begin();
-}
-
-/* ───────── 10. CAPTIVE PORTAL ─────────────────────────────────── */
-void portalStart() {
-  WiFi.mode(WIFI_AP_STA);
-  IPAddress apIP(192, 168, 0, 1);
-  WiFi.softAPConfig(apIP, apIP, IPAddress(255, 255, 255, 0));
-  WiFi.softAP(g_deviceId.c_str(), g_apPass.c_str());
-  dns.start(DNS_PORT, "*", apIP);
-  setupRoutes();
-}
-
-/* ───────── 11. SETUP ─────────────────────────────────────────── */
-void setup() {
-  Serial.begin(115200);
-  tft.init();
-  tft.setRotation(1);
-  pinMode(LED_STATUS, OUTPUT);
-  digitalWrite(LED_STATUS, LOW);
-  for (int p : { RELAY_PUMP_1, RELAY_PUMP_2, RELAY_PUMP_3, RELAY_PUMP_4 }) {
-    pinMode(p, OUTPUT);
-    digitalWrite(p, HIGH);
-  }
-
-  prefs.begin("doser_cfg", false);
-  g_ssid = prefs.getString("ssid", "");
-  g_pass = prefs.getString("pass", "");
-  g_apPass = prefs.getString("apPass", DEFAULT_AP_PASS);
-  g_deviceId = prefs.getString("id", "");
-  if (!g_deviceId.length()) {
-    g_deviceId = "DOSER_" + String((uint32_t)esp_random(), HEX);
-    prefs.putString("id", g_deviceId);
-  }
-  prefs.end();
-
-  adc_chars = (esp_adc_cal_characteristics_t*)calloc(1, sizeof(*adc_chars));
-  esp_adc_cal_characterize(ADC_UNIT_1, ADC_ATTEN_DB_11, ADC_WIDTH_BIT_12, 1100, adc_chars);
-  analogSetPinAttenuation(PH_SENSOR_PIN, ADC_11db);
-  analogSetPinAttenuation(TDS_SENSOR_PIN, ADC_11db);
-
-  showStatus("Connecting Wi‑Fi…");
-  WiFi.mode(WIFI_STA);
-  WiFi.begin(g_ssid.c_str(), g_pass.c_str());
-  uint32_t st = millis();
-  while (WiFi.status() != WL_CONNECTED && millis() - st < 10000) delay(200);
-  g_wifiConnected = (WiFi.status() == WL_CONNECTED);
-  showStatus(g_wifiConnected ? "Wi‑Fi OK" : "AP mode");
-
-  portalStart();
-}
-
-/* ───────── 12. LOOP ──────────────────────────────────────────── */
-void loop() {
-  dns.processNextRequest();
-  http.handleClient();
-  updatePumps();
-  readSensors();
-
-  static uint32_t tHB = 0, tUpd = 0;
-  uint32_t now = millis();
-  if (now - tHB >= HB_INTERVAL) {
-    tHB = now;
-    sendHeartbeat();
-  }
-  if (now - tUpd >= UPDATE_INTERVAL) {
-    tUpd = now;
-    checkForUpdate();
-  }
-
-  if (WiFi.status() == WL_CONNECTED) wifiLostSince = 0;
-  else {
-    if (!wifiLostSince) wifiLostSince = now;
-    if (now - wifiLostSince > WIFI_WATCHDOG_MS) {
-      for (int i = 0; i < 4; ++i) {
-        pumps[i].active = false;
-        setRelay(i + 1, false);
-      }
-      ESP.restart();
-    }
-  }
-}
-
-
------ device code/Valve controller/code.ino -----
-#include <ESP8266WiFi.h>
-#include <ESP8266WebServer.h>
-#include <DNSServer.h>
-#include <EEPROM.h>
-#include <ArduinoJson.h>
-#include <Update.h>
-
-#pragma GCC optimize("Os")
-
-// ───── hardware ─────────────────────────────────────────────────────────────
-static const uint8_t VALVE_COUNT   = 4;
-static const uint8_t valvePins[VALVE_COUNT] = { D1, D2, D5, D6 };
-
-// ───── EEPROM layout ────────────────────────────────────────────────────────
-#define EEPROM_SIZE     512
-#define ADDR_SSID       0
-#define ADDR_PASS       64
-#define ADDR_HOST       128
-#define ADDR_PORT       192
-#define ADDR_AP_PWD     194
-#define ADDR_DEVICE_ID  256
-#define ADDR_VALVE_STATE 336
-
-// ───── globals ──────────────────────────────────────────────────────────────
-ESP8266WebServer server(80);
-DNSServer          dns;
-
-String  g_ssid, g_pass, g_host, g_deviceId, g_apPass;
-uint16_t g_port = 80;
-bool    g_valveState[VALVE_COUNT];
-bool    otaOK = false;
-
-// ───── EEPROM helpers ───────────────────────────────────────────────────────
-void saveString(int addr, const String &s, int maxLen){
-  for(int i=0;i<maxLen;i++){
-    EEPROM.write(addr + i, i < s.length() ? s[i] : '\0');
-  }
-}
-String loadString(int addr, int maxLen){
-  String s;
-  for(int i=0;i<maxLen;i++){
-    char c = EEPROM.read(addr + i);
-    if(!c) break;
-    s += c;
-  }
-  return s;
-}
-void commitCfg(){ EEPROM.commit(); }
-
-// ───── captive‐portal HTML ──────────────────────────────────────────────────
-const char FORM_HTML[] PROGMEM = R"rawliteral(
-<!doctype html><meta name=viewport content="width=device-width,initial-scale=1">
-<title>Valve­CTL Setup</title>
-<style>
- body{font-family:sans-serif;padding:10px}
- label,input,button{display:block;width:100%%;margin:8px 0}
- button{background:#007bff;color:#fff;border:none;padding:10px;border-radius:4px}
-</style>
-<h2>Configure Valve­CTL</h2>
-<form action=/save method=POST>
-  <label>Wi-Fi SSID<input  name=ssid value="%s"></label>
-  <label>Wi-Fi Pass<input type=password  name=pass value="%s"></label>
-  <label>Backend Host<input name=host value="%s"></label>
-  <label>Backend Port<input name=port value="%u"></label>
-  <label>AP Password<input type=password name=apwd value="%s"></label>
-  <button>Save & Reboot</button>
-</form>
-)rawliteral";
-
-// ───── HTTP handlers ───────────────────────────────────────────────────────
-void handleRoot(){
-  char buf[512];
-  snprintf(buf,sizeof(buf), FORM_HTML,
-           g_ssid.c_str(),
-           g_pass.c_str(),
-           g_host.c_str(),
-           g_port,
-           g_apPass.c_str());
-  server.send(200,"text/html",buf);
-}
-
-void handleSave(){
-  if(!server.hasArg("ssid")||!server.hasArg("pass")
-  || !server.hasArg("host")||!server.hasArg("port")
-  || !server.hasArg("apwd")){
-    server.send(400,"text/plain","Missing fields"); return;
-  }
-  g_ssid  = server.arg("ssid");
-  g_pass  = server.arg("pass");
-  g_host  = server.arg("host");
-  g_port  = server.arg("port").toInt();
-  g_apPass= server.arg("apwd");
-  saveString(ADDR_SSID,  g_ssid,    64);
-  saveString(ADDR_PASS,  g_pass,    64);
-  saveString(ADDR_HOST,  g_host,    64);
-  EEPROM.write(ADDR_PORT, (g_port>>8)&0xFF);
-  EEPROM.write(ADDR_PORT+1, g_port&0xFF);
-  saveString(ADDR_AP_PWD,g_apPass,  32);
-  commitCfg();
-  server.send(200,"text/html","<h3>Saved. Rebooting…</h3>");
-  delay(1500); ESP.restart();
-}
-
-void handleState(){
-  StaticJsonDocument<128> doc;
-  doc["device_id"] = g_deviceId;
-  auto arr = doc.createNestedArray("valves");
-  for(uint8_t i=0;i<VALVE_COUNT;i++){
-    JsonObject v = arr.createNestedObject();
-    v["id"]    = i+1;
-    v["state"] = g_valveState[i] ? "on":"off";
-  }
-  String out; serializeJson(doc,out);
-  server.send(200,"application/json",out);
-}
-
-void handleToggle(){
-  if(server.method()!=HTTP_POST){
-    server.send(405);
-    return;
-  }
-  StaticJsonDocument<64> req;
-  if(deserializeJson(req, server.arg("plain"))!=DeserializationError::Ok
-    || !req.containsKey("valve_id")){
-    server.send(400,"application/json","{\"error\":\"bad payload\"}");
-    return;
-  }
-  int v = req["valve_id"];
-  if(v<1||v>VALVE_COUNT){
-    server.send(400,"application/json","{\"error\":\"valve_id out of range\"}");
-    return;
-  }
-  uint8_t idx = v-1;
-  g_valveState[idx] = !g_valveState[idx];
-  digitalWrite(valvePins[idx], g_valveState[idx]?LOW:HIGH);
-  EEPROM.write(ADDR_VALVE_STATE+idx, g_valveState[idx]);
-  commitCfg();
-
-  StaticJsonDocument<64> res;
-  res["valve_id"]=v;
-  res["new_state"] = g_valveState[idx]?"on":"off";
-  String o; serializeJson(res,o);
-  server.send(200,"application/json",o);
-}
-
-void handleOTA(){
-  // end response
-  if(otaOK) server.send(200,"text/plain","OK");
-  else      server.send(500,"text/plain","FAIL");
-  delay(100);
-  ESP.restart();
-}
-void handleOTAUpload(){
-  HTTPUpload &up = server.upload();
-  if(up.status==UPLOAD_FILE_START){
-    uint32_t maxSz = (ESP.getFreeSketchSpace() - 0x1000) & 0xFFFFF000;
-    Update.begin(maxSz);
-  }
-  else if(up.status==UPLOAD_FILE_WRITE){
-    Update.write(up.buf, up.currentSize);
-  }
-  else if(up.status==UPLOAD_FILE_END){
-    otaOK = Update.end(true);
-  }
-}
-
-// redirect all others to portal
-void handleNotFound(){
-  server.sendHeader("Location", "http://192.168.4.1", true);
-  server.send(302);
-}
-
-void setupRoutes(){
-  server.on("/",             HTTP_GET,  handleRoot);
-  server.on("/save",         HTTP_POST, handleSave);
-  server.on("/state",        HTTP_GET,  handleState);
-  server.on("/toggle",       HTTP_POST, handleToggle);
-  server.on("/update_firmware", HTTP_POST, handleOTA,
-            handleOTAUpload);
-  server.onNotFound(handleNotFound);
-  server.begin();
-}
-
-// ───── Wi-Fi & captive portal ─────────────────────────────────────────────
-bool joinWiFi(){
-  WiFi.mode(WIFI_AP_STA);
-  WiFi.begin(g_ssid, g_pass);
-  for(int i=0;i<40;i++){
-    if(WiFi.status()==WL_CONNECTED) return true;
-    delay(250);
-  }
-  return false;
-}
-void startPortal(){
-  WiFi.softAP(g_deviceId.c_str(), g_apPass.c_str());
-  dns.start(DNS_PORT,"*",WiFi.softAPIP());
-  setupRoutes();
-}
-
-// ───── init device ID & restore config ────────────────────────────────────
-void genDeviceId(){
-  g_deviceId = loadString(ADDR_DEVICE_ID,32);
-  if(g_deviceId.length()) return;
-  g_deviceId = "valve-" + String(ESP.getChipId(), HEX);
-  saveString(ADDR_DEVICE_ID, g_deviceId, 32);
-  commitCfg();
-}
-
-// ───── Arduino setup & loop ──────────────────────────────────────────────
-void setup(){
-  Serial.begin(115200);
-  EEPROM.begin(EEPROM_SIZE);
-
-  // load
-  g_ssid   = loadString(ADDR_SSID,  64);
-  g_pass   = loadString(ADDR_PASS,  64);
-  g_host   = loadString(ADDR_HOST,  64);
-  uint16_t pH = EEPROM.read(ADDR_PORT);
-  uint16_t pL = EEPROM.read(ADDR_PORT+1);
-  g_port    = (pH<<8)|pL;
-  g_apPass  = loadString(ADDR_AP_PWD,32);
-
-  // restore valves
-  for(uint8_t i=0;i<VALVE_COUNT;i++){
-    pinMode(valvePins[i], OUTPUT);
-    bool st = EEPROM.read(ADDR_VALVE_STATE+i);
-    g_valveState[i]=st;
-    digitalWrite(valvePins[i], st?LOW:HIGH);
-  }
-
-  // device ID + portal
-  genDeviceId();
-  startPortal();
-
-  // try join Wi-Fi
-  if(g_ssid.length() && joinWiFi()){
-    // optionally: sync time or notify cloud if you want
-    Serial.printf("Joined %s\n", g_ssid.c_str());
-  }
-}
-
-void loop(){
-  dns.processNextRequest();
-  server.handleClient();
-}
 
 
