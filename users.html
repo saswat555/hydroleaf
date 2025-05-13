@@ -1,355 +1,355 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>🌱 HydroLeaf User Dashboard</title>
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet" />
-  <style>
-    body { background: #f7f9fc; }
-    .card-img-top { object-fit: cover; height: 200px; }
-    .tabSection { padding: 1rem; }
-    .nav-link { cursor: pointer; }
-    .plant-card { border: 1px solid #ddd; border-radius: .5rem; padding: 1rem; margin-bottom: 1rem; }
-    pre { background: #f0f0f0; padding: .75rem; border-radius: .5rem; }
-  </style>
-</head>
-<body class="p-4">
-  <div class="container" style="max-width: 900px;">
-    <h2 class="mb-4 text-center">HydroLeaf User Dashboard</h2>
+  <!DOCTYPE html>
+  <html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>🌱 HydroLeaf User Dashboard</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet" />
+    <style>
+      body { background: #f7f9fc; }
+      .card-img-top { object-fit: cover; height: 200px; }
+      .tabSection { padding: 1rem; }
+      .nav-link { cursor: pointer; }
+      .plant-card { border: 1px solid #ddd; border-radius: .5rem; padding: 1rem; margin-bottom: 1rem; }
+      pre { background: #f0f0f0; padding: .75rem; border-radius: .5rem; }
+    </style>
+  </head>
+  <body class="p-4">
+    <div class="container" style="max-width: 900px;">
+      <h2 class="mb-4 text-center">HydroLeaf User Dashboard</h2>
 
-    <!-- LOGIN -->
-    <div id="loginSection" class="card p-4 mx-auto" style="max-width:400px;">
-      <div class="mb-3">
-        <label for="emailInput" class="form-label">Email</label>
-        <input type="email" id="emailInput" class="form-control" placeholder="you@example.com">
-      </div>
-      <div class="mb-3">
-        <label for="passwordInput" class="form-label">Password</label>
-        <input type="password" id="passwordInput" class="form-control" placeholder="••••••••">
-      </div>
-      <button id="userLoginBtn" class="btn btn-primary w-100">Log In</button>
-      <div class="mt-3 text-center">
-        <a href="#" id="showSignup">Don't have an account? Sign up</a>
-      </div>
-    </div>
-
-    <!-- SIGNUP -->
-    <div id="signupSection" class="card p-4 mx-auto d-none" style="max-width:400px;">
-      <div class="mb-3">
-        <label for="signupFirstName" class="form-label">First Name</label>
-        <input type="text" id="signupFirstName" class="form-control" placeholder="John">
-      </div>
-      <div class="mb-3">
-        <label for="signupLastName" class="form-label">Last Name</label>
-        <input type="text" id="signupLastName" class="form-control" placeholder="Doe">
-      </div>
-      <div class="mb-3">
-        <label for="signupEmail" class="form-label">Email</label>
-        <input type="email" id="signupEmail" class="form-control" placeholder="you@example.com">
-      </div>
-      <div class="mb-3">
-        <label for="signupPassword" class="form-label">Password</label>
-        <input type="password" id="signupPassword" class="form-control" placeholder="••••••••">
-      </div>
-      <button id="signupBtn" class="btn btn-success w-100">Sign Up</button>
-      <div class="mt-3 text-center">
-        <a href="#" id="showLogin">Already have an account? Log in</a>
-      </div>
-    </div>
-
-    <!-- DASHBOARD -->
-    <div id="dashboard" class="d-none">
-      <div class="d-flex justify-content-between align-items-center mb-3">
-        <strong id="userWelcome"></strong>
-        <button id="userLogoutBtn" class="btn btn-outline-secondary btn-sm">Logout</button>
-      </div>
-
-      <!-- TABS -->
-      <ul class="nav nav-tabs mb-3">
-        <li class="nav-item"><a class="nav-link active" data-section="uStream">Camera Stream</a></li>
-        <li class="nav-item"><a class="nav-link" data-section="uPlants">My Plants</a></li>
-        <li class="nav-item"><a class="nav-link" data-section="uDosing">Dosing</a></li>
-        <li class="nav-item"><a class="nav-link" data-section="uSwitches">Switches</a></li>
-        <li class="nav-item"><a class="nav-link" data-section="uValves">Valves</a></li>
-        <li class="nav-item"><a class="nav-link" data-section="uSubscription">Subscription</a></li>
-      </ul>
-
-      <!-- CAMERA STREAM -->
-      <div id="uStream" class="tabSection">
-        <div id="uStreamsContainer" class="row g-3"></div>
-      </div>
-
-      <!-- MY PLANTS -->
-      <div id="uPlants" class="tabSection d-none">
-        <button id="addPlantBtn" class="btn btn-success mb-3">Add New Plant</button>
-        <div id="plantsContainer"></div>
-      </div>
-
-      <!-- DOSING -->
-      <div id="uDosing" class="tabSection d-none">
-        <div class="row g-3 mb-3">
-          <div class="col-md-6">
-            <label for="dosingDeviceSelect" class="form-label">Dosing Device</label>
-            <select id="dosingDeviceSelect" class="form-select"></select>
-          </div>
-          <div class="col-md-6">
-            <label for="profileSelect" class="form-label">Dosing Profile</label>
-            <select id="profileSelect" class="form-select"></select>
-          </div>
+      <!-- LOGIN -->
+      <div id="loginSection" class="card p-4 mx-auto" style="max-width:400px;">
+        <div class="mb-3">
+          <label for="emailInput" class="form-label">Email</label>
+          <input type="email" id="emailInput" class="form-control" placeholder="you@example.com">
         </div>
-        <button id="doDosingBtn" class="btn btn-primary">Dose Selected Profile</button>
-        <div id="dosingResult" class="mt-3"></div>
-      </div>
-
-      <!-- SWITCHES -->
-      <div id="uSwitches" class="tabSection d-none">
-        <div id="switchesContainer" class="row g-3"></div>
-      </div>
-
-      <!-- VALVES -->
-      <div id="uValves" class="tabSection d-none">
-        <div id="valvesContainer" class="row g-3"></div>
-      </div>
-
-      <!-- SUBSCRIPTION -->
-      <div id="uSubscription" class="tabSection d-none">
-        <div id="subStatus" class="mb-3"></div>
-        <div id="paymentSection">
-          <div class="mb-3 text-center">
-            <img id="qrCodeImg" src="" alt="Pay via QR" class="img-fluid" style="max-width:200px;" />
-          </div>
-          <div class="mb-3">
-            <label for="txIdInput" class="form-label">Transaction ID</label>
-            <input type="text" id="txIdInput" class="form-control" placeholder="Enter your Tx ID">
-          </div>
-          <button id="submitTxBtn" class="btn btn-primary w-100">Submit for Approval</button>
+        <div class="mb-3">
+          <label for="passwordInput" class="form-label">Password</label>
+          <input type="password" id="passwordInput" class="form-control" placeholder="••••••••">
+        </div>
+        <button id="userLoginBtn" class="btn btn-primary w-100">Log In</button>
+        <div class="mt-3 text-center">
+          <a href="#" id="showSignup">Don't have an account? Sign up</a>
         </div>
       </div>
+
+      <!-- SIGNUP -->
+      <div id="signupSection" class="card p-4 mx-auto d-none" style="max-width:400px;">
+        <div class="mb-3">
+          <label for="signupFirstName" class="form-label">First Name</label>
+          <input type="text" id="signupFirstName" class="form-control" placeholder="John">
+        </div>
+        <div class="mb-3">
+          <label for="signupLastName" class="form-label">Last Name</label>
+          <input type="text" id="signupLastName" class="form-control" placeholder="Doe">
+        </div>
+        <div class="mb-3">
+          <label for="signupEmail" class="form-label">Email</label>
+          <input type="email" id="signupEmail" class="form-control" placeholder="you@example.com">
+        </div>
+        <div class="mb-3">
+          <label for="signupPassword" class="form-label">Password</label>
+          <input type="password" id="signupPassword" class="form-control" placeholder="••••••••">
+        </div>
+        <button id="signupBtn" class="btn btn-success w-100">Sign Up</button>
+        <div class="mt-3 text-center">
+          <a href="#" id="showLogin">Already have an account? Log in</a>
+        </div>
+      </div>
+
+      <!-- DASHBOARD -->
+      <div id="dashboard" class="d-none">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+          <strong id="userWelcome"></strong>
+          <button id="userLogoutBtn" class="btn btn-outline-secondary btn-sm">Logout</button>
+        </div>
+
+        <!-- TABS -->
+        <ul class="nav nav-tabs mb-3">
+          <li class="nav-item"><a class="nav-link active" data-section="uStream">Camera Stream</a></li>
+          <li class="nav-item"><a class="nav-link" data-section="uPlants">My Plants</a></li>
+          <li class="nav-item"><a class="nav-link" data-section="uDosing">Dosing</a></li>
+          <li class="nav-item"><a class="nav-link" data-section="uSwitches">Switches</a></li>
+          <li class="nav-item"><a class="nav-link" data-section="uValves">Valves</a></li>
+          <li class="nav-item"><a class="nav-link" data-section="uSubscription">Subscription</a></li>
+        </ul>
+
+        <!-- CAMERA STREAM -->
+        <div id="uStream" class="tabSection">
+          <div id="uStreamsContainer" class="row g-3"></div>
+        </div>
+
+        <!-- MY PLANTS -->
+        <div id="uPlants" class="tabSection d-none">
+          <button id="addPlantBtn" class="btn btn-success mb-3">Add New Plant</button>
+          <div id="plantsContainer"></div>
+        </div>
+
+        <!-- DOSING -->
+        <div id="uDosing" class="tabSection d-none">
+          <div class="row g-3 mb-3">
+            <div class="col-md-6">
+              <label for="dosingDeviceSelect" class="form-label">Dosing Device</label>
+              <select id="dosingDeviceSelect" class="form-select"></select>
+            </div>
+            <div class="col-md-6">
+              <label for="profileSelect" class="form-label">Dosing Profile</label>
+              <select id="profileSelect" class="form-select"></select>
+            </div>
+          </div>
+          <button id="doDosingBtn" class="btn btn-primary">Dose Selected Profile</button>
+          <div id="dosingResult" class="mt-3"></div>
+        </div>
+
+        <!-- SWITCHES -->
+        <div id="uSwitches" class="tabSection d-none">
+          <div id="switchesContainer" class="row g-3"></div>
+        </div>
+
+        <!-- VALVES -->
+        <div id="uValves" class="tabSection d-none">
+          <div id="valvesContainer" class="row g-3"></div>
+        </div>
+
+        <!-- SUBSCRIPTION -->
+        <div id="uSubscription" class="tabSection d-none">
+          <div id="subStatus" class="mb-3"></div>
+          <div id="paymentSection">
+            <div class="mb-3 text-center">
+              <img id="qrCodeImg" src="" alt="Pay via QR" class="img-fluid" style="max-width:200px;" />
+            </div>
+            <div class="mb-3">
+              <label for="txIdInput" class="form-label">Transaction ID</label>
+              <input type="text" id="txIdInput" class="form-control" placeholder="Enter your Tx ID">
+            </div>
+            <button id="submitTxBtn" class="btn btn-primary w-100">Submit for Approval</button>
+          </div>
+        </div>
+      </div>
     </div>
-  </div>
 
-  <script src="https://cdn.jsdelivr.net/npm/axios@1.6.7/dist/axios.min.js"></script>
-  <script>
-    const baseUrl = 'http://cloud.hydroleaf.in';
-    let jwt = '';
-    let dosingProfiles = [];
-    const el = id => document.getElementById(id);
+    <script src="https://cdn.jsdelivr.net/npm/axios@1.6.7/dist/axios.min.js"></script>
+    <script>
+      const baseUrl = 'http://cloud.hydroleaf.in';
+      let jwt = '';
+      let dosingProfiles = [];
+      const el = id => document.getElementById(id);
 
-    // Toggle Login / Signup
-    el('showSignup').onclick = () => {
-      el('loginSection').classList.add('d-none');
-      el('signupSection').classList.remove('d-none');
-    };
-    el('showLogin').onclick = () => {
-      el('signupSection').classList.add('d-none');
-      el('loginSection').classList.remove('d-none');
-    };
-
-    // LOGIN
-    el('userLoginBtn').onclick = async () => {
-      const email = el('emailInput').value.trim();
-      const pass = el('passwordInput').value;
-      if (!email || !pass) return alert('Enter credentials');
-      try {
-        const params = new URLSearchParams();
-        params.append('grant_type','password');
-        params.append('username',email);
-        params.append('password',pass);
-        const { data } = await axios.post(`${baseUrl}/api/v1/auth/login`, params, {
-          headers:{ 'Content-Type':'application/x-www-form-urlencoded' }
-        });
-        jwt = data.access_token;
-        axios.defaults.headers.common['Authorization'] = `Bearer ${jwt}`;
+      // Toggle Login / Signup
+      el('showSignup').onclick = () => {
         el('loginSection').classList.add('d-none');
+        el('signupSection').classList.remove('d-none');
+      };
+      el('showLogin').onclick = () => {
         el('signupSection').classList.add('d-none');
-        el('dashboard').classList.remove('d-none');
-        el('userWelcome').textContent = `Welcome, ${email}`;
-        loadUserDashboard();
-      } catch (e) {
-        alert('Login failed: ' + (e.response?.data?.detail || e.message));
-      }
-    };
-
-    // SIGNUP
-    el('signupBtn').onclick = async () => {
-      const first = el('signupFirstName').value.trim();
-      const last  = el('signupLastName').value.trim();
-      const email = el('signupEmail').value.trim();
-      const pass  = el('signupPassword').value;
-      if (!first || !last || !email || !pass) return alert('All fields required');
-      try {
-        await axios.post(`${baseUrl}/api/v1/auth/signup`, {
-          email,
-          password: pass,
-          name: `${first} ${last}`,
-          first_name: first,
-          last_name: last
-        });
-        alert('Signup successful! Please log in.');
-        el('showLogin').click();
-      } catch (e) {
-        alert('Signup failed: ' + (e.response?.data?.detail || e.message));
-      }
-    };
-
-    el('userLogoutBtn').onclick = () => location.reload();
-
-    // TAB NAV
-    document.querySelectorAll('.nav-link').forEach(link => {
-      link.onclick = () => {
-        const sec = link.dataset.section;
-        document.querySelectorAll('.nav-link')
-          .forEach(l => l.classList.toggle('active', l.dataset.section === sec));
-        document.querySelectorAll('.tabSection')
-          .forEach(s => s.id === sec ? s.classList.remove('d-none') : s.classList.add('d-none'));
-        if (sec === 'uStream') loadCameraStreams();
-        if (sec === 'uPlants') loadPlants();
-        if (sec === 'uDosing') loadDosing();
-        if (sec === 'uSwitches') loadSwitches();
-        if (sec === 'uValves') loadValves();
-        if (sec === 'uSubscription') loadSubscription();
+        el('loginSection').classList.remove('d-none');
       };
-    });
 
-    // INITIAL LOAD
-    async function loadUserDashboard() {
-      loadCameraStreams();
-      loadPlants();
-      loadSwitches();
-      loadValves();
-      loadSubscription();
-    }
-
-    // 1. Camera Streams
-    async function loadCameraStreams() {
-      // assume you have an endpoint to list your cameras
-      const { data: cams } = await axios.get(`${baseUrl}/api/v1/users/me/cameras`);
-      const C = el('uStreamsContainer'); C.innerHTML = '';
-      cams.forEach(id => {
-        const col = document.createElement('div'); col.className = 'col-sm-6';
-        const card = document.createElement('div'); card.className = 'card';
-        const hdr  = document.createElement('div'); hdr.className = 'card-header'; hdr.textContent = id;
-        const img  = document.createElement('img'); img.className = 'card-img-top';
-        card.append(hdr, img); col.append(card); C.append(col);
-        setInterval(async () => {
-          try {
-            const resp = await axios.get(`${baseUrl}/api/v1/cameras/stream/${encodeURIComponent(id)}?mode=poll`, { responseType:'blob' });
-            img.src = URL.createObjectURL(resp.data);
-          } catch {}
-        }, 2000);
-      });
-    }
-
-    // 2. My Plants
-    async function loadPlants() {
-      const { data } = await axios.get(`${baseUrl}/api/v1/plants`);
-      const ct = el('plantsContainer'); ct.innerHTML = '';
-      data.forEach(p => {
-        const d = document.createElement('div'); d.className = 'plant-card';
-        d.innerHTML = `<h5>${p.name}</h5>
-          <p>Type: ${p.type} | Stage: ${p.growth_stage} | Seeded: ${new Date(p.seeding_date).toLocaleDateString()}</p>
-          <p>Region: ${p.region} | Location: ${p.location}</p>`;
-        ct.append(d);
-      });
-    }
-    el('addPlantBtn').onclick = async () => {
-      const name = prompt('Plant name:'); if (!name) return;
-      const type = prompt('Species/type:'), stage = prompt('Growth stage:');
-      const date = prompt('Seeding date (ISO):'), region = prompt('Region:');
-      const loc  = prompt('Location:');
-      await axios.post(`${baseUrl}/api/v1/plants`, { name, type, growth_stage: stage, seeding_date: date, region, location: loc });
-      loadPlants();
-    };
-
-    // 3. Dosing (LLM flow)
-    async function loadDosing() {
-      const { data: devices } = await axios.get(`${baseUrl}/api/v1/devices/my`);
-      const devSel = el('dosingDeviceSelect');
-      devSel.innerHTML = devices.map(d => `<option value="${d.id}">${d.name}</option>`).join('');
-      devSel.onchange = async () => {
-        const dev = devSel.value;
-        const { data } = await axios.get(`${baseUrl}/api/v1/config/dosing-profiles/${dev}`);
-        dosingProfiles = data;
-        el('profileSelect').innerHTML = data.map(p =>
-          `<option value="${p.id}">${p.plant_name} (${new Date(p.seeding_date).toLocaleDateString()})</option>`
-        ).join('');
+      // LOGIN
+      el('userLoginBtn').onclick = async () => {
+        const email = el('emailInput').value.trim();
+        const pass = el('passwordInput').value;
+        if (!email || !pass) return alert('Enter credentials');
+        try {
+          const params = new URLSearchParams();
+          params.append('grant_type','password');
+          params.append('username',email);
+          params.append('password',pass);
+          const { data } = await axios.post(`${baseUrl}/api/v1/auth/login`, params, {
+            headers:{ 'Content-Type':'application/x-www-form-urlencoded' }
+          });
+          jwt = data.access_token;
+          axios.defaults.headers.common['Authorization'] = `Bearer ${jwt}`;
+          el('loginSection').classList.add('d-none');
+          el('signupSection').classList.add('d-none');
+          el('dashboard').classList.remove('d-none');
+          el('userWelcome').textContent = `Welcome, ${email}`;
+          loadUserDashboard();
+        } catch (e) {
+          alert('Login failed: ' + (e.response?.data?.detail || e.message));
+        }
       };
-      if (devices.length) devSel.onchange();
-    }
-    el('doDosingBtn').onclick = async () => {
-      const devId = el('dosingDeviceSelect').value;
-      const profId = el('profileSelect').value;
-      if (!devId || !profId) return alert('Select device & profile');
-      const { data: sensorData } = await axios.get(`${baseUrl}/api/v1/devices/sensoreading/${devId}`);
-      const prof = dosingProfiles.find(p => p.id == profId);
-      try {
-        const res = await axios.post(
-          `${baseUrl}/api/v1/dosing/llm-request?device_id=${devId}`,
-          { sensor_data: sensorData, plant_profile: prof }
-        );
-        const [ result, raw ] = res.data;
-        el('dosingResult').innerHTML = `
-          <h5>Actions Sent</h5><pre>${JSON.stringify(result, null, 2)}</pre>
-          <h5>LLM Raw</h5><pre>${raw}</pre>
-        `;
-      } catch (e) {
-        alert('Dosing failed: ' + (e.response?.data?.detail || e.message));
-      }
-    };
 
-    // 4. Switches
-    async function loadSwitches() {
-      const { data } = await axios.get(`${baseUrl}/api/v1/device_comm/pending_tasks?device_id=SWITCH_CONTROLLER_MAC`);
-      // replace with your actual switches endpoint
-      const ct = el('switchesContainer'); ct.innerHTML = '';
-      data.forEach(s => {
-        const btn = document.createElement('button');
-        btn.className = 'btn btn-outline-secondary me-2 mb-2';
-        btn.textContent = `Switch ${s.switch_id}: pending`;
-        ct.append(btn);
-      });
-    }
+      // SIGNUP
+      el('signupBtn').onclick = async () => {
+        const first = el('signupFirstName').value.trim();
+        const last  = el('signupLastName').value.trim();
+        const email = el('signupEmail').value.trim();
+        const pass  = el('signupPassword').value;
+        if (!first || !last || !email || !pass) return alert('All fields required');
+        try {
+          await axios.post(`${baseUrl}/api/v1/auth/signup`, {
+            email,
+            password: pass,
+            name: `${first} ${last}`,
+            first_name: first,
+            last_name: last
+          });
+          alert('Signup successful! Please log in.');
+          el('showLogin').click();
+        } catch (e) {
+          alert('Signup failed: ' + (e.response?.data?.detail || e.message));
+        }
+      };
 
-    // 5. Valves
-    async function loadValves() {
-      const { data } = await axios.get(`${baseUrl}/api/v1/device_comm/pending_tasks?device_id=VALVE_CONTROLLER_MAC`);
-      // replace with your actual valves endpoint
-      const ct = el('valvesContainer'); ct.innerHTML = '';
-      data.forEach(v => {
-        const btn = document.createElement('button');
-        btn.className = 'btn btn-outline-secondary me-2 mb-2';
-        btn.textContent = `Valve ${v.valve_id}: pending`;
-        ct.append(btn);
-      });
-    }
+      el('userLogoutBtn').onclick = () => location.reload();
 
-    // 6. Subscription & Payments
-    async function loadSubscription() {
-      const { data: subs } = await axios.get(`${baseUrl}/api/v1/subscriptions`);
-      // pick your subscription record
-      const sub = subs.find(s => s.device_id);
-      const st = el('subStatus');
-      if (sub && sub.active) {
-        st.innerHTML = `<div class="alert alert-success">Active until ${new Date(sub.end_date).toLocaleDateString()}</div>`;
-        el('paymentSection').style.display = 'none';
-      } else {
-        st.innerHTML = `<div class="alert alert-danger">No active subscription</div>`;
-        el('paymentSection').style.display = '';
-        // create a payment order for plan_id=1 (example)
-        const { data: order } = await axios.post(`${baseUrl}/api/v1/payments/create`, {
-          device_id: 'YOUR_DEVICE_ID',
-          plan_id: 1
-        });
-        el('qrCodeImg').src = order.qr_code_url;
-        el('submitTxBtn').onclick = async () => {
-          const tx = el('txIdInput').value.trim();
-          if (!tx) return alert('Enter Tx ID');
-          await axios.post(`${baseUrl}/api/v1/payments/confirm/${order.id}`, { upi_transaction_id: tx });
-          loadSubscription();
+      // TAB NAV
+      document.querySelectorAll('.nav-link').forEach(link => {
+        link.onclick = () => {
+          const sec = link.dataset.section;
+          document.querySelectorAll('.nav-link')
+            .forEach(l => l.classList.toggle('active', l.dataset.section === sec));
+          document.querySelectorAll('.tabSection')
+            .forEach(s => s.id === sec ? s.classList.remove('d-none') : s.classList.add('d-none'));
+          if (sec === 'uStream') loadCameraStreams();
+          if (sec === 'uPlants') loadPlants();
+          if (sec === 'uDosing') loadDosing();
+          if (sec === 'uSwitches') loadSwitches();
+          if (sec === 'uValves') loadValves();
+          if (sec === 'uSubscription') loadSubscription();
         };
+      });
+
+      // INITIAL LOAD
+      async function loadUserDashboard() {
+        loadCameraStreams();
+        loadPlants();
+        loadSwitches();
+        loadValves();
+        loadSubscription();
       }
-    }
-  </script>
-</body>
-</html>
+
+      // 1. Camera Streams
+      async function loadCameraStreams() {
+        // assume you have an endpoint to list your cameras
+        const { data: cams } = await axios.get(`${baseUrl}/api/v1/users/me/cameras`);
+        const C = el('uStreamsContainer'); C.innerHTML = '';
+        cams.forEach(id => {
+          const col = document.createElement('div'); col.className = 'col-sm-6';
+          const card = document.createElement('div'); card.className = 'card';
+          const hdr  = document.createElement('div'); hdr.className = 'card-header'; hdr.textContent = id;
+          const img  = document.createElement('img'); img.className = 'card-img-top';
+          card.append(hdr, img); col.append(card); C.append(col);
+          setInterval(async () => {
+            try {
+              const resp = await axios.get(`${baseUrl}/api/v1/cameras/stream/${encodeURIComponent(id)}?mode=poll`, { responseType:'blob' });
+              img.src = URL.createObjectURL(resp.data);
+            } catch {}
+          }, 2000);
+        });
+      }
+
+      // 2. My Plants
+      async function loadPlants() {
+        const { data } = await axios.get(`${baseUrl}/api/v1/plants`);
+        const ct = el('plantsContainer'); ct.innerHTML = '';
+        data.forEach(p => {
+          const d = document.createElement('div'); d.className = 'plant-card';
+          d.innerHTML = `<h5>${p.name}</h5>
+            <p>Type: ${p.type} | Stage: ${p.growth_stage} | Seeded: ${new Date(p.seeding_date).toLocaleDateString()}</p>
+            <p>Region: ${p.region} | Location: ${p.location}</p>`;
+          ct.append(d);
+        });
+      }
+      el('addPlantBtn').onclick = async () => {
+        const name = prompt('Plant name:'); if (!name) return;
+        const type = prompt('Species/type:'), stage = prompt('Growth stage:');
+        const date = prompt('Seeding date (ISO):'), region = prompt('Region:');
+        const loc  = prompt('Location:');
+        await axios.post(`${baseUrl}/api/v1/plants`, { name, type, growth_stage: stage, seeding_date: date, region, location: loc });
+        loadPlants();
+      };
+
+      // 3. Dosing (LLM flow)
+      async function loadDosing() {
+        const { data: devices } = await axios.get(`${baseUrl}/api/v1/devices/my`);
+        const devSel = el('dosingDeviceSelect');
+        devSel.innerHTML = devices.map(d => `<option value="${d.id}">${d.name}</option>`).join('');
+        devSel.onchange = async () => {
+          const dev = devSel.value;
+          const { data } = await axios.get(`${baseUrl}/api/v1/config/dosing-profiles/${dev}`);
+          dosingProfiles = data;
+          el('profileSelect').innerHTML = data.map(p =>
+            `<option value="${p.id}">${p.plant_name} (${new Date(p.seeding_date).toLocaleDateString()})</option>`
+          ).join('');
+        };
+        if (devices.length) devSel.onchange();
+      }
+      el('doDosingBtn').onclick = async () => {
+        const devId = el('dosingDeviceSelect').value;
+        const profId = el('profileSelect').value;
+        if (!devId || !profId) return alert('Select device & profile');
+        const { data: sensorData } = await axios.get(`${baseUrl}/api/v1/devices/sensoreading/${devId}`);
+        const prof = dosingProfiles.find(p => p.id == profId);
+        try {
+          const res = await axios.post(
+            `${baseUrl}/api/v1/dosing/llm-request?device_id=${devId}`,
+            { sensor_data: sensorData, plant_profile: prof }
+          );
+          const [ result, raw ] = res.data;
+          el('dosingResult').innerHTML = `
+            <h5>Actions Sent</h5><pre>${JSON.stringify(result, null, 2)}</pre>
+            <h5>LLM Raw</h5><pre>${raw}</pre>
+          `;
+        } catch (e) {
+          alert('Dosing failed: ' + (e.response?.data?.detail || e.message));
+        }
+      };
+
+      // 4. Switches
+      async function loadSwitches() {
+        const { data } = await axios.get(`${baseUrl}/api/v1/device_comm/pending_tasks?device_id=SWITCH_CONTROLLER_MAC`);
+        // replace with your actual switches endpoint
+        const ct = el('switchesContainer'); ct.innerHTML = '';
+        data.forEach(s => {
+          const btn = document.createElement('button');
+          btn.className = 'btn btn-outline-secondary me-2 mb-2';
+          btn.textContent = `Switch ${s.switch_id}: pending`;
+          ct.append(btn);
+        });
+      }
+
+      // 5. Valves
+      async function loadValves() {
+        const { data } = await axios.get(`${baseUrl}/api/v1/device_comm/pending_tasks?device_id=VALVE_CONTROLLER_MAC`);
+        // replace with your actual valves endpoint
+        const ct = el('valvesContainer'); ct.innerHTML = '';
+        data.forEach(v => {
+          const btn = document.createElement('button');
+          btn.className = 'btn btn-outline-secondary me-2 mb-2';
+          btn.textContent = `Valve ${v.valve_id}: pending`;
+          ct.append(btn);
+        });
+      }
+
+      // 6. Subscription & Payments
+      async function loadSubscription() {
+        const { data: subs } = await axios.get(`${baseUrl}/api/v1/subscriptions`);
+        // pick your subscription record
+        const sub = subs.find(s => s.device_id);
+        const st = el('subStatus');
+        if (sub && sub.active) {
+          st.innerHTML = `<div class="alert alert-success">Active until ${new Date(sub.end_date).toLocaleDateString()}</div>`;
+          el('paymentSection').style.display = 'none';
+        } else {
+          st.innerHTML = `<div class="alert alert-danger">No active subscription</div>`;
+          el('paymentSection').style.display = '';
+          // create a payment order for plan_id=1 (example)
+          const { data: order } = await axios.post(`${baseUrl}/api/v1/payments/create`, {
+            device_id: 'YOUR_DEVICE_ID',
+            plan_id: 1
+          });
+          el('qrCodeImg').src = order.qr_code_url;
+          el('submitTxBtn').onclick = async () => {
+            const tx = el('txIdInput').value.trim();
+            if (!tx) return alert('Enter Tx ID');
+            await axios.post(`${baseUrl}/api/v1/payments/confirm/${order.id}`, { upi_transaction_id: tx });
+            loadSubscription();
+          };
+        }
+      }
+    </script>
+  </body>
+  </html>

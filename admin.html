@@ -10,16 +10,13 @@
     body {
       background: #f7f9fc;
     }
-
     .card-img-top {
       object-fit: cover;
       height: 200px;
     }
-
     .tabSection {
       padding: 1rem;
     }
-
     .nav-link {
       cursor: pointer;
     }
@@ -69,10 +66,10 @@
               placeholder="Enter up to 6 Camera IDs (comma/space separated)">
           </div>
           <div class="col-md-2">
-            <button id="startStreamBtn" class="btn btn-success w-100">Start Streams</button>
+            <button id="startStreamBtn" class="btn btn-success w-100">Start</button>
           </div>
           <div class="col-md-2">
-            <button id="stopStreamBtn" class="btn btn-danger w-100">Stop Streams</button>
+            <button id="stopStreamBtn" class="btn btn-danger w-100">Stop</button>
           </div>
         </div>
         <div id="streamsContainer" class="row g-3"></div>
@@ -102,7 +99,7 @@
         <div class="row g-2 mb-2">
           <div class="col"><input type="text" id="actDeviceId" class="form-control" placeholder="Device ID"></div>
           <div class="col"><input type="number" id="actPlanId" class="form-control" placeholder="Plan ID"></div>
-          <div class="col-auto"><button id="genActKeyBtn" class="btn btn-primary">Generate Activation Key</button></div>
+          <div class="col-auto"><button id="genActKeyBtn" class="btn btn-primary">Generate Key</button></div>
         </div>
         <pre id="actKeyResult"></pre>
       </div>
@@ -130,296 +127,187 @@
   <script src="https://cdn.jsdelivr.net/npm/axios@1.6.7/dist/axios.min.js"></script>
   <script>
     const el = id => document.getElementById(id);
-    const base = 'http://cloud.hydroleaf.in';
-    let jwtToken = '';
-    let streamIntervals = {};
+    const base = 'http://cloud.hydroleaf.in';  // your production base
+    let jwt = '', streams = {};
 
-    // LOGIN
+    // — LOGIN —
     el('loginBtn').onclick = async () => {
-      const email = el('userInput').value.trim(),
-        pass = el('passInput').value;
-      if (!email || !pass) return alert('Enter email & password');
+      const u = el('userInput').value.trim(), p = el('passInput').value;
+      if (!u || !p) return alert('Enter email & password');
       try {
-        const params = new URLSearchParams({
-          grant_type: 'password',
-          username: email,
-          password: pass
+        const body = new URLSearchParams({ grant_type:'password', username:u, password:p });
+        const res = await axios.post(`${base}/api/v1/auth/login`, body, {
+          headers:{'Content-Type':'application/x-www-form-urlencoded'}
         });
-        const { data } = await axios.post(`${base}/api/v1/auth/login`, params, {
-          headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
-        });
-        jwtToken = data.access_token;
-        axios.defaults.headers.common['Authorization'] = `Bearer ${jwtToken}`;
+        jwt = res.data.access_token;
+        axios.defaults.headers.common['Authorization'] = `Bearer ${jwt}`;
         el('loginSection').classList.add('d-none');
         el('dashboard').classList.remove('d-none');
-        el('welcomeMsg').textContent = `Admin: ${email}`;
-      } catch (err) {
-        alert('Login failed: ' + (err.response?.data?.detail || err.message));
+        el('welcomeMsg').textContent = `Admin: ${u}`;
+      } catch(e) {
+        alert('Login failed: '+(e.response?.data?.detail||e.message));
       }
     };
-    el('logoutBtn').onclick = () => location.reload();
+    el('logoutBtn').onclick = ()=> location.reload();
 
-    // TABS
-    document.querySelectorAll('#adminTabs .nav-link').forEach(link => {
-      link.onclick = () => {
-        document.querySelectorAll('#adminTabs .nav-link').forEach(l => l.classList.remove('active'));
-        link.classList.add('active');
-        document.querySelectorAll('.tabSection').forEach(s => s.classList.add('d-none'));
-        el(link.dataset.section).classList.remove('d-none');
-
-        if (link.dataset.section === 'usersSection') loadUsers();
-        if (link.dataset.section === 'devicesSection') loadDevices();
-        if (link.dataset.section === 'cameraListSection') loadCameraList();
-      };
+    // — TABS —
+    const links = document.querySelectorAll('#adminTabs .nav-link');
+    links.forEach(a => a.onclick = () => {
+      links.forEach(x=>x.classList.remove('active'));
+      a.classList.add('active');
+      document.querySelectorAll('.tabSection').forEach(s=>s.classList.add('d-none'));
+      el(a.dataset.section).classList.remove('d-none');
+      if(a.dataset.section==='usersSection') loadUsers();
+      if(a.dataset.section==='devicesSection') loadDevices();
+      if(a.dataset.section==='cameraListSection') loadCameraList();
     });
 
-    // STREAMS
-    el('startStreamBtn').onclick = () => {
-      el('streamsContainer').innerHTML = '';
-      Object.values(streamIntervals).forEach(clearInterval);
-      streamIntervals = {};
-
-      const ids = (el('cameraIdsInput').value.match(/\S+/g) || []).slice(0, 6);
-      if (!ids.length) return alert('Enter at least one Camera ID (max 6).');
-
-      ids.forEach(id => {
-        const col = document.createElement('div');
-        col.className = 'col-sm-6 col-md-4';
-        const card = document.createElement('div');
-        card.className = 'card';
-        const hdr = document.createElement('div');
-        hdr.className = 'card-header';
-        hdr.textContent = id;
-        const img = document.createElement('img');
-        img.className = 'card-img-top';
-        card.append(hdr, img);
-        col.append(card);
-        el('streamsContainer').append(col);
-
-        streamIntervals[id] = setInterval(async () => {
+    // — STREAMS —
+    el('startStreamBtn').onclick = ()=> {
+      streams = {};
+      el('streamsContainer').innerHTML='';
+      const ids = el('cameraIdsInput').value.match(/\S+/g)?.slice(0,6)||[];
+      if(!ids.length) return alert('Enter up to 6 IDs');
+      ids.forEach(id=>{
+        const col = document.createElement('div'); col.className='col-sm-6 col-md-4';
+        const card = document.createElement('div'); card.className='card';
+        const hdr = document.createElement('div'); hdr.className='card-header'; hdr.textContent=id;
+        const img = document.createElement('img'); img.className='card-img-top';
+        card.append(hdr,img); col.append(card); el('streamsContainer').append(col);
+        streams[id] = setInterval(async()=>{
           try {
-            const resp = await axios.get(
-              `${base}/api/v1/cameras/stream/${encodeURIComponent(id)}?mode=poll`,
-              { responseType: 'blob' }
-            );
-            img.src = URL.createObjectURL(resp.data);
-          } catch (_) { }
-        }, 2000);
+            const b = await axios.get(`${base}/api/v1/cameras/stream/${encodeURIComponent(id)}?mode=poll`,{responseType:'blob'});
+            img.src = URL.createObjectURL(b.data);
+          } catch{}
+        },2000);
       });
     };
-
-    el('stopStreamBtn').onclick = () => {
-      Object.values(streamIntervals).forEach(clearInterval);
-      streamIntervals = {};
-      el('streamsContainer').innerHTML = '';
+    el('stopStreamBtn').onclick = ()=>{
+      Object.values(streams).forEach(clearInterval);
+      el('streamsContainer').innerHTML='';
     };
 
-    // CLIPS
-    el('loadClipsBtn').onclick = async () => {
-      const cam = el('clipsCameraInput').value.trim();
-      if (!cam) return alert('Enter Camera ID');
+    // — CLIPS —
+    el('loadClipsBtn').onclick = async()=>{
+      const cam=el('clipsCameraInput').value.trim();
+      if(!cam) return alert('Enter Camera ID');
       try {
-        const { data } = await axios.get(`${base}/admin/cameras/${encodeURIComponent(cam)}/clips`);
-        if (!data.length) {
-          el('clipsListContainer').innerHTML = '<p>No clips found</p>';
-          return;
-        }
-        const rows = data.map(c => `
+        const {data} = await axios.get(`${base}/admin/cameras/${encodeURIComponent(cam)}/clips`);
+        if(!data.length) return el('clipsListContainer').innerHTML='<p>No clips</p>';
+        const rows = data.map(c=>`
           <tr>
             <td>${c.filename}</td>
             <td>${new Date(c.datetime).toLocaleString()}</td>
             <td class="text-end">${c.size_mb} MB</td>
             <td>
-              <a class="btn btn-sm btn-outline-success me-1"
-                 href="${base}/admin/cameras/${cam}/clips/${c.filename}/play" target="_blank">Play</a>
-              <a class="btn btn-sm btn-outline-primary"
-                 href="${base}/admin/cameras/${cam}/clips/${c.filename}/download" target="_blank">Download</a>
+              <a class="btn btn-sm btn-outline-success" href="${base}/admin/cameras/${cam}/clips/${c.filename}/play" target="_blank">Play</a>
+              <a class="btn btn-sm btn-outline-primary" href="${base}/admin/cameras/${cam}/clips/${c.filename}/download" target="_blank">Download</a>
             </td>
-          </tr>
-        `).join('');
-        el('clipsListContainer').innerHTML = `
-          <table class="table table-striped">
-            <thead class="table-light">
-              <tr><th>Filename</th><th>Date / Time</th><th class="text-end">Size</th><th>Actions</th></tr>
-            </thead>
-            <tbody>${rows}</tbody>
-          </table>`;
-      } catch (e) {
-        alert('Failed to load clips: ' + (e.response?.data?.detail || e.message));
-      }
+          </tr>`).join('');
+        el('clipsListContainer').innerHTML=`
+          <table class="table"><thead><tr>
+            <th>File</th><th>Date</th><th class="text-end">Size</th><th>Actions</th>
+          </tr></thead><tbody>${rows}</tbody></table>`;
+      } catch(e){ alert('Error: '+(e.response?.data?.detail||e.message)); }
     };
 
-    // USERS
+    // — USERS —
     el('refreshUsersBtn').onclick = loadUsers;
-    async function loadUsers() {
+    async function loadUsers(){
       try {
-        const { data } = await axios.get(`${base}/admin/users`);
-        if (!data.length) {
-          el('usersTableContainer').innerHTML = '<p>No users found.</p>';
-          return;
-        }
-        const rows = data.map(u => `
+        const {data} = await axios.get(`${base}/admin/users`);
+        if(!data.length) return el('usersTableContainer').innerHTML='<p>No users.</p>';
+        const rows = data.map(u=>`
           <tr>
-            <td>${u.id}</td>
-            <td>${u.email}</td>
-            <td>${u.role}</td>
-            <td>${new Date(u.created_at).toLocaleString()}</td>
+            <td>${u.id}</td><td>${u.email}</td><td>${u.role}</td><td>${new Date(u.created_at).toLocaleString()}</td>
             <td>
-              <button class="btn btn-sm btn-secondary me-1"
-                      onclick="impersonate(${u.id}, '${u.email}')">Impersonate</button>
-              <button class="btn btn-sm btn-warning me-1"
-                      onclick="editUser(${u.id}, '${u.email}', '${u.role}')">Edit</button>
-              <button class="btn btn-sm btn-danger"
-                      onclick="deleteUser(${u.id})">Delete</button>
+              <button class="btn btn-sm btn-secondary" onclick="impersonate(${u.id})">Impersonate</button>
+              <button class="btn btn-sm btn-warning" onclick="editUser(${u.id})">Edit</button>
+              <button class="btn btn-sm btn-danger" onclick="deleteUser(${u.id})">Delete</button>
             </td>
           </tr>
         `).join('');
-        el('usersTableContainer').innerHTML = `
-          <table class="table table-striped">
-            <thead>
-              <tr><th>ID</th><th>Email</th><th>Role</th><th>Created At</th><th>Actions</th></tr>
-            </thead>
-            <tbody>${rows}</tbody>
-          </table>`;
-      } catch (e) {
-        alert('Failed to load users: ' + (e.response?.data?.detail || e.message));
-      }
+        el('usersTableContainer').innerHTML=`
+          <table class="table"><thead><tr>
+            <th>ID</th><th>Email</th><th>Role</th><th>Created</th><th>Actions</th>
+          </tr></thead><tbody>${rows}</tbody></table>`;
+      } catch(e){ alert('Error: '+(e.response?.data?.detail||e.message)); }
     }
-    window.impersonate = async (id, email) => {
-      if (!confirm(`Impersonate ${email}?`)) return;
-      try {
-        const { data } = await axios.post(`${base}/admin/users/impersonate/${id}`);
-        jwtToken = data.access_token;
-        axios.defaults.headers.common['Authorization'] = `Bearer ${jwtToken}`;
-        el('welcomeMsg').textContent = `Impersonated ${data.impersonated_user}`;
-        loadUsers();
-      } catch (e) {
-        alert('Impersonation failed: ' + (e.response?.data?.detail || e.message));
-      }
+    window.impersonate = async id=>{
+      if(!confirm('Impersonate user '+id+'?'))return;
+      const {data} = await axios.post(`${base}/admin/users/impersonate/${id}`);
+      jwt=data.access_token;
+      axios.defaults.headers.common['Authorization']=`Bearer ${jwt}`;
+      el('welcomeMsg').textContent='Impersonated user';
+      loadUsers();
     };
-    window.editUser = async (id, email, role) => {
-      const ne = prompt('New email:', email);
-      if (ne === null) return;
-      const nr = prompt('New role:', role);
-      if (nr === null) return;
-      try {
-        await axios.put(`${base}/admin/users/${id}`, { email: ne, role: nr });
-        loadUsers();
-      } catch (e) {
-        alert('Update failed: ' + (e.response?.data?.detail || e.message));
-      }
+    window.editUser = async id=>{
+      const e=prompt('New email?'); if(e===null)return;
+      const r=prompt('New role?'); if(r===null)return;
+      await axios.put(`${base}/admin/users/${id}`,{email:e,role:r});
+      loadUsers();
     };
-    window.deleteUser = async (id) => {
-      if (!confirm(`Delete user ${id}?`)) return;
-      try {
-        await axios.delete(`${base}/admin/users/${id}`);
-        loadUsers();
-      } catch (e) {
-        alert('Delete failed: ' + (e.response?.data?.detail || e.message));
-      }
+    window.deleteUser = async id=>{
+      if(!confirm('Delete user '+id+'?'))return;
+      await axios.delete(`${base}/admin/users/${id}`);
+      loadUsers();
     };
 
-    // DEVICE ACTIVATION KEY
-    el('genActKeyBtn').onclick = async () => {
-      const dev = el('actDeviceId').value.trim();
-      const pl = el('actPlanId').value.trim();
-      if (!dev || !pl) return alert('Enter device & plan IDs');
-      try {
-        const { data } = await axios.post(`${base}/admin/generate_device_activation_key`, null, {
-          params: { device_id: dev, plan_id: pl }
-        });
-        el('actKeyResult').textContent = JSON.stringify(data, null, 2);
-      } catch (e) {
-        alert('Error: ' + (e.response?.data?.detail || e.message));
-      }
+    // — DEVICE ACTIVATION KEY —
+    el('genActKeyBtn').onclick = async()=>{
+      const d=el('actDeviceId').value.trim(), p=el('actPlanId').value.trim();
+      if(!d||!p)return alert('Enter both');
+      const {data} = await axios.post(`${base}/admin/generate_device_activation_key`,null,{ params:{device_id:d,plan_id:p} });
+      el('actKeyResult').textContent=JSON.stringify(data,null,2);
     };
 
-    // CLOUD KEY
-    el('genCloudKeyBtn').onclick = async () => {
-      try {
-        const { data } = await axios.post(`${base}/api/v1/cloud/admin/generate_cloud_key`);
-        el('cloudKeyResult').textContent = JSON.stringify(data, null, 2);
-      } catch (e) {
-        alert('Error: ' + (e.response?.data?.detail || e.message));
-      }
+    // — CLOUD KEY —
+    el('genCloudKeyBtn').onclick = async()=>{
+      const {data} = await axios.post(`${base}/api/v1/cloud/admin/generate_cloud_key`);
+      el('cloudKeyResult').textContent=JSON.stringify(data,null,2);
     };
 
-    // DEVICES
+    // — DEVICES —
     el('refreshDevicesBtn').onclick = loadDevices;
-    async function loadDevices() {
-      // dosing units, valves, switches
-      const lists = [
-        { label: 'Dosing Units', url: `${base}/admin/devices/dosing` },
-        { label: 'Valve Controllers', url: `${base}/admin/devices/valves` },
-        { label: 'Smart Switches', url: `${base}/admin/devices/switches` }
-      ];
+    async function loadDevices(){
       let html = '';
-      for (let section of lists) {
-        const { data } = await axios.get(section.url);
-        html += `<h5>${section.label}</h5>`;
-        if (!data.length) {
+      const types = [
+        {key:'dosing',label:'Dosing Units',url:`${base}/admin/devices/dosing`},
+        {key:'valves',label:'Valve Controllers',url:`${base}/admin/devices/valves`},
+        {key:'switches',label:'Smart Switches',url:`${base}/admin/devices/switches`}
+      ];
+      for(const t of types){
+        const {data} = await axios.get(t.url);
+        html += `<h5>${t.label}</h5>`;
+        if(!data.length){
           html += '<p>None.</p>';
           continue;
         }
-        const rows = data.map(d => `
+        const rows = data.map(d=>`
           <tr>
-            <td>${d.id}</td><td>${d.name}</td><td>${d.type}</td><td>${d.http_endpoint}</td><td>${new Date(d.created_at).toLocaleString()}</td>
-          </tr>
-        `).join('');
+            <td>${d.id}</td><td>${d.name}</td><td>${d.type}</td><td>${d.http_endpoint}</td><td>${d.created_at}</td>
+          </tr>`).join('');
         html += `
-          <table class="table table-bordered mb-4">
-            <thead><tr><th>ID</th><th>Name</th><th>Type</th><th>Endpoint</th><th>Created</th></tr></thead>
-            <tbody>${rows}</tbody>
-          </table>`;
+          <table class="table"><thead><tr>
+            <th>ID</th><th>Name</th><th>Type</th><th>Endpoint</th><th>Created</th>
+          </tr></thead><tbody>${rows}</tbody></table>`;
       }
       el('devicesTableContainer').innerHTML = html;
     }
 
-    // CAMERA LIST
+    // — CAMERA LIST —
     el('loadCameraListBtn').onclick = loadCameraList;
-    async function loadCameraList() {
-      try {
-        const { data } = await axios.get(`${base}/admin/cameras/streams`);
-        if (!data.length) {
-          el('cameraListContainer').innerHTML = '<p>No cameras found.</p>';
-          return;
-        }
-        // build rows
-        const rows = data.map(c => `
-          <tr>
-            <td>${c.camera_id}</td>
-            <td>${c.is_online ? '✅' : '❌'}</td>
-            <td>${c.last_seen 
-                  ? new Date(c.last_seen).toLocaleString() 
-                  : '–'}</td>
-            <td>
-              <button class="btn btn-sm btn-outline-primary me-1"
-                      onclick="window.open('/admin/cameras/stream/${encodeURIComponent(c.camera_id)}?mode=poll','_blank')">
-                Stream
-              </button>
-              <button class="btn btn-sm btn-outline-secondary"
-                      onclick="window.open('/admin/cameras/${encodeURIComponent(c.camera_id)}/clips','_blank')">
-                Clips
-              </button>
-            </td>
-          </tr>
-        `).join('');
-        // inject table
-        el('cameraListContainer').innerHTML = `
-          <table class="table table-bordered">
-            <thead class="table-light">
-              <tr>
-                <th>Camera ID</th>
-                <th>Online</th>
-                <th>Last Seen</th>
-                <th>Actions</th>
-              </tr>
-            </thead>
-            <tbody>${rows}</tbody>
-          </table>`;
-      } catch (e) {
-        alert('Failed to load cameras: ' + (e.response?.data?.detail || e.message));
-      }
+    async function loadCameraList(){
+      const {data} = await axios.get(`${base}/admin/cameras/list`);
+      if(!data.length) return el('cameraListContainer').innerHTML='<p>No cameras.</p>';
+      const rows = data.map(c=>`
+        <tr>
+          <td>${c.camera_id}</td><td>${c.is_online}</td><td>${new Date(c.last_seen).toLocaleString()}</td>
+        </tr>`).join('');
+      el('cameraListContainer').innerHTML=`
+        <table class="table"><thead><tr>
+          <th>Camera ID</th><th>Online</th><th>Last Seen</th>
+        </tr></thead><tbody>${rows}</tbody></table>`;
     }
   </script>
 </body>
