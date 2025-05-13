@@ -379,7 +379,7 @@
     el('loadCameraListBtn').onclick = loadCameraList;
     async function loadCameraList() {
       try {
-        const { data } = await axios.get(`${base}/admin/cameras/list`);
+        const { data } = await axios.get(`${base}/admin/cameras/streams`);
         if (!data.length) {
           el('cameraListContainer').innerHTML = '<p>No cameras found.</p>';
           return;
@@ -388,7 +388,6 @@
         const rows = data.map(c => `
           <tr>
             <td>${c.camera_id}</td>
-            <td>${c.name || '—'}</td>
             <td>${c.is_online ? '✅' : '❌'}</td>
             <td>${c.last_seen 
                   ? new Date(c.last_seen).toLocaleString() 
@@ -411,7 +410,6 @@
             <thead class="table-light">
               <tr>
                 <th>Camera ID</th>
-                <th>Name</th>
                 <th>Online</th>
                 <th>Last Seen</th>
                 <th>Actions</th>
