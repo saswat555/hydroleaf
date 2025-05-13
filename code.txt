@@ -1103,7 +1103,15 @@ app.include_router(admin_clips_router)
 async def startup_tasks():
     asyncio.create_task(offline_watcher(db_factory=get_db, interval_seconds=30))
     camera_queue.start_workers()
-
+@app.on_event("shutdown")
+async def shutdown_cleanup():
+    # ensure no writer stays open (avoids corrupted final clips)
+    from app.routers.cameras import _clip_writers
+    for info in _clip_writers.values():
+        try:
+            info['writer'].release()
+        except Exception:
+            pass
 # ─── Main Entrypoint ──────────────────────────────────────────────────────────
 if __name__ == "__main__":
     uvicorn.run(
@@ -2736,13 +2744,10 @@ async def list_camera_stream_times():
     return output
 
 ----- app/routers/cameras.py -----
-# app/routers/cameras.py
-
-from datetime import datetime, timedelta, timezone
 import asyncio
+from datetime import datetime, timedelta, timezone
 import time
 from pathlib import Path
-import mimetypes
 from collections import defaultdict
 
 import numpy as np
@@ -2761,96 +2766,97 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import (
-    CAM_EVENT_GAP_SECONDS,
     DATA_ROOT,
     RAW_DIR,
     CLIPS_DIR,
-    BOUNDARY,
     PROCESSED_DIR,
+    BOUNDARY,
+    FPS,
+    CAM_EVENT_GAP_SECONDS,
 )
 from app.core.database import get_db
 from app.dependencies import get_current_admin, verify_camera_token
 from app.models import Camera, DetectionRecord, DeviceCommand
 from app.schemas import CameraReportResponse, DetectionRange
-from app.utils.camera_tasks import encode_and_cleanup
 from app.utils.camera_queue import camera_queue
 
 router = APIRouter()
 ws_clients: dict[str, list[WebSocket]] = defaultdict(list)
+
+# Clip writers: camera_id -> {'writer': VideoWriter, 'start': datetime}
+_clip_writers: dict[str, dict] = {}
+_clip_locks: dict[str, asyncio.Lock] = {}
+CLIP_DURATION = timedelta(minutes=10)
 
 
 async def _process_upload(
     camera_id: str,
     request: Request,
     background_tasks: BackgroundTasks,
-    db: AsyncSession,
     day_flag: bool,
 ) -> dict:
-    # 1) Validate content-type
+    # 1) Validate Content-Type
     ct = request.headers.get("content-type", "")
     if not ct.startswith("image/"):
         raise HTTPException(status_code=415, detail="Unsupported Media Type; expected image/jpeg")
 
-    # 2) Stream & accumulate body
+    # 2) Read body
     body = bytearray()
     try:
         async for chunk in request.stream():
             body.extend(chunk)
     except Exception:
-        # treat any streaming error as client disconnect
         raise HTTPException(status_code=499, detail="Client disconnected during upload")
-
     if not body:
         raise HTTPException(status_code=400, detail="Empty request body")
 
-    # 3) Decode JPEG
+    # 3) Save raw JPEG
+    base = Path(DATA_ROOT) / camera_id
+    raw_dir = base / RAW_DIR
+    raw_dir.mkdir(parents=True, exist_ok=True)
+    ts = int(time.time() * 1000)
+    raw_file = raw_dir / f"{ts}.jpg"
+    raw_file.write_bytes(body)
+    latest_file = base / "latest.jpg"
+    tmp_latest = latest_file.with_suffix('.jpg.tmp')
+    tmp_latest.write_bytes(body)
+    tmp_latest.rename(latest_file)
+
+    # 4) Direct clip writing (no enhancement)
     arr = np.frombuffer(body, dtype=np.uint8)
     frame = cv2.imdecode(arr, cv2.IMREAD_COLOR)
     if frame is None:
         raise HTTPException(status_code=400, detail="Invalid JPEG data")
+    now = datetime.now(timezone.utc)
 
-    # 4) Enhance (day/night)
-    try:
-        proc = _enhance_day(frame) if day_flag else _enhance_night(frame)
-        ok, buf = cv2.imencode(".jpg", proc)
-        image_bytes = buf.tobytes() if ok else body
-    except Exception:
-        image_bytes = body
+    # Thread-safe clip rollover & write
+    lock = _clip_locks.setdefault(camera_id, asyncio.Lock())
+    async with lock:
+        info = _clip_writers.get(camera_id)
+        # if no writer yet, or clip has reached duration, start new
+        if not info or (now - info['start']) >= CLIP_DURATION:
+            if info:
+                info['writer'].release()
+            clip_dir = base / CLIPS_DIR
+            clip_dir.mkdir(parents=True, exist_ok=True)
+            clip_ts = int(now.timestamp() * 1000)
+            out_path = clip_dir / f"{clip_ts}.mp4"
+            h, w = frame.shape[:2]
+            fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+            writer = cv2.VideoWriter(str(out_path), fourcc, FPS, (w, h))
+            if not writer.isOpened():
+                raise HTTPException(status_code=500, detail="Failed to open video writer")
+            _clip_writers[camera_id] = {'writer': writer, 'start': now}
+        # write the current frame
+        _clip_writers[camera_id]['writer'].write(frame)
 
-    # 5) Atomic file writes
-    base = Path(DATA_ROOT) / camera_id
-    raw_dir = base / RAW_DIR
-    raw_dir.mkdir(parents=True, exist_ok=True)
-    latest_file = base / "latest.jpg"
+    # 5) Enqueue for YOLO processing only
+    background_tasks.add_task(camera_queue.enqueue, camera_id, latest_file)
 
-    ts = int(time.time() * 1000)
-    tmp1 = raw_dir / f"{ts}.jpg.tmp"
-    final1 = raw_dir / f"{ts}.jpg"
-    tmp1.write_bytes(image_bytes)
-    tmp1.rename(final1)
-
-    tmp2 = base / "latest.jpg.tmp"
-    tmp2.write_bytes(image_bytes)
-    tmp2.rename(latest_file)
-
-    # 6) Update or insert Camera record
-    camera = await db.get(Camera, camera_id)
-    if not camera:
-        camera = Camera(id=camera_id, name=camera_id)
-        db.add(camera)
-    camera.is_online = True
-    camera.last_seen = datetime.now(timezone.utc)
-    await db.commit()
-
-    # 7) Schedule background tasks
-    loop = asyncio.get_running_loop()
-    loop.create_task(encode_and_cleanup(camera_id))
-    loop.create_task(camera_queue.enqueue(camera_id, latest_file))
-
-    # 8) Broadcast to WebSocket clients
+    # 6) Broadcast to WebSocket clients
     for ws in list(ws_clients.get(camera_id, [])):
         try:
-            await ws.send_bytes(image_bytes)
+            await ws.send_bytes(body)
         except Exception:
             ws_clients[camera_id].remove(ws)
 
@@ -2862,9 +2868,8 @@ async def upload_day_frame(
     camera_id: str,
     request: Request,
     background_tasks: BackgroundTasks,
-    db: AsyncSession = Depends(get_db),
 ) -> dict:
-    return await _process_upload(camera_id, request, background_tasks, db, day_flag=True)
+    return await _process_upload(camera_id, request, background_tasks, day_flag=True)
 
 
 @router.post("/upload/{camera_id}/night", dependencies=[Depends(verify_camera_token)])
@@ -2872,9 +2877,8 @@ async def upload_night_frame(
     camera_id: str,
     request: Request,
     background_tasks: BackgroundTasks,
-    db: AsyncSession = Depends(get_db),
 ) -> dict:
-    return await _process_upload(camera_id, request, background_tasks, db, day_flag=False)
+    return await _process_upload(camera_id, request, background_tasks, day_flag=False)
 
 
 @router.get("/stream/{camera_id}", dependencies=[Depends(get_current_admin)])
@@ -2883,14 +2887,13 @@ def stream(
     mode: str = Query(
         "mjpeg",
         pattern="^(mjpeg|poll)$",
-        description="`mjpeg` for live MJPEG (~20 FPS), `poll` for single-frame snapshot",
+        description="`mjpeg` for live MJPEG, `poll` for single-frame snapshot",
     ),
 ):
     cam_dir = Path(DATA_ROOT) / camera_id
     if not cam_dir.exists():
         raise HTTPException(status_code=404, detail="Camera not found")
 
-    # Poll mode: return a single JPEG
     if mode == "poll":
         proc = cam_dir / PROCESSED_DIR
         img_path = (
@@ -2902,17 +2905,15 @@ def stream(
             raise HTTPException(status_code=404, detail="Image not found")
         return FileResponse(img_path, media_type="image/jpeg")
 
-    # MJPEG mode: multipart stream
     async def gen():
         last_mtime = 0
         while True:
-            proc = cam_dir / PROCESSED_DIR
+            proc = Path(DATA_ROOT) / camera_id / PROCESSED_DIR
             img_path = (
                 sorted(proc.glob("*.jpg"), key=lambda p: p.stat().st_mtime)[-1]
                 if proc.exists() and any(proc.glob("*.jpg"))
-                else cam_dir / "latest.jpg"
+                else Path(DATA_ROOT) / camera_id / "latest.jpg"
             )
-
             if img_path.exists():
                 m = img_path.stat().st_mtime_ns
                 if m != last_mtime:
@@ -2923,7 +2924,7 @@ def stream(
                         f"Content-Type: image/jpeg\r\n"
                         f"Content-Length: {len(data)}\r\n\r\n"
                     ).encode() + data + b"\r\n"
-            await asyncio.sleep(0.03)
+            await asyncio.sleep(1 / FPS)
 
     return StreamingResponse(
         gen(), media_type=f"multipart/x-mixed-replace; boundary={BOUNDARY}"
@@ -2947,29 +2948,16 @@ def still(camera_id: str):
 @router.get("/api/clips/{camera_id}")
 def list_clips(camera_id: str):
     clip_dir = Path(DATA_ROOT) / camera_id / CLIPS_DIR
-    clips = sorted(
-        clip_dir.glob("*.mp4"), key=lambda p: p.stat().st_mtime, reverse=True
-    )
+    clips = sorted(clip_dir.glob("*.mp4"), key=lambda p: p.stat().st_mtime, reverse=True)
     out = []
     for c in clips:
         ts = int(c.stem)
-        out.append(
-            {
-                "filename": c.name,
-                "datetime": datetime.fromtimestamp(ts / 1000, timezone.utc).isoformat(),
-                "size_mb": round(c.stat().st_size / 1024**2, 2),
-            }
-        )
+        out.append({
+            "filename": c.name,
+            "datetime": datetime.fromtimestamp(ts / 1000, timezone.utc).isoformat(),
+            "size_mb": round(c.stat().st_size / 1024**2, 2),
+        })
     return JSONResponse(out)
-
-
-@router.get("/clips/{camera_id}/{clip_name}")
-def serve_clip(camera_id: str, clip_name: str):
-    clip = Path(DATA_ROOT) / camera_id / CLIPS_DIR / clip_name
-    if not clip.exists():
-        raise HTTPException(status_code=404, detail="Clip not found")
-    mime = mimetypes.guess_type(clip_name)[0] or "video/mp4"
-    return FileResponse(clip, media_type=mime)
 
 
 @router.get("/api/status/{camera_id}")
@@ -2995,19 +2983,13 @@ async def next_command(camera_id: str, db: AsyncSession = Depends(get_db)):
     return {"command": cmd.action, "parameters": cmd.parameters or {}}
 
 
-@router.get(
-    "/api/report/{camera_id}",
-    response_model=CameraReportResponse,
-)
+@router.get("/api/report/{camera_id}", response_model=CameraReportResponse)
 async def get_camera_report(camera_id: str, db: AsyncSession = Depends(get_db)):
-    q = await db.execute(
+    records = (await db.execute(
         select(DetectionRecord).where(DetectionRecord.camera_id == camera_id).order_by(DetectionRecord.timestamp)
-    )
-    records = q.scalars().all()
-
+    )).scalars().all()
     grouped: dict[str, list[dict]] = {}
     gap = timedelta(seconds=CAM_EVENT_GAP_SECONDS)
-
     for rec in records:
         lst = grouped.setdefault(rec.object_name, [])
         if not lst:
@@ -3018,14 +3000,12 @@ async def get_camera_report(camera_id: str, db: AsyncSession = Depends(get_db)):
                 last["end"] = rec.timestamp
             else:
                 lst.append({"start": rec.timestamp, "end": rec.timestamp})
-
     detections: list[DetectionRange] = []
     for obj, ranges in grouped.items():
         for r in ranges:
             detections.append(
                 DetectionRange(object_name=obj, start_time=r["start"], end_time=r["end"])
             )
-
     return CameraReportResponse(camera_id=camera_id, detections=detections)
 
 
@@ -3035,41 +3015,9 @@ async def ws_stream(websocket: WebSocket, camera_id: str):
     ws_clients[camera_id].append(websocket)
     try:
         while True:
-            # keep-alive ping
             await asyncio.sleep(30)
     finally:
         ws_clients[camera_id].remove(websocket)
-
-
-# ─────────────────────────────────────────────────────────────────────────────
-# Internal helpers for day & night enhancement
-# ─────────────────────────────────────────────────────────────────────────────
-
-
-def _enhance_day(frame: np.ndarray) -> np.ndarray:
-    lab = cv2.cvtColor(frame, cv2.COLOR_BGR2LAB)
-    l, a, b = cv2.split(lab)
-    clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
-    cl = clahe.apply(l)
-    merged = cv2.merge((cl, a, b))
-    enhanced = cv2.cvtColor(merged, cv2.COLOR_LAB2BGR)
-    return cv2.fastNlMeansDenoisingColored(enhanced, None, 4, 4, 7, 21)
-
-
-def _enhance_night(frame: np.ndarray) -> np.ndarray:
-    gamma = 0.5
-    inv_gamma = 1.0 / gamma
-    table = (np.arange(256) / 255.0) ** inv_gamma * 255
-    bright = cv2.LUT(frame, table.astype("uint8"))
-    gray = cv2.cvtColor(bright, cv2.COLOR_BGR2GRAY)
-    clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
-    eq = clahe.apply(gray)
-    eq_bgr = cv2.cvtColor(eq, cv2.COLOR_GRAY2BGR)
-    merged = cv2.addWeighted(bright, 0.7, eq_bgr, 0.3, 0)
-    denoised = cv2.fastNlMeansDenoisingColored(merged, None, 10, 10, 7, 21)
-    blur = cv2.GaussianBlur(denoised, (0, 0), sigmaX=3, sigmaY=3)
-    return cv2.addWeighted(denoised, 1.5, blur, -0.5, 0)
-
 
 ----- app/routers/devices.py -----
 from datetime import timezone

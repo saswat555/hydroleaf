@@ -215,7 +215,15 @@ app.include_router(admin_clips_router)
 async def startup_tasks():
     asyncio.create_task(offline_watcher(db_factory=get_db, interval_seconds=30))
     camera_queue.start_workers()
-
+@app.on_event("shutdown")
+async def shutdown_cleanup():
+    # ensure no writer stays open (avoids corrupted final clips)
+    from app.routers.cameras import _clip_writers
+    for info in _clip_writers.values():
+        try:
+            info['writer'].release()
+        except Exception:
+            pass
 # ─── Main Entrypoint ──────────────────────────────────────────────────────────
 if __name__ == "__main__":
     uvicorn.run(
