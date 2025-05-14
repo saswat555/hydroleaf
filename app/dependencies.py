@@ -5,9 +5,11 @@ import jwt
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from fastapi.security import OAuth2PasswordBearer
-from sqlalchemy.future import select
+from sqlalchemy import select
 from app.models import ActivationKey, CameraToken, Device, DosingDeviceToken, Subscription, SubscriptionPlan, SwitchDeviceToken, User, Admin, ValveDeviceToken
 from app.core.database import get_db
+from sqlalchemy.ext.asyncio import AsyncSession
+
 bearer_scheme = HTTPBearer() 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login")
 ALGORITHM = "HS256"
@@ -89,16 +91,22 @@ async def get_current_device(
     return device
 
 async def verify_camera_token(
-        
-    creds: HTTPAuthorizationCredentials = Depends(HTTPBearer()),
-    db = Depends(get_db),
+    creds: HTTPAuthorizationCredentials = Depends(bearer_scheme),
+    db: AsyncSession = Depends(get_db),
 ):
     result = await db.execute(select(CameraToken)
         .where(CameraToken.token == creds.credentials))
     row = result.scalar_one_or_none()
     if not row:
         raise HTTPException(401, "Invalid camera token")
-    return row.camera_id
+    stmt = select(CameraToken).where(CameraToken.token == creds.credentials)
+    token_row = await db.scalar(stmt)
+    if not token_row:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid camera token"
+        )
+    return token_row.camera_id
 
 async def verify_dosing_device_token(
     creds: HTTPAuthorizationCredentials = Depends(bearer_scheme),
