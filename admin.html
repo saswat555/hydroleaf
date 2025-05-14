@@ -507,7 +507,8 @@
       const dev = el('toggleSwitchDeviceId').value.trim(),
         tok = el('toggleSwitchToken').value.trim(),
         ch = parseInt(el('toggleSwitchChannel').value, 10);
-      if (!dev || !tok || !ch || ch < 1 || ch > 8) return alert('Enter valid ID, token & channel 1–8');
+      if (!dev || !tok || !ch || ch < 1 || ch > 8)
+        return alert('Enter valid ID, token & channel 1–8');
       try {
         const res = await axios.post(
           `${base}/api/v1/device_comm/switch/${encodeURIComponent(dev)}/toggle`,
