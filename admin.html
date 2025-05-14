@@ -370,16 +370,34 @@
 
     // — CLOUD KEY —
     el('genCloudKeyBtn').onclick = async () => {
-      const { data } = await axios.post(`${base}/api/v1/cloud/admin/generate_cloud_key`);
-      el('cloudKeyResult').textContent = JSON.stringify(data, null, 2);
+      try {
+        const { data } = await axios.post(
+          `${base}/api/v1/cloud/admin/generate_cloud_key`
+        );
+        el('cloudKeyResult').textContent = JSON.stringify(data, null, 2);
+      } catch (e) {
+        alert('Error generating cloud key: ' + (e.response?.data?.detail || e.message));
+      }
     };
     el('loadCloudKeysBtn').onclick = async () => {
-      const { data } = await axios.get(`${base}/api/v1/cloud/admin/cloud_keys`);
-      el('cloudKeysList').textContent = JSON.stringify(data, null, 2);
+      try {
+        const { data } = await axios.get(
+          `${base}/api/v1/cloud/admin/cloud-keys`
+        );
+        el('cloudKeysList').textContent = JSON.stringify(data, null, 2);
+      } catch (e) {
+        alert('Error loading cloud keys: ' + (e.response?.data?.detail || e.message));
+      }
     };
     el('loadCloudKeyUsagesBtn').onclick = async () => {
-      const { data } = await axios.get(`${base}/api/v1/cloud/admin/cloud_key_usages`);
-      el('cloudKeyUsageList').textContent = JSON.stringify(data, null, 2);
+      try {
+        const { data } = await axios.get(
+          `${base}/api/v1/cloud/admin/cloud-key-usages`
+        );
+        el('cloudKeyUsageList').textContent = JSON.stringify(data, null, 2);
+      } catch (e) {
+        alert('Error loading key usages: ' + (e.response?.data?.detail || e.message));
+      }
     };
 
     // — MY DEVICES —

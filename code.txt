@@ -405,6 +405,12 @@ class CloudKey(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     creator = relationship("Admin", back_populates="cloud_keys")
+    usages = relationship(
+        "CloudKeyUsage",
+        back_populates="cloud_key",
+        cascade="all, delete-orphan",
+        lazy="selectin",
+    )
 
 
 class CameraToken(Base):
@@ -430,8 +436,7 @@ class Admin(Base):
         cascade="all, delete-orphan",
         lazy="selectin",
     )
-    usages = relationship("CloudKeyUsage", back_populates="cloud_key", cascade="all, delete-orphan", lazy="selectin")
-
+    
 class DosingDeviceToken(Base):
     __tablename__ = "dosing_device_tokens"
 
@@ -1047,7 +1052,22 @@ async def health_check():
         "environment": ENVIRONMENT,
         "uptime": uptime,
     }
+from fastapi import Depends
+from app.dependencies import verify_camera_token
+from app.routers.cameras import upload_day_frame, upload_night_frame
 
+app.add_api_route(
+    "/upload/{camera_id}/day",
+    upload_day_frame,
+    methods=["POST"],
+    dependencies=[Depends(verify_camera_token)],
+)
+app.add_api_route(
+    "/upload/{camera_id}/night",
+    upload_night_frame,
+    methods=["POST"],
+    dependencies=[Depends(verify_camera_token)],
+)
 @app.get(f"{API_V1_STR}/health/database")
 async def database_health():
     return await check_db_connection()
