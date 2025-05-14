@@ -143,7 +143,7 @@ class DosingProfile(Base):
     __tablename__ = "dosing_profiles"
 
     id             = Column(Integer, primary_key=True, index=True)
-    device_id      = Column(String(32), ForeignKey("devices.id", ondelete="CASCADE"), nullable=False)
+    device_id      = Column(String(64), ForeignKey("devices.id", ondelete="CASCADE"), nullable=False)
     plant_name     = Column(String(100), nullable=False)
     plant_type     = Column(String(100), nullable=False)
     growth_stage   = Column(String(50), nullable=False)
@@ -430,6 +430,7 @@ class Admin(Base):
         cascade="all, delete-orphan",
         lazy="selectin",
     )
+    usages = relationship("CloudKeyUsage", back_populates="cloud_key", cascade="all, delete-orphan", lazy="selectin")
 
 class DosingDeviceToken(Base):
     __tablename__ = "dosing_device_tokens"
@@ -483,6 +484,16 @@ class SwitchState(Base):
                         server_default=func.now(),
                         onupdate=func.now(),
                         nullable=False)
+    
+class CloudKeyUsage(Base):
+    __tablename__ = "cloud_key_usages"
+
+    id           = Column(Integer, primary_key=True, index=True)
+    cloud_key_id = Column(Integer, ForeignKey("cloud_keys.id", ondelete="CASCADE"), nullable=False)
+    resource_id  = Column(String(64), nullable=False)   # device_id or camera_id
+    used_at      = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+    cloud_key = relationship("CloudKey", back_populates="usages")
 
 ----- app/__init__.py -----
 # app/__init__.py
@@ -884,6 +895,12 @@ class PlantDosingResponse(BaseModel):
     plant_id: int
     actions: List[Dict[str,Any]]
 
+class AuthResponse(BaseModel):
+    access_token: str
+    token_type: str
+    user: UserResponse
+
+    model_config = ConfigDict(from_attributes=True)
 
 ----- app/main.py -----
 # app/main.py
@@ -1283,7 +1300,7 @@ import jwt  # This is from PyJWT
 import os
 import datetime
 from passlib.context import CryptContext
-from app.schemas import UserCreate, UserResponse 
+from app.schemas import AuthResponse, UserCreate, UserResponse 
 
 router = APIRouter()
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
@@ -1318,7 +1335,7 @@ async def login(form_data: OAuth2PasswordRequestForm = Depends(), db=Depends(get
     return {"access_token": token, "token_type": "bearer"}
 
 
-@router.post("/signup", response_model=UserResponse)
+@router.post("/signup", response_model=AuthResponse)
 async def signup(user_create: UserCreate, db=Depends(get_db)):
     # Check if email exists
     result = await db.execute(select(User).where(User.email == user_create.email))
@@ -1666,7 +1683,7 @@ from app.schemas import (
 )
 from app.dependencies import get_current_admin
 from app.core.database import get_db
-from app.models import Base, CameraToken, User
+from app.models import Base, CameraToken, CloudKeyUsage, User
 from sqlalchemy import Column, Integer, String, DateTime
 from app.models import CloudKey
 logger = logging.getLogger(__name__)
@@ -1720,6 +1737,11 @@ async def authenticate_cloud(
     )
     db.add(new_token)
     await db.commit()
+    ck = await db.scalar(select(CloudKey).where(CloudKey.key == payload.cloud_key))
+    if ck:
+        usage = CloudKeyUsage(cloud_key_id=ck.id, resource_id=payload.device_id)
+        db.add(usage)
+        await db.commit()
 
     logger.info(
         "Device %s authenticated OK – issued token %s", payload.device_id, token
@@ -1780,6 +1802,22 @@ async def list_cloud_keys(db: AsyncSession = Depends(get_db)):
         {"key": ck.key, "created_by": ck.created_by, "created_at": ck.created_at}
         for ck in result.scalars().all()
     ]
+    
+@router.get("/admin/cloud-key-usages", dependencies=[Depends(get_current_admin)])
+async def list_cloud_key_usages(db: AsyncSession = Depends(get_db)):
+    """
+    Admin‐only: show every cloud_key → device/camera mapping ever recorded.
+    """
+    rows = await db.execute(select(CloudKeyUsage).order_by(CloudKeyUsage.used_at.desc()))
+    out = []
+    for u in rows.scalars().all():
+        out.append({
+            "cloud_key":       u.cloud_key.key,
+            "resource_id":     u.resource_id,
+            "used_at":         u.used_at,
+        })
+    return out
+
 
 ----- app/routers/admin_users.py -----
 # app/routers/admin_users.py
@@ -2556,9 +2594,8 @@ __all__ = [
     "devices_router", "dosing_router", "config_router", "plants_router",
     "supply_chain_router", "farms_router", "cloud_router", "auth_router",
     "users_router", "admin_users_router", "device_comm_router",
-    "heartbeat_router", "admin_router", "cameras_router","subscriptions_router","admin_subscriptions_router"
+    "admin_router", "cameras_router", "subscriptions_router", "admin_subscriptions_router"
 ]
-
 
 ----- app/routers/farms.py -----
 # app/routers/farms.py
@@ -2631,14 +2668,16 @@ async def analyze_supply_chain(request: TransportRequest, db: AsyncSession = Dep
 from datetime import datetime, timezone
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Body, Depends, HTTPException, Query
+from fastapi.responses import FileResponse
+import httpx
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 
-from app.core.config import DATA_ROOT, PROCESSED_DIR
+from app.core.config import DATA_ROOT, PROCESSED_DIR, RAW_DIR
 from app.core.database import get_db
 from app.dependencies import get_current_admin
-from app.models import Device, Camera
+from app.models import Device, Camera, DosingDeviceToken, SwitchDeviceToken, ValveDeviceToken
 from app.schemas import DeviceResponse, CameraReportResponse, DeviceType
 
 router = APIRouter(
@@ -2743,6 +2782,107 @@ async def list_camera_stream_times():
 
     return output
 
+@router.get(
+    "/devices/all",
+    response_model=list[DeviceResponse],
+    summary="List every registered device"
+)
+async def list_all_devices(db: AsyncSession = Depends(get_db)):
+    result = await db.execute(select(Device))
+    return result.scalars().all()
+
+# ─── NEW: List devices that have a *device token* (i.e. have authenticated) ─
+@router.get(
+    "/devices/authenticated",
+    summary="List devices which hold an active device token"
+)
+async def list_authenticated_devices(db: AsyncSession = Depends(get_db)):
+    async def fetch_tokens(model):
+        rows = (await db.execute(select(model))).scalars().all()
+        return [
+            {
+                "device_id": row.device_id,
+                "token":      row.token,
+                "issued_at":  row.issued_at.isoformat() if isinstance(row.issued_at, datetime) else row.issued_at
+            }
+            for row in rows
+        ]
+
+    dosing_tokens  = await fetch_tokens(DosingDeviceToken)
+    valve_tokens   = await fetch_tokens(ValveDeviceToken)
+    switch_tokens  = await fetch_tokens(SwitchDeviceToken)
+
+    return {
+        "dosing_unit_tokens": dosing_tokens,
+        "valve_controller_tokens": valve_tokens,
+        "smart_switch_tokens": switch_tokens,
+    }
+
+@router.get(
+    "/images",
+    summary="List all frames between two timestamps"
+)
+async def list_images(
+    start: datetime = Query(..., description="ISO start time"),
+    end:   datetime = Query(..., description="ISO end time")
+):
+    """
+    Returns a list of { camera_id, filename, timestamp, processed:bool } for every
+    frame in RAW_DIR whose timestamp ∈ [start, end].
+    """
+    out = []
+    root = Path(DATA_ROOT)
+    for cam_dir in sorted(root.iterdir()):
+        if not cam_dir.is_dir(): continue
+        raw = cam_dir / RAW_DIR
+        for img in raw.glob("*.jpg"):
+            ts = datetime.fromtimestamp(int(img.stem)/1000, tz=start.tzinfo)
+            if start <= ts <= end:
+                proc = cam_dir / PROCESSED_DIR / img.name
+                out.append({
+                    "camera_id":  cam_dir.name,
+                    "filename":   img.name,
+                    "timestamp":  ts,
+                    "processed":  proc.exists(),
+                })
+    return out
+
+@router.get(
+    "/images/{camera_id}/{filename}",
+    summary="Download a frame (processed if available)"
+)
+async def download_image(camera_id: str, filename: str):
+    base = Path(DATA_ROOT) / camera_id
+    proc = base / PROCESSED_DIR / filename
+    raw  = base / RAW_DIR       / filename
+    if proc.exists():
+        return FileResponse(proc, media_type="image/jpeg", filename=filename)
+    if raw.exists():
+        return FileResponse(raw, media_type="image/jpeg", filename=filename)
+    raise HTTPException(404, "Image not found")
+
+router.post(
+    "/devices/{device_id}/switch/toggle",
+    summary="(Admin) Toggle smart switch channel",
+)
+async def admin_toggle_switch(
+    device_id: str,
+    channel:    int = Body(..., embed=True),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Admin endpoint that uses the device’s own HTTP endpoint to toggle a channel.
+    """
+    dev = await db.get(Device, device_id)
+    if not dev or dev.type != DeviceType.SMART_SWITCH:
+        raise HTTPException(404, "Smart switch not found")
+    # forward the toggle
+    async with httpx.AsyncClient() as client:
+        r = await client.post(f"{dev.http_endpoint.rstrip('/')}/toggle", json={"channel":channel})
+        r.raise_for_status()
+        data = r.json()
+    return data
+
 ----- app/routers/cameras.py -----
 import asyncio
 from datetime import datetime, timedelta, timezone
@@ -2821,36 +2961,6 @@ async def _process_upload(
     tmp_latest = latest_file.with_suffix('.jpg.tmp')
     tmp_latest.write_bytes(body)
     tmp_latest.rename(latest_file)
-
-    # 4) Direct clip writing (no enhancement)
-    arr = np.frombuffer(body, dtype=np.uint8)
-    frame = cv2.imdecode(arr, cv2.IMREAD_COLOR)
-    if frame is None:
-        raise HTTPException(status_code=400, detail="Invalid JPEG data")
-    now = datetime.now(timezone.utc)
-
-    # Thread-safe clip rollover & write
-    lock = _clip_locks.setdefault(camera_id, asyncio.Lock())
-    async with lock:
-        info = _clip_writers.get(camera_id)
-        # if no writer yet, or clip has reached duration, start new
-        if not info or (now - info['start']) >= CLIP_DURATION:
-            if info:
-                info['writer'].release()
-            clip_dir = base / CLIPS_DIR
-            clip_dir.mkdir(parents=True, exist_ok=True)
-            clip_ts = int(now.timestamp() * 1000)
-            out_path = clip_dir / f"{clip_ts}.mp4"
-            h, w = frame.shape[:2]
-            fourcc = cv2.VideoWriter_fourcc(*'mp4v')
-            writer = cv2.VideoWriter(str(out_path), fourcc, FPS, (w, h))
-            if not writer.isOpened():
-                raise HTTPException(status_code=500, detail="Failed to open video writer")
-            _clip_writers[camera_id] = {'writer': writer, 'start': now}
-        # write the current frame
-        _clip_writers[camera_id]['writer'].write(frame)
-
-    # 5) Enqueue for YOLO processing only
     background_tasks.add_task(camera_queue.enqueue, camera_id, latest_file)
 
     # 6) Broadcast to WebSocket clients

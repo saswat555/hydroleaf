@@ -140,7 +140,7 @@ class DosingProfile(Base):
     __tablename__ = "dosing_profiles"
 
     id             = Column(Integer, primary_key=True, index=True)
-    device_id      = Column(String(32), ForeignKey("devices.id", ondelete="CASCADE"), nullable=False)
+    device_id      = Column(String(64), ForeignKey("devices.id", ondelete="CASCADE"), nullable=False)
     plant_name     = Column(String(100), nullable=False)
     plant_type     = Column(String(100), nullable=False)
     growth_stage   = Column(String(50), nullable=False)
@@ -427,6 +427,7 @@ class Admin(Base):
         cascade="all, delete-orphan",
         lazy="selectin",
     )
+    usages = relationship("CloudKeyUsage", back_populates="cloud_key", cascade="all, delete-orphan", lazy="selectin")
 
 class DosingDeviceToken(Base):
     __tablename__ = "dosing_device_tokens"
@@ -480,3 +481,13 @@ class SwitchState(Base):
                         server_default=func.now(),
                         onupdate=func.now(),
                         nullable=False)
+    
+class CloudKeyUsage(Base):
+    __tablename__ = "cloud_key_usages"
+
+    id           = Column(Integer, primary_key=True, index=True)
+    cloud_key_id = Column(Integer, ForeignKey("cloud_keys.id", ondelete="CASCADE"), nullable=False)
+    resource_id  = Column(String(64), nullable=False)   # device_id or camera_id
+    used_at      = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+    cloud_key = relationship("CloudKey", back_populates="usages")

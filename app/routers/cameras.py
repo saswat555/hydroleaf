@@ -75,36 +75,6 @@ async def _process_upload(
     tmp_latest = latest_file.with_suffix('.jpg.tmp')
     tmp_latest.write_bytes(body)
     tmp_latest.rename(latest_file)
-
-    # 4) Direct clip writing (no enhancement)
-    arr = np.frombuffer(body, dtype=np.uint8)
-    frame = cv2.imdecode(arr, cv2.IMREAD_COLOR)
-    if frame is None:
-        raise HTTPException(status_code=400, detail="Invalid JPEG data")
-    now = datetime.now(timezone.utc)
-
-    # Thread-safe clip rollover & write
-    lock = _clip_locks.setdefault(camera_id, asyncio.Lock())
-    async with lock:
-        info = _clip_writers.get(camera_id)
-        # if no writer yet, or clip has reached duration, start new
-        if not info or (now - info['start']) >= CLIP_DURATION:
-            if info:
-                info['writer'].release()
-            clip_dir = base / CLIPS_DIR
-            clip_dir.mkdir(parents=True, exist_ok=True)
-            clip_ts = int(now.timestamp() * 1000)
-            out_path = clip_dir / f"{clip_ts}.mp4"
-            h, w = frame.shape[:2]
-            fourcc = cv2.VideoWriter_fourcc(*'mp4v')
-            writer = cv2.VideoWriter(str(out_path), fourcc, FPS, (w, h))
-            if not writer.isOpened():
-                raise HTTPException(status_code=500, detail="Failed to open video writer")
-            _clip_writers[camera_id] = {'writer': writer, 'start': now}
-        # write the current frame
-        _clip_writers[camera_id]['writer'].write(frame)
-
-    # 5) Enqueue for YOLO processing only
     background_tasks.add_task(camera_queue.enqueue, camera_id, latest_file)
 
     # 6) Broadcast to WebSocket clients

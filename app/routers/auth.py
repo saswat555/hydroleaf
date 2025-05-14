@@ -8,7 +8,7 @@ import jwt  # This is from PyJWT
 import os
 import datetime
 from passlib.context import CryptContext
-from app.schemas import UserCreate, UserResponse 
+from app.schemas import AuthResponse, UserCreate, UserResponse 
 
 router = APIRouter()
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
@@ -43,7 +43,7 @@ async def login(form_data: OAuth2PasswordRequestForm = Depends(), db=Depends(get
     return {"access_token": token, "token_type": "bearer"}
 
 
-@router.post("/signup", response_model=UserResponse)
+@router.post("/signup", response_model=AuthResponse)
 async def signup(user_create: UserCreate, db=Depends(get_db)):
     # Check if email exists
     result = await db.execute(select(User).where(User.email == user_create.email))

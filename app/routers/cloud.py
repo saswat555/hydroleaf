@@ -24,7 +24,7 @@ from app.schemas import (
 )
 from app.dependencies import get_current_admin
 from app.core.database import get_db
-from app.models import Base, CameraToken, User
+from app.models import Base, CameraToken, CloudKeyUsage, User
 from sqlalchemy import Column, Integer, String, DateTime
 from app.models import CloudKey
 logger = logging.getLogger(__name__)
@@ -78,6 +78,11 @@ async def authenticate_cloud(
     )
     db.add(new_token)
     await db.commit()
+    ck = await db.scalar(select(CloudKey).where(CloudKey.key == payload.cloud_key))
+    if ck:
+        usage = CloudKeyUsage(cloud_key_id=ck.id, resource_id=payload.device_id)
+        db.add(usage)
+        await db.commit()
 
     logger.info(
         "Device %s authenticated OK – issued token %s", payload.device_id, token
@@ -138,3 +143,18 @@ async def list_cloud_keys(db: AsyncSession = Depends(get_db)):
         {"key": ck.key, "created_by": ck.created_by, "created_at": ck.created_at}
         for ck in result.scalars().all()
     ]
+    
+@router.get("/admin/cloud-key-usages", dependencies=[Depends(get_current_admin)])
+async def list_cloud_key_usages(db: AsyncSession = Depends(get_db)):
+    """
+    Admin‐only: show every cloud_key → device/camera mapping ever recorded.
+    """
+    rows = await db.execute(select(CloudKeyUsage).order_by(CloudKeyUsage.used_at.desc()))
+    out = []
+    for u in rows.scalars().all():
+        out.append({
+            "cloud_key":       u.cloud_key.key,
+            "resource_id":     u.resource_id,
+            "used_at":         u.used_at,
+        })
+    return out

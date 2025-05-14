@@ -3,14 +3,16 @@
 from datetime import datetime, timezone
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Body, Depends, HTTPException, Query
+from fastapi.responses import FileResponse
+import httpx
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 
-from app.core.config import DATA_ROOT, PROCESSED_DIR
+from app.core.config import DATA_ROOT, PROCESSED_DIR, RAW_DIR
 from app.core.database import get_db
 from app.dependencies import get_current_admin
-from app.models import Device, Camera
+from app.models import Device, Camera, DosingDeviceToken, SwitchDeviceToken, ValveDeviceToken
 from app.schemas import DeviceResponse, CameraReportResponse, DeviceType
 
 router = APIRouter(
@@ -114,3 +116,104 @@ async def list_camera_stream_times():
         })
 
     return output
+
+@router.get(
+    "/devices/all",
+    response_model=list[DeviceResponse],
+    summary="List every registered device"
+)
+async def list_all_devices(db: AsyncSession = Depends(get_db)):
+    result = await db.execute(select(Device))
+    return result.scalars().all()
+
+# ─── NEW: List devices that have a *device token* (i.e. have authenticated) ─
+@router.get(
+    "/devices/authenticated",
+    summary="List devices which hold an active device token"
+)
+async def list_authenticated_devices(db: AsyncSession = Depends(get_db)):
+    async def fetch_tokens(model):
+        rows = (await db.execute(select(model))).scalars().all()
+        return [
+            {
+                "device_id": row.device_id,
+                "token":      row.token,
+                "issued_at":  row.issued_at.isoformat() if isinstance(row.issued_at, datetime) else row.issued_at
+            }
+            for row in rows
+        ]
+
+    dosing_tokens  = await fetch_tokens(DosingDeviceToken)
+    valve_tokens   = await fetch_tokens(ValveDeviceToken)
+    switch_tokens  = await fetch_tokens(SwitchDeviceToken)
+
+    return {
+        "dosing_unit_tokens": dosing_tokens,
+        "valve_controller_tokens": valve_tokens,
+        "smart_switch_tokens": switch_tokens,
+    }
+
+@router.get(
+    "/images",
+    summary="List all frames between two timestamps"
+)
+async def list_images(
+    start: datetime = Query(..., description="ISO start time"),
+    end:   datetime = Query(..., description="ISO end time")
+):
+    """
+    Returns a list of { camera_id, filename, timestamp, processed:bool } for every
+    frame in RAW_DIR whose timestamp ∈ [start, end].
+    """
+    out = []
+    root = Path(DATA_ROOT)
+    for cam_dir in sorted(root.iterdir()):
+        if not cam_dir.is_dir(): continue
+        raw = cam_dir / RAW_DIR
+        for img in raw.glob("*.jpg"):
+            ts = datetime.fromtimestamp(int(img.stem)/1000, tz=start.tzinfo)
+            if start <= ts <= end:
+                proc = cam_dir / PROCESSED_DIR / img.name
+                out.append({
+                    "camera_id":  cam_dir.name,
+                    "filename":   img.name,
+                    "timestamp":  ts,
+                    "processed":  proc.exists(),
+                })
+    return out
+
+@router.get(
+    "/images/{camera_id}/{filename}",
+    summary="Download a frame (processed if available)"
+)
+async def download_image(camera_id: str, filename: str):
+    base = Path(DATA_ROOT) / camera_id
+    proc = base / PROCESSED_DIR / filename
+    raw  = base / RAW_DIR       / filename
+    if proc.exists():
+        return FileResponse(proc, media_type="image/jpeg", filename=filename)
+    if raw.exists():
+        return FileResponse(raw, media_type="image/jpeg", filename=filename)
+    raise HTTPException(404, "Image not found")
+
+router.post(
+    "/devices/{device_id}/switch/toggle",
+    summary="(Admin) Toggle smart switch channel",
+)
+async def admin_toggle_switch(
+    device_id: str,
+    channel:    int = Body(..., embed=True),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Admin endpoint that uses the device’s own HTTP endpoint to toggle a channel.
+    """
+    dev = await db.get(Device, device_id)
+    if not dev or dev.type != DeviceType.SMART_SWITCH:
+        raise HTTPException(404, "Smart switch not found")
+    # forward the toggle
+    async with httpx.AsyncClient() as client:
+        r = await client.post(f"{dev.http_endpoint.rstrip('/')}/toggle", json={"channel":channel})
+        r.raise_for_status()
+        data = r.json()
+    return data

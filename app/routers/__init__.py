@@ -21,5 +21,5 @@ __all__ = [
     "devices_router", "dosing_router", "config_router", "plants_router",
     "supply_chain_router", "farms_router", "cloud_router", "auth_router",
     "users_router", "admin_users_router", "device_comm_router",
-    "heartbeat_router", "admin_router", "cameras_router","subscriptions_router","admin_subscriptions_router"
+    "admin_router", "cameras_router", "subscriptions_router", "admin_subscriptions_router"
 ]

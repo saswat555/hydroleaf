@@ -388,3 +388,10 @@ class SwitchDeviceCreate(DeviceBase):
 class PlantDosingResponse(BaseModel):
     plant_id: int
     actions: List[Dict[str,Any]]
+
+class AuthResponse(BaseModel):
+    access_token: str
+    token_type: str
+    user: UserResponse
+
+    model_config = ConfigDict(from_attributes=True)
