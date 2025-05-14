@@ -402,6 +402,12 @@ class CloudKey(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     creator = relationship("Admin", back_populates="cloud_keys")
+    usages = relationship(
+        "CloudKeyUsage",
+        back_populates="cloud_key",
+        cascade="all, delete-orphan",
+        lazy="selectin",
+    )
 
 
 class CameraToken(Base):
@@ -427,8 +433,7 @@ class Admin(Base):
         cascade="all, delete-orphan",
         lazy="selectin",
     )
-    usages = relationship("CloudKeyUsage", back_populates="cloud_key", cascade="all, delete-orphan", lazy="selectin")
-
+    
 class DosingDeviceToken(Base):
     __tablename__ = "dosing_device_tokens"
 
