@@ -153,20 +153,6 @@ async def system_health():
     db = await database_health()
     return {"system": sys, "database": db, "timestamp": datetime.now(timezone.utc)}
 
-from app.dependencies import verify_camera_token
-
-app.add_api_route(
-    "/upload/{camera_id}/day",
-    upload_day_frame,
-    methods=["POST"],
-    dependencies=[Depends(verify_camera_token)],
-)
-app.add_api_route(
-    "/upload/{camera_id}/night",
-    upload_night_frame,
-    methods=["POST"],
-    dependencies=[Depends(verify_camera_token)],
-)
 # ─── Exception Handlers ───────────────────────────────────────────────────────
 @app.exception_handler(HTTPException)
 async def http_exc_handler(request: Request, exc: HTTPException):

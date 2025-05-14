@@ -91,22 +91,21 @@ async def get_current_device(
     return device
 
 async def verify_camera_token(
+    camera_id: str,
     creds: HTTPAuthorizationCredentials = Depends(bearer_scheme),
     db: AsyncSession = Depends(get_db),
-):
-    result = await db.execute(select(CameraToken)
-        .where(CameraToken.token == creds.credentials))
-    row = result.scalar_one_or_none()
-    if not row:
-        raise HTTPException(401, "Invalid camera token")
-    stmt = select(CameraToken).where(CameraToken.token == creds.credentials)
-    token_row = await db.scalar(stmt)
-    if not token_row:
+) -> str:
+    """
+    Ensure the bearer‐token in Authorization: Bearer <token>
+    matches exactly the one stored for this camera_id.
+    """
+    token_row = await db.get(CameraToken, camera_id)
+    if not token_row or token_row.token != creds.credentials:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid camera token"
+            detail="Invalid or mismatched camera token"
         )
-    return token_row.camera_id
+    return camera_id
 
 async def verify_dosing_device_token(
     creds: HTTPAuthorizationCredentials = Depends(bearer_scheme),
