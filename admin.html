@@ -2,506 +2,395 @@
 <html lang="en">
 
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>🌱 HydroLeaf Admin Dashboard</title>
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet" />
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
   <style>
     body {
-      background: #f7f9fc;
+      background-color: #f0f2f5;
     }
 
-    .tabSection {
+    .tab-section {
+      display: none;
       padding: 1rem;
     }
 
-    .nav-link {
-      cursor: pointer;
-    }
-
-    pre {
-      background: #fff;
-      padding: 1rem;
-      border: 1px solid #ddd;
-      border-radius: 4px;
+    .tab-section.active {
+      display: block;
     }
 
     .card-img-top {
       object-fit: cover;
-      height: 200px;
+      height: 180px;
+    }
+
+    pre {
+      background: #fff;
+      padding: .75rem;
+      border: 1px solid #ddd;
+      border-radius: 4px;
     }
   </style>
-  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 </head>
 
-<body class="p-4">
-  <div class="container" style="max-width:1200px;">
-    <h2 class="mb-4 text-center">HydroLeaf Admin Dashboard</h2>
+<body>
+  <div class="container my-4" style="max-width: 1200px;">
+    <h2 class="text-center mb-4">HydroLeaf Admin</h2>
 
-    <!-- LOGIN -->
-    <div id="loginSection" class="card p-4 mx-auto" style="max-width:400px;">
+    <!-- Login -->
+    <div id="login-card" class="card mx-auto p-4" style="max-width: 360px;">
+      <h5 class="card-title mb-3">Admin Log In</h5>
       <div class="mb-3">
-        <label class="form-label">Email</label>
-        <input id="userInput" type="email" class="form-control" placeholder="you@example.com" />
+        <label for="login-email" class="form-label">Email</label>
+        <input id="login-email" type="email" class="form-control" placeholder="admin@hydroleaf.in">
       </div>
       <div class="mb-3">
-        <label class="form-label">Password</label>
-        <input id="passInput" type="password" class="form-control" placeholder="••••••••" />
+        <label for="login-pass" class="form-label">Password</label>
+        <input id="login-pass" type="password" class="form-control" placeholder="••••••••">
       </div>
-      <button id="loginBtn" class="btn btn-primary w-100">Log In</button>
+      <button id="btn-login" class="btn btn-primary w-100">Log In</button>
     </div>
 
-    <!-- DASHBOARD -->
+    <!-- Dashboard -->
     <div id="dashboard" class="d-none">
       <div class="d-flex justify-content-between align-items-center mb-3">
-        <strong id="welcomeMsg"></strong>
-        <button id="logoutBtn" class="btn btn-outline-secondary btn-sm">Logout</button>
+        <h5 id="welcome-msg"></h5>
+        <button id="btn-logout" class="btn btn-outline-secondary btn-sm">Logout</button>
       </div>
 
-      <!-- TABS -->
-      <ul class="nav nav-tabs" id="adminTabs">
-        <li class="nav-item"><a class="nav-link active" data-section="streamSection">Camera Streams</a></li>
-        <li class="nav-item"><a class="nav-link" data-section="clipsSection">Clips</a></li>
-        <li class="nav-item"><a class="nav-link" data-section="usersSection">Users</a></li>
-        <li class="nav-item"><a class="nav-link" data-section="activationSection">Device Keys</a></li>
-        <li class="nav-item"><a class="nav-link" data-section="cloudKeySection">Cloud Key</a></li>
-        <li class="nav-item"><a class="nav-link" data-section="devicesSection">My Devices</a></li>
-        <li class="nav-item"><a class="nav-link" data-section="devicesAllSection">All Devices</a></li>
-        <li class="nav-item"><a class="nav-link" data-section="authDevicesSection">Authenticated Devices</a></li>
-        <li class="nav-item"><a class="nav-link" data-section="cameraListSection">Cameras</a></li>
-        <li class="nav-item"><a class="nav-link" data-section="toggleSwitchSection">Toggle Switch</a></li>
+      <!-- Tabs -->
+      <ul class="nav nav-tabs" id="tabs">
+        <li class="nav-item"><button class="nav-link active" data-target="stream-section">Streams</button></li>
+        <li class="nav-item"><button class="nav-link" data-target="clips-section">Clips</button></li>
+        <li class="nav-item"><button class="nav-link" data-target="users-section">Users</button></li>
+        <li class="nav-item"><button class="nav-link" data-target="activation-section">Device Keys</button></li>
+        <li class="nav-item"><button class="nav-link" data-target="cloudkey-section">Cloud Key</button></n <li
+            class="nav-item"><button class="nav-link" data-target="devices-section">My Devices</button></li>
+        <li class="nav-item"><button class="nav-link" data-target="alldevices-section">All Devices</button></li>
+        <li class="nav-item"><button class="nav-link" data-target="authdevices-section">Authenticated Devices</button>
+        </li>
+        <li class="nav-item"><button class="nav-link" data-target="cameras-section">Cameras</button></li>
+        <li class="nav-item"><button class="nav-link" data-target="toggleswitch-section">Toggle Switch</button></li>
       </ul>
 
-      <!-- Camera Streams -->
-      <div id="streamSection" class="tabSection">
+      <!-- Stream Section -->
+      <div id="stream-section" class="tab-section active">
+        <div class="input-group mb-3">
+          <input id="stream-ids" type="text" class="form-control" placeholder="Camera IDs (comma-separated, up to 6)">
+          <button id="btn-start-stream" class="btn btn-success">Start</button>
+          <button id="btn-stop-stream" class="btn btn-danger">Stop</button>
+        </div>
+        <div id="stream-container" class="row g-3"></div>
+      </div>
+
+      <!-- Clips Section -->
+      <div id="clips-section" class="tab-section">
+        <div class="input-group mb-3">
+          <input id="clips-cam-id" type="text" class="form-control" placeholder="Camera ID">
+          <button id="btn-load-clips" class="btn btn-primary">Load Clips</button>
+        </div>
+        <div id="clips-container"></div>
+      </div>
+
+      <!-- Users Section -->
+      <div id="users-section" class="tab-section">
+        <button id="btn-refresh-users" class="btn btn-outline-primary mb-3">Refresh Users</button>
+        <div id="users-container"></div>
+      </div>
+
+      <!-- Activation Section -->
+      <div id="activation-section" class="tab-section">
+        <div class="row g-2 align-items-center mb-2">
+          <div class="col"><input id="act-cam-id" type="text" class="form-control" placeholder="Device ID"></div>
+          <div class="col"><input id="act-plan-id" type="number" class="form-control" placeholder="Plan ID"></div>
+          <div class="col-auto"><button id="btn-gen-activation" class="btn btn-primary">Generate</button></div>
+        </div>
+        <pre id="activation-result">—</pre>
+      </div>
+
+      <!-- Cloud Key Section -->
+      <div id="cloudkey-section" class="tab-section">
+        <button id="btn-gen-cloudkey" class="btn btn-primary me-2">Generate Key</button>
+        <button id="btn-list-cloudkeys" class="btn btn-outline-secondary me-2">List Keys</button>
+        <button id="btn-list-usage" class="btn btn-outline-secondary">List Usages</button>
+        <pre id="cloudkey-result" class="mt-3">—</pre>
+      </div>
+
+      <!-- My Devices Section -->
+      <div id="devices-section" class="tab-section">
+        <button id="btn-refresh-devices" class="btn btn-outline-primary mb-3">Refresh My Devices</button>
+        <div id="my-devices-container"></div>
+      </div>
+
+      <!-- All Devices Section -->
+      <div id="alldevices-section" class="tab-section">
+        <button id="btn-load-alldevices" class="btn btn-outline-primary mb-3">Load All Devices</button>
+        <div id="all-devices-container"></div>
+      </div>
+
+      <!-- Authenticated Devices Section -->
+      <div id="authdevices-section" class="tab-section">
+        <button id="btn-load-authdevices" class="btn btn-outline-primary mb-3">Load Authenticated Devices</button>
+        <pre id="authdevices-result">—</pre>
+      </div>
+
+      <!-- Cameras Section -->
+      <div id="cameras-section" class="tab-section">
+        <button id="btn-load-cameras" class="btn btn-outline-primary mb-3">Load Cameras</button>
+        <div id="cameras-container"></div>
+      </div>
+
+      <!-- Toggle Switch Section -->
+      <div id="toggleswitch-section" class="tab-section">
         <div class="row g-2 mb-3">
-          <div class="col-md-8">
-            <input id="cameraIdsInput" type="text" class="form-control" placeholder="Enter up to 6 Camera IDs" />
+          <div class="col-md-4"><input id="switch-dev-id" type="text" class="form-control" placeholder="Device ID">
           </div>
-          <div class="col-md-2">
-            <button id="startStreamBtn" class="btn btn-success w-100">Start</button>
+          <div class="col-md-4"><input id="switch-token" type="text" class="form-control" placeholder="Bearer Token">
           </div>
-          <div class="col-md-2">
-            <button id="stopStreamBtn" class="btn btn-danger w-100">Stop</button>
+          <div class="col-md-4"><button id="btn-load-switch" class="btn btn-outline-primary w-100">Load State</button>
           </div>
         </div>
-        <div id="streamsContainer" class="row g-3"></div>
-      </div>
-
-      <!-- Clips -->
-      <div id="clipsSection" class="tabSection d-none">
-        <div class="row g-2 mb-3">
-          <div class="col-md-8">
-            <input id="clipsCameraInput" type="text" class="form-control" placeholder="Camera ID e.g. CAM_1234" />
-          </div>
-          <div class="col-md-4">
-            <button id="loadClipsBtn" class="btn btn-primary w-100">Load Clips</button>
-          </div>
-        </div>
-        <div id="clipsListContainer"></div>
-      </div>
-
-      <!-- Users -->
-      <div id="usersSection" class="tabSection d-none">
-        <button id="refreshUsersBtn" class="btn btn-outline-primary mb-3">Refresh Users</button>
-        <div id="usersTableContainer"></div>
-      </div>
-
-      <!-- Device Activation Key -->
-      <div id="activationSection" class="tabSection d-none">
-        <div class="row g-2 mb-2">
-          <div class="col"><input id="actDeviceId" type="text" class="form-control" placeholder="Device ID" /></div>
-          <div class="col"><input id="actPlanId" type="number" class="form-control" placeholder="Plan ID" /></div>
-          <div class="col-auto"><button id="genActKeyBtn" class="btn btn-primary">Generate</button></div>
-        </div>
-        <pre id="actKeyResult">—</pre>
-      </div>
-
-      <!-- Cloud Key -->
-      <div id="cloudKeySection" class="tabSection d-none">
-        <div class="mb-2">
-          <button id="genCloudKeyBtn" class="btn btn-primary me-2">Generate Cloud Key</button>
-          <button id="loadCloudKeysBtn" class="btn btn-outline-secondary me-2">List Cloud Keys</button>
-          <button id="loadCloudKeyUsagesBtn" class="btn btn-outline-secondary">List Key Usages</button>
-        </div>
-        <pre id="cloudKeyResult">— newest key —</pre>
-        <pre id="cloudKeysList">— all keys —</pre>
-        <pre id="cloudKeyUsageList">— usages —</pre>
-      </div>
-
-      <!-- My Devices -->
-      <div id="devicesSection" class="tabSection d-none">
-        <button id="refreshDevicesBtn" class="btn btn-outline-primary mb-3">Refresh Devices</button>
-        <div id="devicesTableContainer"></div>
-      </div>
-
-      <!-- All Devices -->
-      <div id="devicesAllSection" class="tabSection d-none">
-        <button id="loadAllDevicesBtn" class="btn btn-outline-primary mb-3">Load All Devices</button>
-        <div id="allDevicesTableContainer"></div>
-      </div>
-
-      <!-- Toggle Switch -->
-      <div id="toggleSwitchSection" class="tabSection d-none">
-        <div class="row g-2 mb-2">
-          <div class="col-md-4">
-            <input id="toggleSwitchDeviceId" type="text" class="form-control" placeholder="Switch Device ID" />
-          </div>
-          <div class="col-md-4">
-            <input id="toggleSwitchToken" type="text" class="form-control" placeholder="Bearer Token" />
-          </div>
-          <div class="col-md-4">
-            <button id="loadSwitchStateBtn" class="btn btn-outline-primary w-100">Load State</button>
-          </div>
-        </div>
-        <pre id="switchStateResult">— no state loaded —</pre>
-
+        <pre id="switch-state">—</pre>
         <div class="row g-2 mt-3">
-          <div class="col-md-4">
-            <input id="toggleSwitchChannel" type="number" class="form-control" placeholder="Channel (1–8)" min="1"
-              max="8" />
-          </div>
-          <div class="col-md-4">
-            <button id="toggleSwitchBtn" class="btn btn-primary w-100">Toggle Switch</button>
-          </div>
+          <div class="col-md-4"><input id="switch-channel" type="number" class="form-control" min="1" max="8"
+              placeholder="Channel"></div>
+          <div class="col-md-4"><button id="btn-toggle-switch" class="btn btn-primary w-100">Toggle</button></div>
         </div>
-        <pre id="toggleSwitchResult">— no action yet —</pre>
+        <pre id="switch-result" class="mt-2">—</pre>
       </div>
 
-      <!-- Authenticated Devices -->
-      <div id="authDevicesSection" class="tabSection d-none">
-        <button id="loadAuthDevicesBtn" class="btn btn-outline-primary mb-3">Load Authenticated Devices</button>
-        <pre id="authDevicesResult">—</pre>
-      </div>
-
-      <!-- Camera List -->
-      <div id="cameraListSection" class="tabSection d-none">
-        <button id="loadCameraListBtn" class="btn btn-outline-primary mb-3">Load Cameras</button>
-        <div id="cameraListContainer"></div>
-      </div>
     </div>
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/axios@1.6.7/dist/axios.min.js"></script>
-  <script>
-    const el = id => document.getElementById(id);
-    const base = 'http://cloud.hydroleaf.in';
-    let jwt = '', streams = {};
+  <script defer>
+    (function () {
+      const base = location.origin;
+      let token = '';
+      const api = axios.create({ baseURL: base });
 
-    // — LOGIN —
-    el('loginBtn').onclick = async () => {
-      const u = el('userInput').value.trim(), p = el('passInput').value;
-      if (!u || !p) return alert('Enter email & password');
-      try {
-        const body = new URLSearchParams({ grant_type: 'password', username: u, password: p });
-        const res = await axios.post(`${base}/api/v1/auth/login`, body, {
-          headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
-        });
-        jwt = res.data.access_token;
-        axios.defaults.headers.common['Authorization'] = `Bearer ${jwt}`;
-        el('loginSection').classList.add('d-none');
-        el('dashboard').classList.remove('d-none');
-        el('welcomeMsg').textContent = `Admin: ${u}`;
-      } catch (e) {
-        alert('Login failed: ' + (e.response?.data?.detail || e.message));
-      }
-    };
-    el('logoutBtn').onclick = () => location.reload();
+      // Auth
+      const loginCard = document.getElementById('login-card');
+      const dashboard = document.getElementById('dashboard');
+      const welcomeMsg = document.getElementById('welcome-msg');
 
-    // — TAB NAVIGATION —
-    document.querySelectorAll('#adminTabs .nav-link').forEach(tab => {
-      tab.addEventListener('click', () => {
-        document.querySelectorAll('#adminTabs .nav-link').forEach(x => x.classList.remove('active'));
-        tab.classList.add('active');
-        document.querySelectorAll('.tabSection').forEach(s => s.classList.add('d-none'));
-        const sec = tab.dataset.section;
-        el(sec).classList.remove('d-none');
-        // auto-load data
-        if (sec === 'usersSection') loadUsers();
-        if (sec === 'devicesSection') loadDevices();
-        if (sec === 'devicesAllSection') loadAllDevices();
-        if (sec === 'authDevicesSection') loadAuthDevices();
-        if (sec === 'cameraListSection') loadCameraList();
-      });
-    });
-
-    // — CAMERA STREAMS —
-    el('startStreamBtn').onclick = () => {
-      streams = {}; el('streamsContainer').innerHTML = '';
-      const ids = el('cameraIdsInput').value.match(/\S+/g)?.slice(0, 6) || [];
-      if (!ids.length) return alert('Enter up to 6 IDs');
-      ids.forEach(id => {
-        const col = document.createElement('div'); col.className = 'col-sm-6 col-md-4';
-        const card = document.createElement('div'); card.className = 'card';
-        const hdr = document.createElement('div'); hdr.className = 'card-header'; hdr.textContent = id;
-        const img = document.createElement('img'); img.className = 'card-img-top';
-        card.append(hdr, img); col.append(card); el('streamsContainer').append(col);
-        streams[id] = setInterval(async () => {
-          try {
-            const b = await axios.get(
-              `${base}/api/v1/cameras/stream/${encodeURIComponent(id)}?mode=poll`,
-              { responseType: 'blob' }
-            );
-            img.src = URL.createObjectURL(b.data);
-          } catch { }
-        }, 2000);
-      });
-    };
-    el('stopStreamBtn').onclick = () => {
-      Object.values(streams).forEach(clearInterval);
-      el('streamsContainer').innerHTML = '';
-    };
-
-    // — CLIPS —
-    async function playClip(cam, filename) {
-      try {
-        const res = await axios.get(
-          `${base}/admin/cameras/${encodeURIComponent(cam)}/clips/${encodeURIComponent(filename)}/download`,
-          { responseType: 'blob' }
-        );
-        const url = URL.createObjectURL(res.data);
-        document.getElementById('clipModal')?.remove();
-        document.body.insertAdjacentHTML('beforeend', `
-          <div class="modal fade" id="clipModal" tabindex="-1">
-            <div class="modal-dialog modal-xl"><div class="modal-content">
-              <div class="modal-header">
-                <h5 class="modal-title">${filename}</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-              </div>
-              <div class="modal-body text-center">
-                <video controls style="max-width:100%" src="${url}"></video>
-              </div>
-            </div></div>
-          </div>`);
-        const m = new bootstrap.Modal(el('clipModal')); m.show();
-        el('clipModal').addEventListener('hidden.bs.modal', () => {
-          URL.revokeObjectURL(url);
-          el('clipModal')?.remove();
-        });
-      } catch (e) {
-        alert('Failed to load clip: ' + (e.response?.data?.detail || e.message));
-      }
-    }
-    el('loadClipsBtn').onclick = async () => {
-      const cam = el('clipsCameraInput').value.trim();
-      if (!cam) return alert('Enter Camera ID');
-      try {
-        const { data } = await axios.get(`${base}/admin/cameras/${encodeURIComponent(cam)}/clips`);
-        if (!data.length) { el('clipsListContainer').innerHTML = '<p>No clips</p>'; return; }
-        const rows = data.map(c => `
-          <tr>
-            <td>${c.filename}</td>
-            <td>${new Date(c.datetime).toLocaleString()}</td>
-            <td class="text-end">${c.size_mb} MB</td>
-            <td>
-              <button class="btn btn-sm btn-outline-success" onclick="playClip('${cam}','${c.filename.replace(/'/g, "\\'")}')">Play</button>
-              <a class="btn btn-sm btn-outline-primary" href="${base}/admin/cameras/${cam}/clips/${c.filename}/download" target="_blank">Download</a>
-            </td>
-          </tr>
-        `).join('');
-        el('clipsListContainer').innerHTML = `
-          <table class="table">
-            <thead><tr><th>File</th><th>Date</th><th class="text-end">Size</th><th>Actions</th></tr></thead>
-            <tbody>${rows}</tbody>
-          </table>`;
-      } catch (e) {
-        alert('Error: ' + (e.response?.data?.detail || e.message));
-      }
-    };
-
-    // — USERS —
-    el('refreshUsersBtn').onclick = loadUsers;
-    async function loadUsers() {
-      try {
-        const { data } = await axios.get(`${base}/admin/users`);
-        if (!data.length) { el('usersTableContainer').innerHTML = '<p>No users.</p>'; return; }
-        const rows = data.map(u => `
-          <tr>
-            <td>${u.id}</td>
-            <td>${u.email}</td>
-            <td>${u.role}</td>
-            <td>${new Date(u.created_at).toLocaleString()}</td>
-            <td>
-              <button class="btn btn-sm btn-secondary" onclick="impersonate(${u.id})">Impersonate</button>
-              <button class="btn btn-sm btn-warning" onclick="editUser(${u.id})">Edit</button>
-              <button class="btn btn-sm btn-danger" onclick="deleteUser(${u.id})">Delete</button>
-            </td>
-          </tr>`).join('');
-        el('usersTableContainer').innerHTML = `
-          <table class="table">
-            <thead><tr><th>ID</th><th>Email</th><th>Role</th><th>Created</th><th>Actions</th></tr></thead>
-            <tbody>${rows}</tbody>
-          </table>`;
-      } catch (e) {
-        alert('Error: ' + (e.response?.data?.detail || e.message));
-      }
-    }
-    window.impersonate = async id => {
-      if (!confirm('Impersonate user ' + id + '?')) return;
-      const { data } = await axios.post(`${base}/admin/users/impersonate/${id}`);
-      jwt = data.access_token;
-      axios.defaults.headers.common['Authorization'] = `Bearer ${jwt}`;
-      el('welcomeMsg').textContent = 'Impersonated user';
-      loadUsers();
-    };
-    window.editUser = async id => {
-      const e = prompt('New email?'); if (e === null) return;
-      const r = prompt('New role?'); if (r === null) return;
-      await axios.put(`${base}/admin/users/${id}`, { email: e, role: r });
-      loadUsers();
-    };
-    window.deleteUser = async id => {
-      if (!confirm('Delete user ' + id + '?')) return;
-      await axios.delete(`${base}/admin/users/${id}`);
-      loadUsers();
-    };
-
-    // — DEVICE ACTIVATION KEY —
-    el('genActKeyBtn').onclick = async () => {
-      const d = el('actDeviceId').value.trim(), p = el('actPlanId').value.trim();
-      if (!d || !p) return alert('Enter both Device ID & Plan ID');
-      const { data } = await axios.post(
-        `${base}/admin/generate_device_activation_key`,
-        null,
-        { params: { device_id: d, plan_id: p } }
-      );
-      el('actKeyResult').textContent = JSON.stringify(data, null, 2);
-    };
-
-    // — CLOUD KEY —
-    el('genCloudKeyBtn').onclick = async () => {
-      const { data } = await axios.post(`${base}/api/v1/cloud/admin/generate_cloud_key`);
-      el('cloudKeyResult').textContent = JSON.stringify(data, null, 2);
-    };
-    el('loadCloudKeysBtn').onclick = async () => {
-      const { data } = await axios.get(`${base}/api/v1/cloud/admin/cloud_keys`);
-      el('cloudKeysList').textContent = JSON.stringify(data, null, 2);
-    };
-    el('loadCloudKeyUsagesBtn').onclick = async () => {
-      const { data } = await axios.get(`${base}/api/v1/cloud/admin/cloud_key_usages`);
-      el('cloudKeyUsageList').textContent = JSON.stringify(data, null, 2);
-    };
-
-    // — MY DEVICES —
-    el('refreshDevicesBtn').onclick = loadDevices;
-    async function loadDevices() {
-      let html = '';
-      const types = [
-        { label: 'Dosing Units', endpoint: `${base}/admin/devices/dosing` },
-        { label: 'Valve Controllers', endpoint: `${base}/admin/devices/valves` },
-        { label: 'Smart Switches', endpoint: `${base}/admin/devices/switches` }
-      ];
-      for (const t of types) {
-        html += `<h5>${t.label}</h5>`;
+      async function doLogin() {
+        const email = document.getElementById('login-email').value.trim();
+        const pass = document.getElementById('login-pass').value;
+        if (!email || !pass) return alert('Email & password required');
         try {
-          const { data } = await axios.get(t.endpoint);
-          if (!data.length) { html += '<p>None.</p>'; continue; }
-          const rows = data.map(d => `
-            <tr>
-              <td>${d.id}</td>
-              <td>${d.name}</td>
-              <td>${d.type}</td>
-              <td>${d.http_endpoint}</td>
-              <td>${new Date(d.created_at).toLocaleString()}</td>
-            </tr>`).join('');
-          html += `
-            <table class="table">
-              <thead><tr><th>ID</th><th>Name</th><th>Type</th><th>Endpoint</th><th>Created</th></tr></thead>
-              <tbody>${rows}</tbody>
-            </table>`;
-        } catch (e) {
-          html += `<p class="text-danger">Error loading ${t.label}</p>`;
+          const params = new URLSearchParams({ grant_type: 'password', username: email, password: pass });
+          const res = await api.post('/api/v1/auth/login', params, { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } });
+          token = res.data.access_token;
+          api.defaults.headers.common['Authorization'] = 'Bearer ' + token;
+          loginCard.classList.add('d-none');
+          dashboard.classList.remove('d-none');
+          welcomeMsg.textContent = `Welcome, ${email}`;
+        } catch (err) {
+          alert('Login failed: ' + (err.response?.data?.detail || err.message));
         }
       }
-      el('devicesTableContainer').innerHTML = html;
-    }
+      document.getElementById('btn-login').addEventListener('click', doLogin);
+      document.getElementById('btn-logout').addEventListener('click', () => location.reload());
 
-    // — ALL DEVICES —
-    el('loadAllDevicesBtn').onclick = loadAllDevices;
-    async function loadAllDevices() {
-      try {
-        const { data } = await axios.get(`${base}/admin/devices/all`);
-        if (!data.length) { el('allDevicesTableContainer').innerHTML = '<p>No devices found.</p>'; return; }
-        const rows = data.map(d => `
-          <tr>
-            <td>${d.id}</td>
-            <td>${d.name}</td>
-            <td>${d.type}</td>
-            <td>${d.http_endpoint}</td>
-            <td>${new Date(d.created_at).toLocaleString()}</td>
-          </tr>`).join('');
-        el('allDevicesTableContainer').innerHTML = `
-          <table class="table">
-            <thead><tr><th>ID</th><th>Name</th><th>Type</th><th>Endpoint</th><th>Created At</th></tr></thead>
-            <tbody>${rows}</tbody>
-          </table>`;
-      } catch (e) {
-        el('allDevicesTableContainer').innerHTML = `<p class="text-danger">Error: ${(e.response?.data?.detail || e.message)}</p>`;
-      }
-    }
+      // Tabs
+      document.querySelectorAll('#tabs .nav-link').forEach(tab => {
+        tab.addEventListener('click', () => {
+          document.querySelectorAll('#tabs .nav-link').forEach(t => t.classList.remove('active'));
+          tab.classList.add('active');
+          document.querySelectorAll('.tab-section').forEach(s => s.classList.remove('active'));
+          const tgt = document.getElementById(tab.dataset.target);
+          tgt && tgt.classList.add('active');
+          // Auto-load
+          switch (tab.dataset.target) {
+            case 'users-section': loadUsers(); break;
+            case 'stream-section': break;
+            case 'activation-section': break;
+            case 'cloudkey-section': break;
+            case 'devices-section': loadMyDevices(); break;
+            case 'alldevices-section': loadAllDevices(); break;
+            case 'authdevices-section': loadAuthDevices(); break;
+            case 'cameras-section': loadCameras(); break;
+          }
+        });
+      });
 
-    // — AUTHENTICATED DEVICES —
-    el('loadAuthDevicesBtn').onclick = loadAuthDevices;
-    async function loadAuthDevices() {
-      try {
-        const { data } = await axios.get(`${base}/admin/devices/authenticated`);
-        el('authDevicesResult').textContent = JSON.stringify(data, null, 2);
-      } catch (e) {
-        el('authDevicesResult').textContent = `Error: ${(e.response?.data?.detail || e.message)}`;
-      }
-    }
+      // Stream
+      let streamIntervals = {};
+      document.getElementById('btn-start-stream').addEventListener('click', () => {
+        const ids = document.getElementById('stream-ids').value.split(',').map(s => s.trim()).filter(Boolean).slice(0, 6);
+        const container = document.getElementById('stream-container'); container.innerHTML = '';
+        ids.forEach(id => {
+          const col = document.createElement('div'); col.className = 'col-md-4';
+          const card = document.createElement('div'); card.className = 'card';
+          const hdr = document.createElement('div'); hdr.className = 'card-header'; hdr.textContent = id;
+          const img = document.createElement('img'); img.className = 'card-img-top';
+          card.append(hdr, img); col.append(card); container.append(col);
+          streamIntervals[id] = setInterval(async () => {
+            try {
+              const resp = await api.get(`/api/v1/cameras/stream/${encodeURIComponent(id)}?mode=poll`, { responseType: 'blob' });
+              img.src = URL.createObjectURL(resp.data);
+            } catch { };
+          }, 2000);
+        });
+      });
+      document.getElementById('btn-stop-stream').addEventListener('click', () => {
+        Object.values(streamIntervals).forEach(clearInterval);
+        document.getElementById('stream-container').innerHTML = '';
+      });
 
-    // — CAMERA LIST —
-    el('loadCameraListBtn').onclick = loadCameraList;
-    async function loadCameraList() {
-      try {
-        const { data } = await axios.get(`${base}/admin/cameras/list`);
-        if (!data.length) { el('cameraListContainer').innerHTML = '<p>No cameras.</p>'; return; }
-        const rows = data.map(c => `
-          <tr><td>${c.camera_id}</td><td>${c.detections.length}</td></tr>
-        `).join('');
-        el('cameraListContainer').innerHTML = `
-          <table class="table">
-            <thead><tr><th>Camera ID</th><th># Detections</th></tr></thead>
-            <tbody>${rows}</tbody>
-          </table>`;
-      } catch (e) {
-        el('cameraListContainer').innerHTML = `<p class="text-danger">Error: ${(e.response?.data?.detail || e.message)}</p>`;
-      }
-    }
+      // Clips
+      document.getElementById('btn-load-clips').addEventListener('click', async () => {
+        const cam = document.getElementById('clips-cam-id').value.trim();
+        if (!cam) return alert('Camera ID required');
+        try {
+          const { data } = await api.get(`/admin/cameras/${encodeURIComponent(cam)}/clips`);
+          const tbl = data.length ? `<table class="table"><thead><tr><th>File</th><th>Date</th><th>Size</th><th></th></tr></thead><tbody>${data.map(c => `<tr><td>${c.filename}</td><td>${new Date(c.datetime).toLocaleString()}</td><td>${c.size_mb}MB</td><td>` +
+            `<button class="btn btn-sm btn-success me-1" onclick="play('${cam}','${c.filename}')">Play</button>` +
+            `<a class="btn btn-sm btn-outline-primary" href="${base}/admin/cameras/${cam}/clips/${c.filename}/download" target="_blank">Download</a>` +
+            `</td></tr>`).join('')
+            }</tbody></table>` : '<p>No clips found.</p>';
+          document.getElementById('clips-container').innerHTML = tbl;
+        } catch (err) { alert('Error loading clips: ' + (err.response?.data?.detail || err.message)); }
+      });
+      window.play = async (cam, file) => {
+        try {
+          const { data } = await api.get(`/admin/cameras/${encodeURIComponent(cam)}/clips/${encodeURIComponent(file)}/download`, { responseType: 'blob' });
+          const url = URL.createObjectURL(data);
+          const modalHtml = `<div class="modal fade" tabindex="-1" id="clipModal"><div class="modal-dialog modal-xl"><div class="modal-content">` +
+            `<div class="modal-header"><h5 class="modal-title">${file}</h5>` +
+            `<button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>` +
+            `<div class="modal-body"><video controls src="${url}" style="width:100%"></video></div>` +
+            `</div></div></div>`;
+          document.body.insertAdjacentHTML('beforeend', modalHtml);
+          const modal = new bootstrap.Modal(document.getElementById('clipModal')); modal.show();
+          document.getElementById('clipModal').addEventListener('hidden.bs.modal', () => {
+            URL.revokeObjectURL(url); document.getElementById('clipModal').remove();
+          });
+        } catch (err) { alert('Failed to play: ' + err.message); }
+      };
 
-    // — TOGGLE SWITCH —
-    el('loadSwitchStateBtn').onclick = async () => {
-      const dev = el('toggleSwitchDeviceId').value.trim(),
-        tok = el('toggleSwitchToken').value.trim();
-      if (!dev || !tok) return alert('Enter device ID & token');
-      try {
-        const res = await axios.get(
-          `${base}/api/v1/device_comm/switch/${encodeURIComponent(dev)}/state`,
-          { headers: { Authorization: `Bearer ${tok}` } }
-        );
-        el('switchStateResult').textContent = JSON.stringify(res.data, null, 2);
-      } catch (e) {
-        el('switchStateResult').textContent = `Error: ${(e.response?.data?.detail || e.message)}`;
+      // Users
+      async function loadUsers() {
+        try {
+          const { data } = await api.get('/admin/users');
+          const html = data.length ? `<table class="table"><thead><tr><th>ID</th><th>Email</th><th>Role</th><th>Actions</th></tr></thead><tbody>${data.map(u => `<tr><td>${u.id}</td><td>${u.email}</td><td>${u.role}</td><td>` +
+            `<button class="btn btn-sm btn-warning me-1" onclick="editUser(${u.id})">Edit</button>` +
+            `<button class="btn btn-sm btn-danger" onclick="deleteUser(${u.id})">Delete</button>` +
+            `</td></tr>`).join('')
+            }</tbody></table>` : '<p>No users.</p>';
+          document.getElementById('users-container').innerHTML = html;
+        } catch (err) { alert('Error loading users:' + err.message); }
       }
-    };
-    el('toggleSwitchBtn').onclick = async () => {
-      const dev = el('toggleSwitchDeviceId').value.trim(),
-        tok = el('toggleSwitchToken').value.trim(),
-        ch = parseInt(el('toggleSwitchChannel').value, 10);
-      if (!dev || !tok || !ch || ch < 1 || ch > 8) return alert('Enter valid ID, token & channel 1–8');
-      try {
-        const res = await axios.post(
-          `${base}/api/v1/device_comm/switch/${encodeURIComponent(dev)}/toggle`,
-          { channel: ch },
-          { headers: { Authorization: `Bearer ${tok}` } }
-        );
-        el('toggleSwitchResult').textContent = JSON.stringify(res.data, null, 2);
-      } catch (e) {
-        el('toggleSwitchResult').textContent = `Error: ${(e.response?.data?.detail || e.message)}`;
+      document.getElementById('btn-refresh-users').addEventListener('click', loadUsers);
+      window.editUser = async id => {
+        const email = prompt('New email'), role = prompt('New role');
+        if (email != null && role != null) await api.put(`/admin/users/${id}`, { email, role }); loadUsers();
+      };
+      window.deleteUser = async id => { if (confirm('Delete user?')) { await api.delete(`/admin/users/${id}`); loadUsers(); } };
+
+      // Activation Key
+      document.getElementById('btn-gen-activation').addEventListener('click', async () => {
+        const dev = document.getElementById('act-cam-id').value.trim(), plan = document.getElementById('act-plan-id').value.trim();
+        if (!dev || !plan) return alert('Device ID & Plan ID');
+        try {
+          const { data } = await api.post('/admin/generate_device_activation_key', null, { params: { device_id: dev, plan_id: plan } });
+          document.getElementById('activation-result').textContent = JSON.stringify(data, null, 2);
+        } catch (err) { alert(err.message); }
+      });
+
+      // Cloud Key
+      document.getElementById('btn-gen-cloudkey').addEventListener('click', async () => {
+        try {
+          const { data } = await api.post('/api/v1/cloud/admin/generate_cloud_key');
+          document.getElementById('cloudkey-result').textContent = JSON.stringify(data, null, 2);
+        } catch (err) { alert(err); }
+      });
+      document.getElementById('btn-list-cloudkeys').addEventListener('click', async () => {
+        try {
+          const { data } = await api.get('/api/v1/cloud/admin/cloud-keys');
+          document.getElementById('cloudkey-result').textContent = JSON.stringify(data, null, 2);
+        } catch (err) { alert(err); }
+      });
+      document.getElementById('btn-list-usage').addEventListener('click', async () => {
+        try {
+          const { data } = await api.get('/api/v1/cloud/admin/cloud_key_usages');
+          document.getElementById('cloudkey-result').textContent = JSON.stringify(data, null, 2);
+        } catch (err) { alert(err); }
+      });
+
+      // My Devices
+      async function loadMyDevices() {
+        const out = document.getElementById('my-devices-container'); out.innerHTML = '';
+        const endpoints = ['/admin/devices/dosing', '/admin/devices/valves', '/admin/devices/switches'];
+        for (let ep of endpoints) {
+          try {
+            const { data } = await api.get(ep);
+            if (data.length) {
+              const rows = data.map(d => `<tr><td>${d.id}</td><td>${d.name}</td><td>${d.type}</td><td>${d.http_endpoint}</td></tr>`).join('');
+              out.insertAdjacentHTML('beforeend', `<h6>${ep.split('/').pop().toUpperCase()}</h6>` +
+                `<table class="table"><thead><tr><th>ID</th><th>Name</th><th>Type</th><th>Endpoint</th></tr></thead><tbody>${rows}</tbody></table>`);
+            }
+          } catch { };
+        }
       }
-    };
+      document.getElementById('btn-refresh-devices').addEventListener('click', loadMyDevices);
+
+      // All Devices
+      document.getElementById('btn-load-alldevices').addEventListener('click', async () => {
+        try {
+          const { data } = await api.get('/admin/devices/all');
+          const c = document.getElementById('all-devices-container');
+          c.innerHTML = data.length ?
+            `<table class="table"><thead><tr><th>ID</th><th>Name</th><th>Type</th><th>Endpoint</th></tr></thead><tbody>${data.map(d => `<tr><td>${d.id}</td><td>${d.name}</td><td>${d.type}</td><td>${d.http_endpoint}</td></tr>`).join('')
+            }</tbody></table>` : '<p>No devices.</p>';
+        } catch (err) { alert(err); }
+      });
+
+      // Authenticated Devices
+      document.getElementById('btn-load-authdevices').addEventListener('click', async () => {
+        try {
+          const { data } = await api.get('/admin/devices/authenticated');
+          document.getElementById('authdevices-result').textContent = JSON.stringify(data, null, 2);
+        } catch (err) { alert(err); }
+      });
+
+      // Cameras
+      async function loadCameras() {
+        try {
+          const { data } = await api.get('/admin/cameras/list');
+          const c = document.getElementById('cameras-container'); c.innerHTML = '';
+          if (data.length) data.forEach(cam => c.insertAdjacentHTML('beforeend', `<p>${cam.camera_id} — ${cam.detections.length} events</p>`));
+          else c.innerHTML = '<p>No cameras.</p>';
+        } catch (err) { alert(err); }
+      }
+      document.getElementById('btn-load-cameras').addEventListener('click', loadCameras);
+
+      // Toggle Switch
+      document.getElementById('btn-load-switch').addEventListener('click', async () => {
+        const dev = document.getElementById('switch-dev-id').value.trim();
+        const tok = document.getElementById('switch-token').value.trim();
+        if (!dev || !tok) return alert('Device & token');
+        try {
+          const { data } = await api.get(`/api/v1/device_comm/switch/${encodeURIComponent(dev)}/state`, { headers: { Authorization: 'Bearer ' + tok } });
+          document.getElementById('switch-state').textContent = JSON.stringify(data, null, 2);
+        } catch (err) { alert(err); }
+      });
+      document.getElementById('btn-toggle-switch').addEventListener('click', async () => {
+        const dev = document.getElementById('switch-dev-id').value.trim();
+        const tok = document.getElementById('switch-token').value.trim();
+        const ch = document.getElementById('switch-channel').value;
+        if (!dev || !tok || !ch) return alert('All fields');
+        try {
+          const { data } = await api.post(`/api/v1/device_comm/switch/${encodeURIComponent(dev)}/toggle`, { channel: parseInt(ch) },
+            { headers: { Authorization: 'Bearer ' + tok } });
+          document.getElementById('switch-result').textContent = JSON.stringify(data, null, 2);
+        } catch (err) { alert(err); }
+      });
+    })();
   </script>
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js" defer></script>
 </body>
 
 </html>
