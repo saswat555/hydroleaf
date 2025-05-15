@@ -520,6 +520,38 @@
         el('toggleSwitchResult').textContent = `Error: ${(e.response?.data?.detail || e.message)}`;
       }
     };
+    // — LOAD DEVICE STATE (uses SwitchDeviceToken) —
+    el('loadSwitchStateBtn').onclick = async () => {
+      const dev = el('toggleSwitchDeviceId').value.trim();
+      const tok = el('toggleSwitchToken').value.trim();
+      if (!dev || !tok) return alert('Enter device ID & switch token');
+      try {
+        const res = await axios.get(
+          `${base}/api/v1/device_comm/switch/${encodeURIComponent(dev)}/state`,
+          { headers: { Authorization: `Bearer ${tok}` } }
+        );
+        el('switchStateResult').textContent = JSON.stringify(res.data, null, 2);
+      } catch (e) {
+        el('switchStateResult').textContent = 'Error: ' + (e.response?.data?.detail || e.message);
+      }
+    };
+
+    // — TOGGLE SWITCH AS ADMIN (uses admin JWT) —
+    el('toggleSwitchBtn').onclick = async () => {
+      const dev = el('toggleSwitchDeviceId').value.trim();
+      const ch = parseInt(el('toggleSwitchChannel').value, 10);
+      if (!dev || !ch || ch < 1 || ch > 8) return alert('Enter valid device ID & channel 1–8');
+      try {
+        // No switch‐token header here—admin JWT is used automatically
+        const res = await axios.post(
+          `${base}/admin/devices/${encodeURIComponent(dev)}/switch/toggle`,
+          { channel: ch }
+        );
+        el('toggleSwitchResult').textContent = JSON.stringify(res.data, null, 2);
+      } catch (e) {
+        el('toggleSwitchResult').textContent = 'Error: ' + (e.response?.data?.detail || e.message);
+      }
+    };
   </script>
 </body>
 

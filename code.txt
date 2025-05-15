@@ -1120,6 +1120,8 @@ app.include_router(cloud_router,         prefix=f"{API_V1_STR}/cloud",         t
 app.include_router(device_comm_router,   prefix=f"{API_V1_STR}/device_comm",   tags=["device_comm"])
 app.include_router(cameras_router,       prefix=f"{API_V1_STR}/cameras",       tags=["cameras"])
 app.include_router(admin_clips_router)
+# mount the /admin/* endpoints (device-listing, toggle, etc.)
+app.include_router(admin_router)
 
 # ─── Startup Tasks ───────────────────────────────────────────────────────────
 @app.on_event("startup")
