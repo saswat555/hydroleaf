@@ -23,8 +23,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import API_V1_STR
 from app.core.database import get_db
-from app.dependencies import verify_dosing_device_token, verify_valve_device_token
-from app.dependencies import verify_switch_device_token
+from app.dependencies import (
+    verify_dosing_device_token,
+    verify_valve_device_token,
+    verify_switch_device_token,
+    get_ota_authorized_device,
+)
 from app.models import SwitchState
 from app.models import Device, Task, ValveState
 from app.schemas import SimpleDosingCommand, DeviceType
@@ -55,35 +59,37 @@ def find_latest_firmware(device_type: str) -> Tuple[str, str]:
 
 @router.get(
     "/update",
-    summary="Check for firmware update (dosing device)",
-    dependencies=[Depends(verify_dosing_device_token)],
+    summary="Check for firmware update for any authorized device",
 )
 async def check_for_update(
     request: Request,
-    device_id: str = Query(..., description="MAC ID of this dosing device"),
-    db: AsyncSession = Depends(get_db),
+    current_device: Device = Depends(get_ota_authorized_device),
+    db: AsyncSession = Depends(get_db), # db is already available via get_ota_authorized_device, but keeping for clarity if direct db ops are needed
 ):
-    # 1) Lookup
-    result = await db.execute(select(Device).where(Device.mac_id == device_id))
-    device = result.scalar_one_or_none()
-    current = device.firmware_version if device else "0.0.0"
-    dtype = device.type.value if device else "camera"
+    # Device is already fetched and authorized by get_ota_authorized_device
+    # current_device.mac_id is the device identifier
+    # current_device.type.value is the device type
+    # current_device.firmware_version is the current firmware version
+
+    current_version = current_device.firmware_version if current_device.firmware_version else "0.0.0"
+    device_type = current_device.type.value
 
     # 2) Latest on disk
     try:
-        latest, _ = find_latest_firmware(dtype)
+        latest, _ = find_latest_firmware(device_type)
     except FileNotFoundError:
-        latest = current
+        latest = current_version
 
     # 3) Compare
-    available = semver.compare(latest, current) > 0
+    available = semver.compare(latest, current_version) > 0
 
     # 4) Download URL
     base = str(request.base_url).rstrip("/")
-    url = f"{base}{API_V1_STR}/device_comm/update/pull?device_id={device_id}"
+    # The pull endpoint will also use get_ota_authorized_device, so no need to pass device_id as query param
+    url = f"{base}{API_V1_STR}/device_comm/update/pull" 
 
     return {
-        "current_version": current,
+        "current_version": current_version,
         "latest_version": latest,
         "update_available": available,
         "download_url": url,
@@ -92,24 +98,21 @@ async def check_for_update(
 
 @router.get(
     "/update/pull",
-    summary="Download the latest firmware (dosing device)",
-    dependencies=[Depends(verify_dosing_device_token)],
+    summary="Download the latest firmware for any authorized device",
 )
 async def pull_firmware(
-    device_id: str = Query(..., description="MAC ID of this dosing device"),
-    db: AsyncSession = Depends(get_db),
+    current_device: Device = Depends(get_ota_authorized_device),
+    # db: AsyncSession = Depends(get_db), # db is available via dependency if needed
 ):
-    # Lookup device type again
-    result = await db.execute(select(Device).where(Device.mac_id == device_id))
-    device = result.scalar_one_or_none()
-    dtype = device.type.value if device else "camera"
+    # Device is already fetched and authorized by get_ota_authorized_device
+    device_type = current_device.type.value
 
     try:
-        version, path = find_latest_firmware(dtype)
+        version, path = find_latest_firmware(device_type)
     except FileNotFoundError:
-        raise HTTPException(status_code=404, detail="Firmware not found")
+        raise HTTPException(status_code=404, detail=f"Firmware not found for device type {device_type}")
 
-    filename = f"{dtype}_{version}.bin"
+    filename = f"{device_type}_{version}.bin"
     return FileResponse(
         path,
         media_type="application/octet-stream",
@@ -308,47 +311,80 @@ async def get_pending_tasks(
 
 @router.post(
     "/heartbeat",
-    summary="Device heartbeat (returns pump tasks & OTA info)",
-    dependencies=[Depends(verify_dosing_device_token)],
+    summary="Device heartbeat (returns pump tasks & OTA info for any authorized device)",
 )
-async def heartbeat(request: Request, db: AsyncSession = Depends(get_db)):
+async def heartbeat(
+    request: Request,
+    current_device: Device = Depends(get_ota_authorized_device), # Authorizes and fetches device
+    db: AsyncSession = Depends(get_db), # db is already available via get_ota_authorized_device
+):
     payload = await request.json()
-    mac = payload.get("device_id")
-    dtype = payload.get("type")
-    ver = payload.get("version")
+    payload_device_id = payload.get("device_id")
+    payload_type = payload.get("type")
+    payload_version = payload.get("version")
 
-    # Update last_seen & firmware_version
-    device = await db.scalar(select(Device).where(Device.mac_id == mac))
-    if device:
-        device.last_seen = func.now()
-        device.firmware_version = ver
-        await db.commit()
-
-    # Collect pending pump tasks
-    q = await db.execute(
-        select(Task).where(
-            Task.device_id == mac,
-            Task.status == "pending",
-            Task.type == "pump",
+    # Verification step
+    if payload_device_id != current_device.mac_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Payload device_id '{payload_device_id}' does not match authenticated device '{current_device.mac_id}'",
         )
-    )
-    tasks = [t.parameters for t in q.scalars().all()]
+    if payload_type != current_device.type.value:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Payload type '{payload_type}' does not match authenticated device type '{current_device.type.value}'",
+        )
 
-    # OTA check
+    # Use current_device from token for DB operations and reliable data
+    # The firmware version from DB (before update) is current_device.firmware_version
+    # The device type from DB is current_device.type.value
+
+    # Update last_seen & firmware_version in DB with payload version
+    current_device.last_seen = func.now() # Use func.now() for database timestamp
+    current_device.firmware_version = payload_version # Update DB with version from heartbeat payload
+    db.add(current_device) # Add to session for commit
+    await db.commit()
+    await db.refresh(current_device) # Refresh to get updated state if needed elsewhere
+
+    # Collect pending pump tasks (if applicable for this device type)
+    # This part might need adjustment if not all devices have 'pump' tasks
+    tasks = []
+    if current_device.type == DeviceType.DOSING_UNIT: # Example: only dosing units have pump tasks
+        q = await db.execute(
+            select(Task).where(
+                Task.device_id == current_device.mac_id, # Use authenticated device_id
+                Task.status == "pending",
+                Task.type == "pump", # Assuming 'pump' is a valid task type
+            )
+        )
+        tasks = [t.parameters for t in q.scalars().all()]
+
+    # OTA check using device data from token (current state before this heartbeat)
+    # and comparing with latest available firmware for its type.
+    # The 'current_firmware_for_ota_check' is what the device *had* before this heartbeat reported a new version.
+    # However, standard practice is to report based on the version the device *currently claims to have*.
+    current_firmware_for_ota_check = payload_version # Use the version reported in THIS heartbeat for OTA decision
+    device_type_for_ota_check = current_device.type.value
+
     try:
-        latest_ver, _ = find_latest_firmware(dtype)
-        available = semver.compare(latest_ver, ver) > 0
-    except Exception:
-        latest_ver, available = ver, False
+        latest_ver, _ = find_latest_firmware(device_type_for_ota_check)
+        update_available = semver.compare(latest_ver, current_firmware_for_ota_check) > 0
+    except FileNotFoundError: # No firmware path for this device type
+        latest_ver = current_firmware_for_ota_check # No update if specific firmware type not found
+        update_available = False
+    except Exception: # Other errors like invalid version format in files
+        latest_ver = current_firmware_for_ota_check
+        update_available = False
+
 
     return {
         "status": "ok",
         "status_message": "All systems nominal",
-        "tasks": tasks,
+        "tasks": tasks, # Return tasks relevant to the device
         "update": {
-            "current": ver,
+            "current": current_firmware_for_ota_check, # Version device reports now
             "latest": latest_ver,
-            "available": available,
+            "available": update_available,
         },
     }
 

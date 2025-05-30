@@ -122,6 +122,61 @@ async def verify_dosing_device_token(
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid dosing device token")
     return tok.device_id
 
+
+async def get_ota_authorized_device(
+    creds: HTTPAuthorizationCredentials = Depends(bearer_scheme),
+    db: AsyncSession = Depends(get_db),
+) -> Device:
+    """
+    Verifies a device's bearer token (activation key) and checks for an active subscription.
+    Returns the Device object if authorized for OTA updates.
+    """
+    key = creds.credentials
+    ak_result = await db.execute(select(ActivationKey).where(ActivationKey.key == key))
+    ak = ak_result.scalar_one_or_none()
+
+    if not ak:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid device activation key",
+        )
+    
+    if not ak.redeemed or not ak.redeemed_device_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Device key not redeemed or no device associated",
+        )
+
+    device_result = await db.execute(select(Device).where(Device.id == ak.redeemed_device_id))
+    device = device_result.scalar_one_or_none()
+
+    if not device:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Device not found for this key",
+        )
+
+    # Check for active subscription
+    now = datetime.now(timezone.utc)
+    sub_result = await db.execute(
+        select(Subscription)
+        .where(
+            Subscription.device_id == device.id,
+            Subscription.active == True,
+            Subscription.start_date <= now,
+            Subscription.end_date >= now,
+        )
+    )
+    subscription = sub_result.scalar_one_or_none()
+
+    if not subscription:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="No active subscription for this device. OTA updates denied.",
+        )
+
+    return device
+
 async def verify_valve_device_token(
     creds: HTTPAuthorizationCredentials = Depends(bearer_scheme),
     db=Depends(get_db),

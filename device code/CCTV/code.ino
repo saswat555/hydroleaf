@@ -44,10 +44,17 @@
 
 #define DEFAULT_CLOUD_KEY ""
 
+// Firmware version and device type
+static const char* FW_VERSION = "0.0.1";
+static const char* DEVICE_TYPE = "camera"; // Ensure this matches DeviceType.CAMERA if different
+
 // ───────── CLOUD ENDPOINTS ─────────
 static const char BACKEND_HOST[] = "cloud.hydroleaf.in";
 static const char AUTH_PATH[] = "/api/v1/cloud/authenticate";
-static const char UPLOAD_PRFX[] = "/upload/";
+static const char UPLOAD_PRFX[] = "/upload/"; // Used for image uploads, keep it
+static const char HEARTBEAT_PATH[] = "/api/v1/device_comm/heartbeat";
+static const char UPDATE_CHECK_PATH[] = "/api/v1/device_comm/update";
+
 
 // ───────── TIMINGS ─────────
 #define WIFI_RETRY_MS 30000UL
@@ -259,7 +266,12 @@ void handleWiFi();
 void handleSaveWiFi();
 void handleStatus();
 void handleLogs();
-void handleOtaPush();
+// void handleOtaPush(); // Removed
+
+// OTA and Heartbeat functions
+void sendHeartbeat();
+void checkForUpdate();
+void performUpdate(const char* download_url);
 
 // ───────── LED HEARTBEAT ─────────
 inline void beatLED() {
@@ -355,25 +367,7 @@ void handleLogs() {
   server.send(200, "text/html", page);
 }
 
-void handleOtaPush() {
-  HTTPUpload& up = server.upload();
-  if (up.status == UPLOAD_FILE_START) {
-    if (!server.hasHeader("X-OTA-KEY") || server.header("X-OTA-KEY") != cloudKey) {
-      server.send(403, "text/plain", "Forbidden");
-      return;
-    }
-    logLine("[OTA] push-start");
-    Update.begin(UPDATE_SIZE_UNKNOWN);
-  } else if (up.status == UPLOAD_FILE_WRITE) {
-    Update.write(up.buf, up.currentSize);
-  } else if (up.status == UPLOAD_FILE_END) {
-    bool ok = Update.end(true);
-    logLine(ok ? "[OTA] push-done" : "[OTA] push-fail");
-    server.send(ok ? 200 : 500, "text/plain", ok ? "OK" : "FAIL");
-    delay(400);
-    ESP.restart();
-  }
-}
+// handleOtaPush() function is removed.
 
 void setupRoutes() {
   server.on("/", HTTP_GET, handleMenu);
@@ -384,8 +378,7 @@ void setupRoutes() {
   server.on("/cloudkey", HTTP_GET, handleCloudKey);
   server.on("/save_key", HTTP_POST, handleSaveKey);
 
-  server.on(
-    "/manual_update", HTTP_POST, []() {}, handleOtaPush);
+  // server.on("/manual_update", HTTP_POST, []() {}, handleOtaPush); // Removed this route
   server.begin();
 }
 
@@ -625,6 +618,12 @@ void setup() {
   pinMode(PIN_IRLED, OUTPUT);
   digitalWrite(PIN_IRLED, LOW);
 
+  // Ensure HTTPClient, Update, ArduinoJson are included at the top of the file.
+  // #include <HTTPClient.h> // Already present
+  // #include <Update.h> // Already present
+  // #include <ArduinoJson.h> // Already present
+
+
   prefs.begin("cam_cfg", false);
   ssid = prefs.getString("ssid", "");
   pass = prefs.getString("pass", "");
@@ -641,10 +640,147 @@ void setup() {
     configTime(0, 0, "pool.ntp.org", "time.google.com");
     if (!activated) activated = cloudAuthenticate();
     if (activated && !camReady) initCamera();
+
+    // After successful connection and authentication, send initial heartbeat and check for update.
+    if (activated) {
+      sendHeartbeat();
+      checkForUpdate();
+    }
   }
 
   portalStart();
 }
+
+
+// Implementation of new functions
+void sendHeartbeat() {
+  if (!WiFi.isConnected() || !activated || cloudKey.length() == 0) {
+    logLine("[HEARTBEAT] Conditions not met (WiFi, activated, or cloudKey missing). Skipping.");
+    return;
+  }
+
+  logLine("[HEARTBEAT] Sending heartbeat...");
+  String url = String("http://") + BACKEND_HOST + HEARTBEAT_PATH;
+  http.begin(client, url); // Use global client
+  http.addHeader("Content-Type", "application/json");
+  http.addHeader("Authorization", "Bearer " + cloudKey);
+
+  StaticJsonDocument<192> doc; // Increased size slightly for safety
+  doc["device_id"] = camId;
+  doc["type"] = DEVICE_TYPE;
+  doc["version"] = FW_VERSION;
+
+  String requestBody;
+  serializeJson(doc, requestBody);
+
+  int httpCode = http.POST(requestBody);
+  if (httpCode > 0) {
+    String payload = http.getString();
+    logLine(String("[HEARTBEAT] Response code: ") + httpCode);
+    // logLine(String("[HEARTBEAT] Response: ") + payload); // Optional: log full response
+    // Further: Could parse heartbeat response if it contains commands or OTA info directly
+  } else {
+    logLine(String("[HEARTBEAT] POST failed, error: ") + http.errorToString(httpCode).c_str());
+  }
+  http.end();
+}
+
+void checkForUpdate() {
+  if (!WiFi.isConnected() || !activated || cloudKey.length() == 0) {
+    logLine("[OTA] Conditions not met for update check (WiFi, activated, or cloudKey missing). Skipping.");
+    return;
+  }
+
+  logLine("[OTA] Checking for updates...");
+  String url = String("http://") + BACKEND_HOST + UPDATE_CHECK_PATH;
+  
+  http.begin(client, url); // Use global client
+  http.addHeader("Authorization", "Bearer " + cloudKey);
+  
+  int httpCode = http.GET();
+  if (httpCode == HTTP_CODE_OK) {
+    String payload = http.getString();
+    logLine(String("[OTA] Update check response: ") + payload); // Log raw response
+    
+    StaticJsonDocument<512> doc; // Adjust size as needed for the expected JSON
+    DeserializationError error = deserializeJson(doc, payload);
+
+    if (error) {
+      logLine(String("[OTA] Failed to parse update check JSON: ") + error.c_str());
+      http.end();
+      return;
+    }
+
+    bool update_available = doc["update_available"].as<bool>();
+    if (update_available) {
+      const char* download_url = doc["download_url"].as<const char*>();
+      if (download_url) {
+        logLine(String("[OTA] Update available. Download URL: ") + download_url);
+        performUpdate(download_url);
+      } else {
+        logLine("[OTA] Update available but no download URL provided.");
+      }
+    } else {
+      logLine("[OTA] No update available.");
+    }
+  } else {
+    logLine(String("[OTA] Update check GET failed, error code: ") + httpCode + " Msg: " + http.errorToString(httpCode).c_str());
+  }
+  http.end();
+}
+
+void performUpdate(const char* download_url) {
+  if (!WiFi.isConnected() || !activated || cloudKey.length() == 0) {
+    logLine("[OTA] Conditions not met for performing update (WiFi, activated, or cloudKey missing). Skipping.");
+    return;
+  }
+  logLine(String("[OTA] Starting update from URL: ") + download_url);
+
+  http.begin(client, download_url); // Use global client, provide full URL
+  http.addHeader("Authorization", "Bearer " + cloudKey); // Add auth header for the pull endpoint
+
+  int httpCode = http.GET();
+  if (httpCode == HTTP_CODE_OK) {
+    int contentLength = http.getSize();
+    if (contentLength <= 0) {
+      logLine("[OTA] Content length error or zero.");
+      http.end();
+      return;
+    }
+    logLine(String("[OTA] Update size: ") + contentLength + " bytes.");
+
+    if (!Update.begin(contentLength)) {
+      logLine(String("[OTA] Not enough space to begin OTA update. Error: ") + Update.errorString());
+      http.end();
+      return;
+    }
+    logLine("[OTA] Update.begin() successful.");
+
+    WiFiClient& stream = http.getStream();
+    size_t written = Update.writeStream(stream);
+
+    if (written == contentLength) {
+      logLine("[OTA] Update written successfully.");
+    } else {
+      logLine(String("[OTA] Update write failed. Wrote ") + written + "/" + contentLength + " bytes. Error: " + Update.errorString());
+      Update.abort();
+      http.end();
+      return;
+    }
+
+    if (!Update.end(true)) { // true to set the boot partition to the new sketch
+      logLine(String("[OTA] Error occurred in Update.end(): ") + Update.errorString());
+    } else {
+      logLine("[OTA] Update successful! Rebooting...");
+      delay(1000);
+      ESP.restart();
+    }
+  } else {
+    logLine(String("[OTA] Download failed, HTTP error: ") + http.errorToString(httpCode).c_str());
+  }
+  http.end();
+}
+
 
 void loop() {
   handleButton();
@@ -655,8 +791,30 @@ void loop() {
   if (WiFi.status() != WL_CONNECTED && millis() - lastWifiTry > WIFI_RETRY_MS) {
     lastWifiTry = millis();
     logLine("[NET] retry");
-    if (wifiConnect() && activated && !camReady) {
-      initCamera();
+    if (wifiConnect()) { // wifiConnect will try to connect
+        if (!activated) activated = cloudAuthenticate(); // Authenticate if not already
+        if (activated && !camReady) initCamera(); // Init camera if authenticated and not ready
+        if (activated) { // If activated after reconnect, send heartbeat and check update
+            sendHeartbeat();
+            checkForUpdate();
+        }
+    }
+  }
+  
+  // Periodic Heartbeat and Update Check
+  static unsigned long lastHeartbeat = 0;
+  static unsigned long lastUpdateCheck = 0;
+  const unsigned long heartbeatInterval = 5 * 60 * 1000; // 5 minutes
+  const unsigned long updateCheckInterval = 60 * 60 * 1000; // 1 hour
+
+  if (WiFi.isConnected() && activated) {
+    if (millis() - lastHeartbeat > heartbeatInterval) {
+        lastHeartbeat = millis();
+        sendHeartbeat();
+    }
+    if (millis() - lastUpdateCheck > updateCheckInterval) {
+        lastUpdateCheck = millis();
+        checkForUpdate();
     }
   }
 
