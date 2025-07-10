@@ -1288,3 +1288,31 @@ Return {"x":1}
 2025-07-10 21:16:43,624 - app.services.plant_service - INFO - Fetched 2 plants from the database
 2025-07-10 21:16:43,629 - app.services.plant_service - INFO - Fetching plants from database...
 2025-07-10 21:16:43,630 - app.services.plant_service - ERROR - Database query failed: db is down
+2025-07-10 21:22:30,827 - app.services.supply_chain_service - ERROR - No valid JSON block found in LLM response.
+2025-07-10 21:22:30,831 - app.services.llm - INFO - Sending prompt to LLM:
+hi
+2025-07-10 21:22:30,853 - app.services.llm - INFO - Sending prompt to LLM:
+foo
+2025-07-10 21:22:30,858 - app.services.device_controller - INFO - Sensor readings from http://devip: {'ph': 7.2, 'tds': 450.0}
+2025-07-10 21:22:30,865 - app.services.dose_manager - INFO - Sent dosing commands to device dev1: [{'ok': True, 'pump': 2, 'amount': 25, 'combined': False}]
+2025-07-10 21:22:30,865 - app.services.dose_manager - INFO - Sent dosing commands to device dev1: [{'ok': True, 'pump': 2, 'amount': 25, 'combined': True}]
+2025-07-10 21:22:30,866 - app.services.dose_manager - INFO - Cancellation response for device devX: {'cancelled': True}
+2025-07-10 21:22:30,869 - app.services.llm - ERROR - No valid JSON block found in OpenAI response: no braces at all
+2025-07-10 21:22:31,839 - httpx - INFO - HTTP Request: GET https://google.serper.dev/search?q=optimal+growth.+Focus+on+best+practices+in+Europe+for+Veggie+cultivation.&gl=in&hl=en&apiKey=79729460be56c404bcbf96630c3bfd92ba6ecc3e5ef08d124f91aba3c8ecf580&num=5&full=true&output=detailed "HTTP/1.1 403 Forbidden"
+2025-07-10 21:22:31,841 - app.services.serper - ERROR - Serper API HTTP error (403): {"message":"Unauthorized.","statusCode":403}
+2025-07-10 21:22:31,842 - app.services.llm - WARNING - Serper enrichment skipped (Client error '403 Forbidden' for url 'https://google.serper.dev/search?q=optimal+growth.+Focus+on+best+practices+in+Europe+for+Veggie+cultivation.&gl=in&hl=en&apiKey=79729460be56c404bcbf96630c3bfd92ba6ecc3e5ef08d124f91aba3c8ecf580&num=5&full=true&output=detailed'
+For more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/403)
+2025-07-10 21:22:31,882 - httpx - INFO - HTTP Request: GET http://localhost:11434/api/tags "HTTP/1.1 200 OK"
+2025-07-10 21:22:31,882 - app.services.llm - INFO - Making direct Ollama call to model deepseek-r1:1.5b with prompt:
+Return exactly this JSON: {"foo": 42}
+2025-07-10 21:22:31,907 - httpx - INFO - HTTP Request: GET http://localhost:11434/api/tags "HTTP/1.1 200 OK"
+2025-07-10 21:22:31,907 - app.services.llm - INFO - Sending prompt to LLM:
+Return {"x":1}
+2025-07-10 21:22:31,907 - app.services.llm - INFO - Making direct Ollama call to model deepseek-r1:1.5b with prompt:
+Return {"x":1}
+2025-07-10 21:22:31,913 - app.services.plant_service - INFO - Fetching plants from database...
+2025-07-10 21:22:31,913 - app.services.plant_service - INFO - No plants found, returning an empty list.
+2025-07-10 21:22:31,914 - app.services.plant_service - INFO - Fetching plants from database...
+2025-07-10 21:22:31,914 - app.services.plant_service - INFO - Fetched 2 plants from the database
+2025-07-10 21:22:31,919 - app.services.plant_service - INFO - Fetching plants from database...
+2025-07-10 21:22:31,919 - app.services.plant_service - ERROR - Database query failed: db is down

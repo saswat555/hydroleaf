@@ -154,27 +154,43 @@ async def build_dosing_prompt(device: Device, sensor_data: dict, plant_profile: 
     )
     return prompt
 
-async def build_plan_prompt(sensor_data: dict, plant_profile: dict, query: str) -> str:
+# app/services/llm.py
+import os
+import logging
+from typing import Dict
+
+logger = logging.getLogger(__name__)
+
+async def build_plan_prompt(
+    sensor_data: Dict,
+    plant_profile: Dict,
+    query: str,
+) -> str:
     """
-    Creates a detailed text prompt for a growing plan.
-    Optionally uses a Serper-based web search to gather additional detailed context.
+    Create a detailed growing-plan prompt for the LLM.
+    • Enriches the prompt with Serper search results when possible.
+    • Never raises if Serper is down / key invalid – it just skips enrichment.
     """
+
+    # ─── 1.  Core context ────────────────────────────────────────────────────
     plant_info = (
-        f"Plant: {plant_profile['plant_name']}\n"
-        f"Plant Type: {plant_profile['plant_type']}\n"
-        f"Growth Stage: {plant_profile['growth_stage']} days from seeding (seeded at {plant_profile['seeding_date']})\n"
+        f"Plant: {plant_profile.get('plant_name', 'Unknown')}\n"
+        f"Plant Type: {plant_profile.get('plant_type', 'Unknown')}\n"
+        f"Growth Stage: {plant_profile.get('growth_stage', 'Unknown')} "
+        f"days from seeding (seeded at {plant_profile.get('seeding_date', 'N/A')})\n"
         f"Region: {plant_profile.get('region', 'Unknown')}\n"
         f"Location: {plant_profile.get('location', 'Unknown')}"
     )
-    promptPlan = f"""
+
+    prompt_plan = f"""
 You are an expert hydroponic system manager. Based on the following information, determine optimal nutrient dosing amounts.
 
 Plant Information:
 {plant_info}
 
 Current Sensor Readings:
-- pH: {sensor_data.get('P','Unknown')}
-- TDS (PPM): {sensor_data.get('TDS','Unknown')}
+- pH: {sensor_data.get('P', 'Unknown')}
+- TDS (PPM): {sensor_data.get('TDS', 'Unknown')}
 
 Provide an efficient and optimized solution according to the plant's location, local weather conditions, and soil conditions.
 
@@ -184,7 +200,7 @@ Consider:
 3. Chemical interactions
 4. Maximum safe dosing limits
 
-Provide a detailed growing plan for {plant_profile['plant_name']} based on the {plant_profile['location']}. Include the best months for planting and the total growing duration. Specify pH and TDS requirements based on the local soil and water conditions. If the query mentions 'seeding' or 'growing,' tailor the plan accordingly. Break down the process into clear steps, covering:
+Provide a detailed growing plan for {plant_profile.get('plant_name', 'this plant')} based on {plant_profile.get('location', 'its location')}. Include the best months for planting and the total growing duration. Specify pH and TDS requirements based on the local soil and water conditions. If the query mentions 'seeding' or 'growing,' tailor the plan accordingly. Break down the process into clear steps, covering:
 
 1. Ideal Planting Time
 2. Growth Duration
@@ -195,31 +211,38 @@ Provide a detailed growing plan for {plant_profile['plant_name']} based on the {
 7. Additional Tips
 """.strip()
 
-    # Enhance the query with additional location context.
-    enhanced_query = f"{query}. Focus on best practices in {plant_profile.get('region', 'Unknown')} for {plant_profile.get('plant_type', 'Unknown')} cultivation."
+    # ─── 2.  Optional web-search enrichment (Serper) ────────────────────────
+    enhanced_query = (
+        f"{query}. Focus on best practices in "
+        f"{plant_profile.get('region', 'Unknown')} "
+        f"for {plant_profile.get('plant_type', 'Unknown')} cultivation."
+    )
 
-    # Gather additional data from a web search using Serper.
-    search_results = await fetch_search_results(enhanced_query)
-    organic_results = search_results.get("organic", [])
+    organic_results = []  # default: no extra insights
+    if os.getenv("SERPER_API_KEY"):
+        try:
+            search_results = await fetch_search_results(enhanced_query)
+            organic_results = search_results.get("organic", []) if search_results else []
+        except Exception as exc:
+            logger.warning("Serper enrichment skipped (%s)", exc)
+
     if organic_results:
-        # Process the top 5 results for a richer context.
-        raw_info_list = []
+        snippets = []
         for entry in organic_results[:5]:
-            title = entry.get("title", "No Title")
+            title   = entry.get("title", "No Title")
             snippet = entry.get("snippet", "No snippet available.")
-            link = entry.get("link", None)
-            info_str = f"• Title: {title}\n  Snippet: {snippet}"
+            link    = entry.get("link") or ""
+            part    = f"• Title: {title}\n  Snippet: {snippet}"
             if link:
-                info_str += f"\n  Link: {link}"
-            raw_info_list.append(info_str)
-        raw_info = "\n\n".join(raw_info_list)
+                part += f"\n  Link: {link}"
+            snippets.append(part)
+        raw_info = "\n\n".join(snippets)
     else:
         raw_info = "No additional information available."
 
-    # Append a header to the additional information.
-    final_prompt = f"{promptPlan}\n\nDetailed Search Insights:\n{raw_info}"
+    # ─── 3.  Final prompt ───────────────────────────────────────────────────
+    final_prompt = f"{prompt_plan}\n\nDetailed Search Insights:\n{raw_info}"
     return final_prompt.strip()
-
 
 async def direct_ollama_call(prompt: str, model_name: str) -> str:
     """
