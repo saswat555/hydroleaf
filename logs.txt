@@ -369,3 +369,764 @@ Traceback (most recent call last):
     await getter
 asyncio.exceptions.CancelledError
 
+2025-07-10 20:32:47,241 - app.services.supply_chain_service - ERROR - No valid JSON block found in LLM response.
+2025-07-10 20:32:47,246 - app.services.llm - INFO - Sending prompt to LLM:
+hi
+2025-07-10 20:32:47,246 - app.services.llm - INFO - Raw response from LLM:
+{"actions":[{}]}
+2025-07-10 20:32:47,289 - app.services.supply_chain_service - ERROR - JSON Parsing Error: Extra data: line 1 column 9 (char 8). Response: prefix {"a":1} middle {"b":2} suffix
+2025-07-10 20:32:47,299 - app.services.llm - INFO - Sending prompt to LLM:
+foo
+2025-07-10 20:32:47,315 - app.services.device_controller - INFO - Sensor readings from http://devip: {'ph': 7.2, 'tds': 450.0}
+2025-07-10 20:32:47,322 - app.services.dose_manager - INFO - Sent dosing commands to device dev1: [{'ok': True, 'pump': 2, 'amount': 25, 'combined': False}]
+2025-07-10 20:32:47,322 - app.services.dose_manager - INFO - Sent dosing commands to device dev1: [{'ok': True, 'pump': 2, 'amount': 25, 'combined': True}]
+2025-07-10 20:32:47,323 - app.services.dose_manager - INFO - Cancellation response for device devX: {'cancelled': True}
+2025-07-10 20:32:47,326 - app.services.llm - ERROR - No valid JSON block found in OpenAI response: no json here
+2025-07-10 20:32:47,328 - app.services.llm - INFO - Making direct Ollama call to model any-model with prompt:
+any prompt
+2025-07-10 20:32:47,347 - httpx - INFO - HTTP Request: POST http://localhost:11434/api/generate "HTTP/1.1 200 OK"
+2025-07-10 20:32:47,347 - app.services.llm - INFO - Ollama raw completion: {"z":3}
+2025-07-10 20:32:47,354 - app.services.llm - INFO - Making direct Ollama call to model model with prompt:
+prompt
+2025-07-10 20:32:47,369 - httpx - INFO - HTTP Request: POST http://localhost:11434/api/generate "HTTP/1.1 500 Internal Server Error"
+2025-07-10 20:32:47,369 - app.services.llm - ERROR - Ollama call failed: 500: LLM API HTTP error
+2025-07-10 20:32:47,371 - app.services.llm - INFO - Sending prompt to LLM:
+hello
+2025-07-10 20:32:47,371 - app.services.llm - INFO - Making direct Ollama call to model deepseek-r1:1.5b with prompt:
+hello
+2025-07-10 20:32:47,386 - httpx - INFO - HTTP Request: POST http://localhost:11434/api/generate "HTTP/1.1 200 OK"
+2025-07-10 20:32:47,387 - app.services.llm - INFO - Ollama raw completion: {"actions":[{"pump_number":2,"chemical_name":"Foo","dose_ml":20,"reasoning":"Test"}]}
+2025-07-10 20:32:47,397 - app.services.llm - INFO - Sending prompt to LLM:
+hello
+2025-07-10 20:32:47,397 - app.services.llm - INFO - Making direct Ollama call to model deepseek-r1:1.5b with prompt:
+hello
+2025-07-10 20:32:47,412 - httpx - INFO - HTTP Request: POST http://localhost:11434/api/generate "HTTP/1.1 500 Internal Server Error"
+2025-07-10 20:32:47,412 - app.services.llm - ERROR - Ollama call failed: 500: LLM API HTTP error
+2025-07-10 20:32:47,415 - app.services.llm - INFO - Making direct Ollama call to model m with prompt:
+p
+2025-07-10 20:32:47,430 - httpx - INFO - HTTP Request: POST http://localhost:11434/api/generate "HTTP/1.1 200 OK"
+2025-07-10 20:32:47,430 - app.services.llm - INFO - Ollama raw completion: not json
+2025-07-10 20:32:47,430 - app.services.llm - ERROR - Malformed JSON from Ollama: not json
+2025-07-10 20:32:47,430 - app.services.llm - ERROR - Ollama call failed: 500: Invalid JSON from LLM service
+2025-07-10 20:32:47,432 - app.services.plant_service - INFO - Fetching plants from database...
+2025-07-10 20:32:47,432 - app.services.plant_service - INFO - No plants found, returning an empty list.
+2025-07-10 20:32:47,432 - app.services.plant_service - INFO - Fetching plants from database...
+2025-07-10 20:32:47,432 - app.services.plant_service - INFO - Fetched 2 plants from the database
+2025-07-10 20:32:47,438 - app.services.plant_service - INFO - Fetching plants from database...
+2025-07-10 20:32:47,438 - app.services.plant_service - ERROR - Database query failed: db is down
+2025-07-10 20:35:54,122 - app.services.supply_chain_service - ERROR - No valid JSON block found in LLM response.
+2025-07-10 20:35:54,126 - app.services.llm - INFO - Sending prompt to LLM:
+hi
+2025-07-10 20:35:54,171 - app.services.llm - INFO - Sending prompt to LLM:
+foo
+2025-07-10 20:35:54,175 - app.services.device_controller - INFO - Sensor readings from http://devip: {'ph': 7.2, 'tds': 450.0}
+2025-07-10 20:35:54,181 - app.services.dose_manager - INFO - Sent dosing commands to device dev1: [{'ok': True, 'pump': 2, 'amount': 25, 'combined': False}]
+2025-07-10 20:35:54,181 - app.services.dose_manager - INFO - Sent dosing commands to device dev1: [{'ok': True, 'pump': 2, 'amount': 25, 'combined': True}]
+2025-07-10 20:35:54,182 - app.services.dose_manager - INFO - Cancellation response for device devX: {'cancelled': True}
+2025-07-10 20:35:54,184 - app.services.llm - ERROR - No valid JSON block found in OpenAI response: no json here
+2025-07-10 20:35:54,187 - app.services.llm - INFO - Making direct Ollama call to model any-model with prompt:
+any prompt
+2025-07-10 20:35:54,207 - httpx - INFO - HTTP Request: POST http://localhost:11434/api/generate "HTTP/1.1 200 OK"
+2025-07-10 20:35:54,207 - app.services.llm - INFO - Ollama raw completion: {"z":3}
+2025-07-10 20:35:54,213 - app.services.llm - INFO - Making direct Ollama call to model model with prompt:
+prompt
+2025-07-10 20:35:54,228 - httpx - INFO - HTTP Request: POST http://localhost:11434/api/generate "HTTP/1.1 500 Internal Server Error"
+2025-07-10 20:35:54,228 - app.services.llm - ERROR - Ollama call failed: 500: LLM API HTTP error
+2025-07-10 20:35:54,230 - app.services.llm - INFO - Sending prompt to LLM:
+hello
+2025-07-10 20:35:54,230 - app.services.llm - INFO - Making direct Ollama call to model deepseek-r1:1.5b with prompt:
+hello
+2025-07-10 20:35:54,246 - httpx - INFO - HTTP Request: POST http://localhost:11434/api/generate "HTTP/1.1 200 OK"
+2025-07-10 20:35:54,246 - app.services.llm - INFO - Ollama raw completion: {"actions":[{"pump_number":2,"chemical_name":"Foo","dose_ml":20,"reasoning":"Test"}]}
+2025-07-10 20:35:54,251 - app.services.llm - INFO - Sending prompt to LLM:
+hello
+2025-07-10 20:35:54,251 - app.services.llm - INFO - Making direct Ollama call to model deepseek-r1:1.5b with prompt:
+hello
+2025-07-10 20:35:54,266 - httpx - INFO - HTTP Request: POST http://localhost:11434/api/generate "HTTP/1.1 500 Internal Server Error"
+2025-07-10 20:35:54,266 - app.services.llm - ERROR - Ollama call failed: 500: LLM API HTTP error
+2025-07-10 20:35:54,269 - app.services.llm - INFO - Making direct Ollama call to model m with prompt:
+p
+2025-07-10 20:35:54,284 - httpx - INFO - HTTP Request: POST http://localhost:11434/api/generate "HTTP/1.1 200 OK"
+2025-07-10 20:35:54,284 - app.services.llm - INFO - Ollama raw completion: not json
+2025-07-10 20:35:54,284 - app.services.llm - ERROR - Malformed JSON from Ollama: not json
+2025-07-10 20:35:54,284 - app.services.llm - ERROR - Ollama call failed: 500: Invalid JSON from LLM service
+2025-07-10 20:35:54,286 - app.services.plant_service - INFO - Fetching plants from database...
+2025-07-10 20:35:54,286 - app.services.plant_service - INFO - No plants found, returning an empty list.
+2025-07-10 20:35:54,287 - app.services.plant_service - INFO - Fetching plants from database...
+2025-07-10 20:35:54,287 - app.services.plant_service - INFO - Fetched 2 plants from the database
+2025-07-10 20:35:54,291 - app.services.plant_service - INFO - Fetching plants from database...
+2025-07-10 20:35:54,292 - app.services.plant_service - ERROR - Database query failed: db is down
+2025-07-10 20:36:05,247 - app.services.supply_chain_service - ERROR - No valid JSON block found in LLM response.
+2025-07-10 20:36:05,251 - app.services.llm - INFO - Sending prompt to LLM:
+hi
+2025-07-10 20:36:05,297 - app.services.llm - INFO - Sending prompt to LLM:
+foo
+2025-07-10 20:36:05,301 - app.services.device_controller - INFO - Sensor readings from http://devip: {'ph': 7.2, 'tds': 450.0}
+2025-07-10 20:36:05,309 - app.services.dose_manager - INFO - Sent dosing commands to device dev1: [{'ok': True, 'pump': 2, 'amount': 25, 'combined': False}]
+2025-07-10 20:36:05,309 - app.services.dose_manager - INFO - Sent dosing commands to device dev1: [{'ok': True, 'pump': 2, 'amount': 25, 'combined': True}]
+2025-07-10 20:36:05,309 - app.services.dose_manager - INFO - Cancellation response for device devX: {'cancelled': True}
+2025-07-10 20:36:05,312 - app.services.llm - ERROR - No valid JSON block found in OpenAI response: no json here
+2025-07-10 20:36:05,314 - app.services.llm - INFO - Making direct Ollama call to model any-model with prompt:
+any prompt
+2025-07-10 20:36:05,333 - httpx - INFO - HTTP Request: POST http://localhost:11434/api/generate "HTTP/1.1 200 OK"
+2025-07-10 20:36:05,334 - app.services.llm - INFO - Ollama raw completion: {"z":3}
+2025-07-10 20:36:05,340 - app.services.llm - INFO - Making direct Ollama call to model model with prompt:
+prompt
+2025-07-10 20:36:05,355 - httpx - INFO - HTTP Request: POST http://localhost:11434/api/generate "HTTP/1.1 500 Internal Server Error"
+2025-07-10 20:36:05,355 - app.services.llm - ERROR - Ollama call failed: 500: LLM API HTTP error
+2025-07-10 20:36:05,357 - app.services.llm - INFO - Sending prompt to LLM:
+hello
+2025-07-10 20:36:05,357 - app.services.llm - INFO - Making direct Ollama call to model deepseek-r1:1.5b with prompt:
+hello
+2025-07-10 20:36:05,372 - httpx - INFO - HTTP Request: POST http://localhost:11434/api/generate "HTTP/1.1 200 OK"
+2025-07-10 20:36:05,373 - app.services.llm - INFO - Ollama raw completion: {"actions":[{"pump_number":2,"chemical_name":"Foo","dose_ml":20,"reasoning":"Test"}]}
+2025-07-10 20:36:05,377 - app.services.llm - INFO - Sending prompt to LLM:
+hello
+2025-07-10 20:36:05,377 - app.services.llm - INFO - Making direct Ollama call to model deepseek-r1:1.5b with prompt:
+hello
+2025-07-10 20:36:05,392 - httpx - INFO - HTTP Request: POST http://localhost:11434/api/generate "HTTP/1.1 500 Internal Server Error"
+2025-07-10 20:36:05,392 - app.services.llm - ERROR - Ollama call failed: 500: LLM API HTTP error
+2025-07-10 20:36:05,395 - app.services.llm - INFO - Making direct Ollama call to model m with prompt:
+p
+2025-07-10 20:36:05,410 - httpx - INFO - HTTP Request: POST http://localhost:11434/api/generate "HTTP/1.1 200 OK"
+2025-07-10 20:36:05,410 - app.services.llm - INFO - Ollama raw completion: not json
+2025-07-10 20:36:05,410 - app.services.llm - ERROR - Malformed JSON from Ollama: not json
+2025-07-10 20:36:05,410 - app.services.llm - ERROR - Ollama call failed: 500: Invalid JSON from LLM service
+2025-07-10 20:36:05,412 - app.services.plant_service - INFO - Fetching plants from database...
+2025-07-10 20:36:05,412 - app.services.plant_service - INFO - No plants found, returning an empty list.
+2025-07-10 20:36:05,413 - app.services.plant_service - INFO - Fetching plants from database...
+2025-07-10 20:36:05,413 - app.services.plant_service - INFO - Fetched 2 plants from the database
+2025-07-10 20:36:05,417 - app.services.plant_service - INFO - Fetching plants from database...
+2025-07-10 20:36:05,417 - app.services.plant_service - ERROR - Database query failed: db is down
+2025-07-10 20:39:20,482 - app.services.supply_chain_service - ERROR - No valid JSON block found in LLM response.
+2025-07-10 20:39:20,487 - app.services.llm - INFO - Sending prompt to LLM:
+hi
+2025-07-10 20:39:20,510 - app.services.llm - INFO - Sending prompt to LLM:
+foo
+2025-07-10 20:39:20,514 - app.services.device_controller - INFO - Sensor readings from http://devip: {'ph': 7.2, 'tds': 450.0}
+2025-07-10 20:39:20,522 - app.services.dose_manager - INFO - Sent dosing commands to device dev1: [{'ok': True, 'pump': 2, 'amount': 25, 'combined': False}]
+2025-07-10 20:39:20,522 - app.services.dose_manager - INFO - Sent dosing commands to device dev1: [{'ok': True, 'pump': 2, 'amount': 25, 'combined': True}]
+2025-07-10 20:39:20,522 - app.services.dose_manager - INFO - Cancellation response for device devX: {'cancelled': True}
+2025-07-10 20:39:20,525 - app.services.llm - ERROR - No valid JSON block found in OpenAI response: no json here
+2025-07-10 20:39:20,527 - app.services.llm - INFO - Making direct Ollama call to model any-model with prompt:
+any prompt
+2025-07-10 20:39:20,547 - httpx - INFO - HTTP Request: POST http://localhost:11434/api/generate "HTTP/1.1 200 OK"
+2025-07-10 20:39:20,547 - app.services.llm - INFO - Ollama raw completion: {"z":3}
+2025-07-10 20:39:20,554 - app.services.llm - INFO - Making direct Ollama call to model model with prompt:
+prompt
+2025-07-10 20:39:20,570 - httpx - INFO - HTTP Request: POST http://localhost:11434/api/generate "HTTP/1.1 500 Internal Server Error"
+2025-07-10 20:39:20,570 - app.services.llm - ERROR - Ollama call failed: 500: LLM API HTTP error
+2025-07-10 20:39:20,572 - app.services.llm - INFO - Sending prompt to LLM:
+hello
+2025-07-10 20:39:20,572 - app.services.llm - INFO - Making direct Ollama call to model deepseek-r1:1.5b with prompt:
+hello
+2025-07-10 20:39:20,587 - httpx - INFO - HTTP Request: POST http://localhost:11434/api/generate "HTTP/1.1 200 OK"
+2025-07-10 20:39:20,587 - app.services.llm - INFO - Ollama raw completion: {"actions":[{"pump_number":2,"chemical_name":"Foo","dose_ml":20,"reasoning":"Test"}]}
+2025-07-10 20:39:20,611 - app.services.llm - INFO - Sending prompt to LLM:
+hello
+2025-07-10 20:39:20,611 - app.services.llm - INFO - Making direct Ollama call to model deepseek-r1:1.5b with prompt:
+hello
+2025-07-10 20:39:20,626 - httpx - INFO - HTTP Request: POST http://localhost:11434/api/generate "HTTP/1.1 500 Internal Server Error"
+2025-07-10 20:39:20,626 - app.services.llm - ERROR - Ollama call failed: 500: LLM API HTTP error
+2025-07-10 20:39:20,629 - app.services.llm - INFO - Making direct Ollama call to model m with prompt:
+p
+2025-07-10 20:39:20,644 - httpx - INFO - HTTP Request: POST http://localhost:11434/api/generate "HTTP/1.1 200 OK"
+2025-07-10 20:39:20,644 - app.services.llm - INFO - Ollama raw completion: not json
+2025-07-10 20:39:20,644 - app.services.llm - ERROR - Malformed JSON from Ollama: not json
+2025-07-10 20:39:20,644 - app.services.llm - ERROR - Ollama call failed: 500: Invalid JSON from LLM service
+2025-07-10 20:39:20,646 - app.services.plant_service - INFO - Fetching plants from database...
+2025-07-10 20:39:20,646 - app.services.plant_service - INFO - No plants found, returning an empty list.
+2025-07-10 20:39:20,647 - app.services.plant_service - INFO - Fetching plants from database...
+2025-07-10 20:39:20,647 - app.services.plant_service - INFO - Fetched 2 plants from the database
+2025-07-10 20:39:20,652 - app.services.plant_service - INFO - Fetching plants from database...
+2025-07-10 20:39:20,652 - app.services.plant_service - ERROR - Database query failed: db is down
+2025-07-10 20:39:25,328 - app.services.supply_chain_service - ERROR - No valid JSON block found in LLM response.
+2025-07-10 20:39:25,332 - app.services.llm - INFO - Sending prompt to LLM:
+hi
+2025-07-10 20:39:25,355 - app.services.llm - INFO - Sending prompt to LLM:
+foo
+2025-07-10 20:39:25,359 - app.services.device_controller - INFO - Sensor readings from http://devip: {'ph': 7.2, 'tds': 450.0}
+2025-07-10 20:39:25,366 - app.services.dose_manager - INFO - Sent dosing commands to device dev1: [{'ok': True, 'pump': 2, 'amount': 25, 'combined': False}]
+2025-07-10 20:39:25,367 - app.services.dose_manager - INFO - Sent dosing commands to device dev1: [{'ok': True, 'pump': 2, 'amount': 25, 'combined': True}]
+2025-07-10 20:39:25,367 - app.services.dose_manager - INFO - Cancellation response for device devX: {'cancelled': True}
+2025-07-10 20:39:25,370 - app.services.llm - ERROR - No valid JSON block found in OpenAI response: no json here
+2025-07-10 20:39:25,373 - app.services.llm - INFO - Making direct Ollama call to model any-model with prompt:
+any prompt
+2025-07-10 20:39:25,392 - httpx - INFO - HTTP Request: POST http://localhost:11434/api/generate "HTTP/1.1 200 OK"
+2025-07-10 20:39:25,392 - app.services.llm - INFO - Ollama raw completion: {"z":3}
+2025-07-10 20:39:25,397 - app.services.llm - INFO - Making direct Ollama call to model model with prompt:
+prompt
+2025-07-10 20:39:25,413 - httpx - INFO - HTTP Request: POST http://localhost:11434/api/generate "HTTP/1.1 500 Internal Server Error"
+2025-07-10 20:39:25,413 - app.services.llm - ERROR - Ollama call failed: 500: LLM API HTTP error
+2025-07-10 20:39:25,415 - app.services.llm - INFO - Sending prompt to LLM:
+hello
+2025-07-10 20:39:25,415 - app.services.llm - INFO - Making direct Ollama call to model deepseek-r1:1.5b with prompt:
+hello
+2025-07-10 20:39:25,430 - httpx - INFO - HTTP Request: POST http://localhost:11434/api/generate "HTTP/1.1 200 OK"
+2025-07-10 20:39:25,430 - app.services.llm - INFO - Ollama raw completion: {"actions":[{"pump_number":2,"chemical_name":"Foo","dose_ml":20,"reasoning":"Test"}]}
+2025-07-10 20:39:25,455 - app.services.llm - INFO - Sending prompt to LLM:
+hello
+2025-07-10 20:39:25,455 - app.services.llm - INFO - Making direct Ollama call to model deepseek-r1:1.5b with prompt:
+hello
+2025-07-10 20:39:25,471 - httpx - INFO - HTTP Request: POST http://localhost:11434/api/generate "HTTP/1.1 500 Internal Server Error"
+2025-07-10 20:39:25,471 - app.services.llm - ERROR - Ollama call failed: 500: LLM API HTTP error
+2025-07-10 20:39:25,474 - app.services.llm - INFO - Making direct Ollama call to model m with prompt:
+p
+2025-07-10 20:39:25,490 - httpx - INFO - HTTP Request: POST http://localhost:11434/api/generate "HTTP/1.1 200 OK"
+2025-07-10 20:39:25,490 - app.services.llm - INFO - Ollama raw completion: not json
+2025-07-10 20:39:25,490 - app.services.llm - ERROR - Malformed JSON from Ollama: not json
+2025-07-10 20:39:25,490 - app.services.llm - ERROR - Ollama call failed: 500: Invalid JSON from LLM service
+2025-07-10 20:39:25,492 - app.services.plant_service - INFO - Fetching plants from database...
+2025-07-10 20:39:25,492 - app.services.plant_service - INFO - No plants found, returning an empty list.
+2025-07-10 20:39:25,493 - app.services.plant_service - INFO - Fetching plants from database...
+2025-07-10 20:39:25,493 - app.services.plant_service - INFO - Fetched 2 plants from the database
+2025-07-10 20:39:25,498 - app.services.plant_service - INFO - Fetching plants from database...
+2025-07-10 20:39:25,498 - app.services.plant_service - ERROR - Database query failed: db is down
+2025-07-10 20:41:21,164 - app.services.supply_chain_service - ERROR - No valid JSON block found in LLM response.
+2025-07-10 20:41:21,169 - app.services.llm - INFO - Sending prompt to LLM:
+hi
+2025-07-10 20:41:21,194 - app.services.llm - INFO - Sending prompt to LLM:
+foo
+2025-07-10 20:41:21,199 - app.services.device_controller - INFO - Sensor readings from http://devip: {'ph': 7.2, 'tds': 450.0}
+2025-07-10 20:41:21,239 - app.services.dose_manager - INFO - Sent dosing commands to device dev1: [{'ok': True, 'pump': 2, 'amount': 25, 'combined': False}]
+2025-07-10 20:41:21,239 - app.services.dose_manager - INFO - Sent dosing commands to device dev1: [{'ok': True, 'pump': 2, 'amount': 25, 'combined': True}]
+2025-07-10 20:41:21,240 - app.services.dose_manager - INFO - Cancellation response for device devX: {'cancelled': True}
+2025-07-10 20:41:21,247 - app.services.llm - ERROR - No valid JSON block found in OpenAI response: no json here
+2025-07-10 20:41:21,251 - app.services.llm - INFO - Making direct Ollama call to model any-model with prompt:
+any prompt
+2025-07-10 20:41:21,273 - httpx - INFO - HTTP Request: POST http://localhost:11434/api/generate "HTTP/1.1 200 OK"
+2025-07-10 20:41:21,273 - app.services.llm - INFO - Ollama raw completion: {"z":3}
+2025-07-10 20:41:21,279 - app.services.llm - INFO - Making direct Ollama call to model model with prompt:
+prompt
+2025-07-10 20:41:21,294 - httpx - INFO - HTTP Request: POST http://localhost:11434/api/generate "HTTP/1.1 500 Internal Server Error"
+2025-07-10 20:41:21,294 - app.services.llm - ERROR - Ollama call failed: 500: LLM API HTTP error
+2025-07-10 20:41:21,296 - app.services.llm - INFO - Sending prompt to LLM:
+hello
+2025-07-10 20:41:21,296 - app.services.llm - INFO - Making direct Ollama call to model deepseek-r1:1.5b with prompt:
+hello
+2025-07-10 20:41:21,312 - httpx - INFO - HTTP Request: POST http://localhost:11434/api/generate "HTTP/1.1 200 OK"
+2025-07-10 20:41:21,312 - app.services.llm - INFO - Ollama raw completion: {"actions":[{"pump_number":2,"chemical_name":"Foo","dose_ml":20,"reasoning":"Test"}]}
+2025-07-10 20:41:21,314 - app.services.llm - INFO - Sending prompt to LLM:
+hello
+2025-07-10 20:41:21,314 - app.services.llm - INFO - Making direct Ollama call to model deepseek-r1:1.5b with prompt:
+hello
+2025-07-10 20:41:21,329 - httpx - INFO - HTTP Request: POST http://localhost:11434/api/generate "HTTP/1.1 500 Internal Server Error"
+2025-07-10 20:41:21,329 - app.services.llm - ERROR - Ollama call failed: 500: LLM API HTTP error
+2025-07-10 20:41:21,331 - app.services.llm - INFO - Making direct Ollama call to model m with prompt:
+p
+2025-07-10 20:41:21,348 - httpx - INFO - HTTP Request: POST http://localhost:11434/api/generate "HTTP/1.1 200 OK"
+2025-07-10 20:41:21,349 - app.services.llm - INFO - Ollama raw completion: not json
+2025-07-10 20:41:21,349 - app.services.llm - ERROR - Malformed JSON from Ollama: not json
+2025-07-10 20:41:21,349 - app.services.llm - ERROR - Ollama call failed: 500: Invalid JSON from LLM service
+2025-07-10 20:41:21,351 - app.services.plant_service - INFO - Fetching plants from database...
+2025-07-10 20:41:21,351 - app.services.plant_service - INFO - No plants found, returning an empty list.
+2025-07-10 20:41:21,351 - app.services.plant_service - INFO - Fetching plants from database...
+2025-07-10 20:41:21,351 - app.services.plant_service - INFO - Fetched 2 plants from the database
+2025-07-10 20:41:21,357 - app.services.plant_service - INFO - Fetching plants from database...
+2025-07-10 20:41:21,358 - app.services.plant_service - ERROR - Database query failed: db is down
+2025-07-10 20:47:10,029 - app.services.supply_chain_service - ERROR - No valid JSON block found in LLM response.
+2025-07-10 20:47:10,034 - app.services.llm - INFO - Sending prompt to LLM:
+hi
+2025-07-10 20:47:10,075 - app.services.llm - INFO - Sending prompt to LLM:
+foo
+2025-07-10 20:47:10,103 - app.services.device_controller - INFO - Sensor readings from http://devip: {'ph': 7.2, 'tds': 450.0}
+2025-07-10 20:47:10,118 - app.services.dose_manager - INFO - Sent dosing commands to device dev1: [{'ok': True, 'pump': 2, 'amount': 25, 'combined': False}]
+2025-07-10 20:47:10,118 - app.services.dose_manager - INFO - Sent dosing commands to device dev1: [{'ok': True, 'pump': 2, 'amount': 25, 'combined': True}]
+2025-07-10 20:47:10,119 - app.services.dose_manager - INFO - Cancellation response for device devX: {'cancelled': True}
+2025-07-10 20:47:10,122 - app.services.llm - ERROR - No valid JSON block found in OpenAI response: no json here
+2025-07-10 20:47:10,126 - app.services.llm - INFO - Making direct Ollama call to model model with prompt:
+any
+2025-07-10 20:47:10,146 - httpx - INFO - HTTP Request: POST http://localhost:11434/api/generate "HTTP/1.1 200 OK"
+2025-07-10 20:47:10,146 - app.services.llm - INFO - Ollama raw completion: {"z":3}
+2025-07-10 20:47:10,153 - app.services.llm - INFO - Making direct Ollama call to model model with prompt:
+any
+2025-07-10 20:47:10,168 - httpx - INFO - HTTP Request: POST http://localhost:11434/api/generate "HTTP/1.1 500 Internal Server Error"
+2025-07-10 20:47:10,168 - app.services.llm - ERROR - Ollama call failed: 500: LLM API HTTP error
+2025-07-10 20:47:10,170 - app.services.llm - INFO - Making direct Ollama call to model model with prompt:
+any
+2025-07-10 20:47:10,185 - httpx - INFO - HTTP Request: POST http://localhost:11434/api/generate "HTTP/1.1 200 OK"
+2025-07-10 20:47:10,185 - app.services.llm - INFO - Ollama raw completion: not json
+2025-07-10 20:47:10,185 - app.services.llm - ERROR - Malformed JSON from Ollama: not json
+2025-07-10 20:47:10,185 - app.services.llm - ERROR - Ollama call failed: 500: Invalid JSON from LLM service
+2025-07-10 20:47:10,188 - app.services.llm - INFO - Sending prompt to LLM:
+hello
+2025-07-10 20:47:10,188 - app.services.llm - INFO - Making direct Ollama call to model mymodel with prompt:
+hello
+2025-07-10 20:47:10,204 - app.services.llm - ERROR - Ollama call failed: RESPX: <Request('POST', 'http://localhost:11434/api/generate')> not mocked!
+2025-07-10 20:47:10,281 - app.services.llm - INFO - Sending prompt to LLM:
+hello
+2025-07-10 20:47:10,281 - app.services.llm - INFO - Making direct Ollama call to model mymodel with prompt:
+hello
+2025-07-10 20:47:10,297 - httpx - INFO - HTTP Request: POST http://localhost:11434/api/generate "HTTP/1.1 500 Internal Server Error"
+2025-07-10 20:47:10,297 - app.services.llm - ERROR - Ollama call failed: 500: LLM API HTTP error
+2025-07-10 20:47:10,306 - app.services.llm - INFO - Sending prompt to LLM:
+hi
+2025-07-10 20:47:10,306 - app.services.llm - INFO - Making OpenAI call to model None with prompt:
+hi
+2025-07-10 20:47:10,306 - app.services.llm - ERROR - OpenAI call failed: DummyOpenAI.chat.completions.create() missing 1 required positional argument: 'temperature'
+2025-07-10 20:47:10,316 - app.services.plant_service - INFO - Fetching plants from database...
+2025-07-10 20:47:10,316 - app.services.plant_service - INFO - No plants found, returning an empty list.
+2025-07-10 20:47:10,317 - app.services.plant_service - INFO - Fetching plants from database...
+2025-07-10 20:47:10,317 - app.services.plant_service - INFO - Fetched 2 plants from the database
+2025-07-10 20:47:10,322 - app.services.plant_service - INFO - Fetching plants from database...
+2025-07-10 20:47:10,322 - app.services.plant_service - ERROR - Database query failed: db is down
+2025-07-10 20:54:38,609 - app.services.supply_chain_service - ERROR - No valid JSON block found in LLM response.
+2025-07-10 20:54:38,613 - app.services.llm - INFO - Sending prompt to LLM:
+hi
+2025-07-10 20:54:38,663 - app.services.llm - INFO - Sending prompt to LLM:
+foo
+2025-07-10 20:54:38,667 - app.services.device_controller - INFO - Sensor readings from http://devip: {'ph': 7.2, 'tds': 450.0}
+2025-07-10 20:54:38,674 - app.services.dose_manager - INFO - Sent dosing commands to device dev1: [{'ok': True, 'pump': 2, 'amount': 25, 'combined': False}]
+2025-07-10 20:54:38,674 - app.services.dose_manager - INFO - Sent dosing commands to device dev1: [{'ok': True, 'pump': 2, 'amount': 25, 'combined': True}]
+2025-07-10 20:54:38,675 - app.services.dose_manager - INFO - Cancellation response for device devX: {'cancelled': True}
+2025-07-10 20:54:38,678 - app.services.llm - ERROR - No valid JSON block found in OpenAI response: no json here
+2025-07-10 20:54:38,682 - app.services.llm - INFO - Making direct Ollama call to model model with prompt:
+any
+2025-07-10 20:54:38,701 - httpx - INFO - HTTP Request: POST http://localhost:11434/api/generate "HTTP/1.1 200 OK"
+2025-07-10 20:54:38,701 - app.services.llm - INFO - Ollama raw completion: {"z":3}
+2025-07-10 20:54:38,710 - app.services.llm - INFO - Making direct Ollama call to model model with prompt:
+any
+2025-07-10 20:54:38,726 - httpx - INFO - HTTP Request: POST http://localhost:11434/api/generate "HTTP/1.1 500 Internal Server Error"
+2025-07-10 20:54:38,728 - app.services.llm - INFO - Making direct Ollama call to model model with prompt:
+any
+2025-07-10 20:54:38,743 - httpx - INFO - HTTP Request: POST http://localhost:11434/api/generate "HTTP/1.1 200 OK"
+2025-07-10 20:54:38,743 - app.services.llm - INFO - Ollama raw completion: not json
+2025-07-10 20:54:38,748 - app.services.llm - INFO - Sending prompt to LLM:
+hello
+2025-07-10 20:54:38,748 - app.services.llm - INFO - Making direct Ollama call to model deepseek-r1:1.5b with prompt:
+hello
+2025-07-10 20:54:38,763 - httpx - INFO - HTTP Request: POST http://localhost:11434/api/generate "HTTP/1.1 200 OK"
+2025-07-10 20:54:38,763 - app.services.llm - INFO - Ollama raw completion: {"actions":[{"pump_number":2,"chemical_name":"Foo","dose_ml":20,"reasoning":"Test"}]}
+2025-07-10 20:54:38,766 - app.services.llm - INFO - Sending prompt to LLM:
+hello
+2025-07-10 20:54:38,766 - app.services.llm - INFO - Making direct Ollama call to model deepseek-r1:1.5b with prompt:
+hello
+2025-07-10 20:54:38,782 - httpx - INFO - HTTP Request: POST http://localhost:11434/api/generate "HTTP/1.1 500 Internal Server Error"
+2025-07-10 20:54:38,783 - app.services.llm - INFO - Making OpenAI call to model model with prompt:
+prompt
+2025-07-10 20:54:38,783 - app.services.llm - INFO - OpenAI response: <test_llm_service.DummyOpenAI.chat.completions.create.<locals>.Resp object at 0x145cca5d0>
+2025-07-10 20:54:38,783 - app.services.llm - INFO - OpenAI raw completion: {"actions":[{"pump_number":1,"chemical_name":"Bar","dose_ml":15,"reasoning":"OK"}]}
+2025-07-10 20:54:38,785 - app.services.llm - INFO - Sending prompt to LLM:
+hi
+2025-07-10 20:54:38,786 - app.services.llm - INFO - Making OpenAI call to model model with prompt:
+hi
+2025-07-10 20:54:38,786 - app.services.llm - INFO - OpenAI response: <test_llm_service.DummyOpenAI.chat.completions.create.<locals>.Resp object at 0x145cc9460>
+2025-07-10 20:54:38,786 - app.services.llm - INFO - OpenAI raw completion: {"actions":[{"pump_number":1,"chemical_name":"Bar","dose_ml":15,"reasoning":"OK"}]}
+2025-07-10 20:54:38,786 - app.services.plant_service - INFO - Fetching plants from database...
+2025-07-10 20:54:38,787 - app.services.plant_service - INFO - No plants found, returning an empty list.
+2025-07-10 20:54:38,787 - app.services.plant_service - INFO - Fetching plants from database...
+2025-07-10 20:54:38,787 - app.services.plant_service - INFO - Fetched 2 plants from the database
+2025-07-10 20:54:38,793 - app.services.plant_service - INFO - Fetching plants from database...
+2025-07-10 20:54:38,793 - app.services.plant_service - ERROR - Database query failed: db is down
+2025-07-10 20:55:09,092 - app.services.supply_chain_service - ERROR - No valid JSON block found in LLM response.
+2025-07-10 20:55:09,097 - app.services.llm - INFO - Sending prompt to LLM:
+hi
+2025-07-10 20:55:09,157 - app.services.llm - INFO - Sending prompt to LLM:
+foo
+2025-07-10 20:55:09,161 - app.services.device_controller - INFO - Sensor readings from http://devip: {'ph': 7.2, 'tds': 450.0}
+2025-07-10 20:55:09,168 - app.services.dose_manager - INFO - Sent dosing commands to device dev1: [{'ok': True, 'pump': 2, 'amount': 25, 'combined': False}]
+2025-07-10 20:55:09,168 - app.services.dose_manager - INFO - Sent dosing commands to device dev1: [{'ok': True, 'pump': 2, 'amount': 25, 'combined': True}]
+2025-07-10 20:55:09,169 - app.services.dose_manager - INFO - Cancellation response for device devX: {'cancelled': True}
+2025-07-10 20:55:09,172 - app.services.llm - ERROR - No valid JSON block found in OpenAI response: no json here
+2025-07-10 20:55:09,176 - app.services.llm - INFO - Making direct Ollama call to model model with prompt:
+any
+2025-07-10 20:55:09,198 - httpx - INFO - HTTP Request: POST http://localhost:11434/api/generate "HTTP/1.1 200 OK"
+2025-07-10 20:55:09,198 - app.services.llm - INFO - Ollama raw completion: {"z":3}
+2025-07-10 20:55:09,208 - app.services.llm - INFO - Making direct Ollama call to model model with prompt:
+any
+2025-07-10 20:55:09,223 - httpx - INFO - HTTP Request: POST http://localhost:11434/api/generate "HTTP/1.1 500 Internal Server Error"
+2025-07-10 20:55:09,225 - app.services.llm - INFO - Making direct Ollama call to model model with prompt:
+any
+2025-07-10 20:55:09,240 - httpx - INFO - HTTP Request: POST http://localhost:11434/api/generate "HTTP/1.1 200 OK"
+2025-07-10 20:55:09,240 - app.services.llm - INFO - Ollama raw completion: not json
+2025-07-10 20:55:09,245 - app.services.llm - INFO - Sending prompt to LLM:
+hello
+2025-07-10 20:55:09,245 - app.services.llm - INFO - Making direct Ollama call to model deepseek-r1:1.5b with prompt:
+hello
+2025-07-10 20:55:09,261 - httpx - INFO - HTTP Request: POST http://localhost:11434/api/generate "HTTP/1.1 200 OK"
+2025-07-10 20:55:09,261 - app.services.llm - INFO - Ollama raw completion: {"actions":[{"pump_number":2,"chemical_name":"Foo","dose_ml":20,"reasoning":"Test"}]}
+2025-07-10 20:55:09,264 - app.services.llm - INFO - Sending prompt to LLM:
+hello
+2025-07-10 20:55:09,264 - app.services.llm - INFO - Making direct Ollama call to model deepseek-r1:1.5b with prompt:
+hello
+2025-07-10 20:55:09,280 - httpx - INFO - HTTP Request: POST http://localhost:11434/api/generate "HTTP/1.1 500 Internal Server Error"
+2025-07-10 20:55:09,282 - app.services.llm - INFO - Making OpenAI call to model model with prompt:
+prompt
+2025-07-10 20:55:09,282 - app.services.llm - INFO - OpenAI response: <test_llm_service.DummyOpenAI.chat.completions.create.<locals>.Resp object at 0x11baaf9e0>
+2025-07-10 20:55:09,282 - app.services.llm - INFO - OpenAI raw completion: {"actions":[{"pump_number":1,"chemical_name":"Bar","dose_ml":15,"reasoning":"OK"}]}
+2025-07-10 20:55:09,284 - app.services.llm - INFO - Sending prompt to LLM:
+hi
+2025-07-10 20:55:09,284 - app.services.llm - INFO - Making OpenAI call to model model with prompt:
+hi
+2025-07-10 20:55:09,284 - app.services.llm - INFO - OpenAI response: <test_llm_service.DummyOpenAI.chat.completions.create.<locals>.Resp object at 0x11bafc920>
+2025-07-10 20:55:09,284 - app.services.llm - INFO - OpenAI raw completion: {"actions":[{"pump_number":1,"chemical_name":"Bar","dose_ml":15,"reasoning":"OK"}]}
+2025-07-10 20:55:09,285 - app.services.plant_service - INFO - Fetching plants from database...
+2025-07-10 20:55:09,285 - app.services.plant_service - INFO - No plants found, returning an empty list.
+2025-07-10 20:55:09,286 - app.services.plant_service - INFO - Fetching plants from database...
+2025-07-10 20:55:09,286 - app.services.plant_service - INFO - Fetched 2 plants from the database
+2025-07-10 20:55:09,291 - app.services.plant_service - INFO - Fetching plants from database...
+2025-07-10 20:55:09,291 - app.services.plant_service - ERROR - Database query failed: db is down
+2025-07-10 20:58:22,684 - app.services.supply_chain_service - ERROR - No valid JSON block found in LLM response.
+2025-07-10 20:58:22,689 - app.services.llm - INFO - Sending prompt to LLM:
+hi
+2025-07-10 20:58:22,739 - app.services.llm - INFO - Sending prompt to LLM:
+foo
+2025-07-10 20:58:22,743 - app.services.device_controller - INFO - Sensor readings from http://devip: {'ph': 7.2, 'tds': 450.0}
+2025-07-10 20:58:22,750 - app.services.dose_manager - INFO - Sent dosing commands to device dev1: [{'ok': True, 'pump': 2, 'amount': 25, 'combined': False}]
+2025-07-10 20:58:22,750 - app.services.dose_manager - INFO - Sent dosing commands to device dev1: [{'ok': True, 'pump': 2, 'amount': 25, 'combined': True}]
+2025-07-10 20:58:22,750 - app.services.dose_manager - INFO - Cancellation response for device devX: {'cancelled': True}
+2025-07-10 20:58:22,759 - app.services.llm - ERROR - No valid JSON block found in OpenAI response: no json here
+2025-07-10 20:58:22,763 - app.services.llm - INFO - Making direct Ollama call to model model with prompt:
+any
+2025-07-10 20:58:22,783 - httpx - INFO - HTTP Request: POST http://localhost:11434/api/generate "HTTP/1.1 200 OK"
+2025-07-10 20:58:22,783 - app.services.llm - INFO - Ollama raw completion: {"z":3}
+2025-07-10 20:58:22,792 - app.services.llm - INFO - Making direct Ollama call to model model with prompt:
+any
+2025-07-10 20:58:22,808 - httpx - INFO - HTTP Request: POST http://localhost:11434/api/generate "HTTP/1.1 500 Internal Server Error"
+2025-07-10 20:58:22,809 - app.services.llm - INFO - Making direct Ollama call to model model with prompt:
+any
+2025-07-10 20:58:22,825 - httpx - INFO - HTTP Request: POST http://localhost:11434/api/generate "HTTP/1.1 200 OK"
+2025-07-10 20:58:22,825 - app.services.llm - INFO - Ollama raw completion: not json
+2025-07-10 20:58:22,830 - app.services.llm - INFO - Sending prompt to LLM:
+hello
+2025-07-10 20:58:22,830 - app.services.llm - INFO - Making direct Ollama call to model deepseek-r1:1.5b with prompt:
+hello
+2025-07-10 20:58:22,845 - httpx - INFO - HTTP Request: POST http://localhost:11434/api/generate "HTTP/1.1 200 OK"
+2025-07-10 20:58:22,845 - app.services.llm - INFO - Ollama raw completion: {"actions":[{"pump_number":2,"chemical_name":"Foo","dose_ml":20,"reasoning":"Test"}]}
+2025-07-10 20:58:22,848 - app.services.llm - INFO - Sending prompt to LLM:
+hello
+2025-07-10 20:58:22,848 - app.services.llm - INFO - Making direct Ollama call to model deepseek-r1:1.5b with prompt:
+hello
+2025-07-10 20:58:22,863 - httpx - INFO - HTTP Request: POST http://localhost:11434/api/generate "HTTP/1.1 500 Internal Server Error"
+2025-07-10 20:58:22,864 - app.services.llm - INFO - Making OpenAI call to model model with prompt:
+prompt
+2025-07-10 20:58:22,864 - app.services.llm - INFO - OpenAI response: <test_llm_service.DummyOpenAI.chat.completions.create.<locals>.Resp object at 0x1186fb4d0>
+2025-07-10 20:58:22,864 - app.services.llm - INFO - OpenAI raw completion: {"actions":[{"pump_number":1,"chemical_name":"Bar","dose_ml":15,"reasoning":"OK"}]}
+2025-07-10 20:58:22,866 - app.services.llm - INFO - Sending prompt to LLM:
+hi
+2025-07-10 20:58:22,866 - app.services.llm - INFO - Making OpenAI call to model model with prompt:
+hi
+2025-07-10 20:58:22,867 - app.services.llm - INFO - OpenAI response: <test_llm_service.DummyOpenAI.chat.completions.create.<locals>.Resp object at 0x1186f8dd0>
+2025-07-10 20:58:22,867 - app.services.llm - INFO - OpenAI raw completion: {"actions":[{"pump_number":1,"chemical_name":"Bar","dose_ml":15,"reasoning":"OK"}]}
+2025-07-10 20:58:22,867 - app.services.plant_service - INFO - Fetching plants from database...
+2025-07-10 20:58:22,867 - app.services.plant_service - INFO - No plants found, returning an empty list.
+2025-07-10 20:58:22,868 - app.services.plant_service - INFO - Fetching plants from database...
+2025-07-10 20:58:22,868 - app.services.plant_service - INFO - Fetched 2 plants from the database
+2025-07-10 20:58:22,874 - app.services.plant_service - INFO - Fetching plants from database...
+2025-07-10 20:58:22,874 - app.services.plant_service - ERROR - Database query failed: db is down
+2025-07-10 20:59:27,169 - app.services.supply_chain_service - ERROR - No valid JSON block found in LLM response.
+2025-07-10 20:59:27,174 - app.services.llm - INFO - Sending prompt to LLM:
+hi
+2025-07-10 20:59:27,174 - app.services.llm - ERROR - Validation or parsing error in call_llm_async: Action missing required keys: {'chemical_name', 'reasoning', 'pump_number', 'dose_ml'}. Found: dict_keys([])
+2025-07-10 20:59:27,230 - app.services.llm - INFO - Sending prompt to LLM:
+foo
+2025-07-10 20:59:27,234 - app.services.device_controller - INFO - Sensor readings from http://devip: {'ph': 7.2, 'tds': 450.0}
+2025-07-10 20:59:27,243 - app.services.dose_manager - INFO - Sent dosing commands to device dev1: [{'ok': True, 'pump': 2, 'amount': 25, 'combined': False}]
+2025-07-10 20:59:27,243 - app.services.dose_manager - INFO - Sent dosing commands to device dev1: [{'ok': True, 'pump': 2, 'amount': 25, 'combined': True}]
+2025-07-10 20:59:27,243 - app.services.dose_manager - INFO - Cancellation response for device devX: {'cancelled': True}
+2025-07-10 20:59:27,245 - app.services.llm - ERROR - Failed to parse JSON from string: no json here
+2025-07-10 20:59:27,251 - app.services.llm - ERROR - No valid JSON block (object or array) found in OpenAI response: no json here
+2025-07-10 20:59:27,256 - app.services.llm - INFO - Making direct Ollama call to model model with prompt:
+any
+2025-07-10 20:59:27,279 - httpx - INFO - HTTP Request: POST http://localhost:11434/api/generate "HTTP/1.1 200 OK"
+2025-07-10 20:59:27,279 - app.services.llm - INFO - Ollama raw completion: {"z":3}
+2025-07-10 20:59:27,288 - app.services.llm - INFO - Making direct Ollama call to model model with prompt:
+any
+2025-07-10 20:59:27,303 - httpx - INFO - HTTP Request: POST http://localhost:11434/api/generate "HTTP/1.1 500 Internal Server Error"
+2025-07-10 20:59:27,305 - app.services.llm - INFO - Making direct Ollama call to model model with prompt:
+any
+2025-07-10 20:59:27,320 - httpx - INFO - HTTP Request: POST http://localhost:11434/api/generate "HTTP/1.1 200 OK"
+2025-07-10 20:59:27,320 - app.services.llm - INFO - Ollama raw completion: not json
+2025-07-10 20:59:27,326 - app.services.llm - INFO - Sending prompt to LLM:
+hello
+2025-07-10 20:59:27,326 - app.services.llm - INFO - Making direct Ollama call to model deepseek-r1:1.5b with prompt:
+hello
+2025-07-10 20:59:27,341 - httpx - INFO - HTTP Request: POST http://localhost:11434/api/generate "HTTP/1.1 200 OK"
+2025-07-10 20:59:27,342 - app.services.llm - INFO - Ollama raw completion: {"actions":[{"pump_number":2,"chemical_name":"Foo","dose_ml":20,"reasoning":"Test"}]}
+2025-07-10 20:59:27,344 - app.services.llm - INFO - Sending prompt to LLM:
+hello
+2025-07-10 20:59:27,344 - app.services.llm - INFO - Making direct Ollama call to model deepseek-r1:1.5b with prompt:
+hello
+2025-07-10 20:59:27,360 - httpx - INFO - HTTP Request: POST http://localhost:11434/api/generate "HTTP/1.1 500 Internal Server Error"
+2025-07-10 20:59:27,361 - app.services.llm - INFO - Making OpenAI call to model model with prompt:
+prompt
+2025-07-10 20:59:27,361 - app.services.llm - INFO - OpenAI response: <test_llm_service.DummyOpenAI.chat.completions.create.<locals>.Resp object at 0x1322cf380>
+2025-07-10 20:59:27,361 - app.services.llm - INFO - OpenAI raw completion: {"actions":[{"pump_number":1,"chemical_name":"Bar","dose_ml":15,"reasoning":"OK"}]}
+2025-07-10 20:59:27,364 - app.services.llm - INFO - Sending prompt to LLM:
+hi
+2025-07-10 20:59:27,364 - app.services.llm - INFO - Making OpenAI call to model model with prompt:
+hi
+2025-07-10 20:59:27,364 - app.services.llm - INFO - OpenAI response: <test_llm_service.DummyOpenAI.chat.completions.create.<locals>.Resp object at 0x1322cd7f0>
+2025-07-10 20:59:27,364 - app.services.llm - INFO - OpenAI raw completion: {"actions":[{"pump_number":1,"chemical_name":"Bar","dose_ml":15,"reasoning":"OK"}]}
+2025-07-10 20:59:27,364 - app.services.plant_service - INFO - Fetching plants from database...
+2025-07-10 20:59:27,365 - app.services.plant_service - INFO - No plants found, returning an empty list.
+2025-07-10 20:59:27,365 - app.services.plant_service - INFO - Fetching plants from database...
+2025-07-10 20:59:27,365 - app.services.plant_service - INFO - Fetched 2 plants from the database
+2025-07-10 20:59:27,372 - app.services.plant_service - INFO - Fetching plants from database...
+2025-07-10 20:59:27,372 - app.services.plant_service - ERROR - Database query failed: db is down
+2025-07-10 21:01:32,968 - app.services.supply_chain_service - ERROR - No valid JSON block found in LLM response.
+2025-07-10 21:01:32,974 - app.services.llm - INFO - Sending prompt to LLM:
+hi
+2025-07-10 21:01:32,999 - app.services.llm - INFO - Sending prompt to LLM:
+foo
+2025-07-10 21:01:33,003 - app.services.device_controller - INFO - Sensor readings from http://devip: {'ph': 7.2, 'tds': 450.0}
+2025-07-10 21:01:33,011 - app.services.dose_manager - INFO - Sent dosing commands to device dev1: [{'ok': True, 'pump': 2, 'amount': 25, 'combined': False}]
+2025-07-10 21:01:33,012 - app.services.dose_manager - INFO - Sent dosing commands to device dev1: [{'ok': True, 'pump': 2, 'amount': 25, 'combined': True}]
+2025-07-10 21:01:33,012 - app.services.dose_manager - INFO - Cancellation response for device devX: {'cancelled': True}
+2025-07-10 21:01:33,015 - app.services.llm - ERROR - No valid JSON block found in OpenAI response: no json here
+2025-07-10 21:01:33,019 - app.services.llm - INFO - Making direct Ollama call to model model with prompt:
+any
+2025-07-10 21:01:33,039 - httpx - INFO - HTTP Request: POST http://localhost:11434/api/generate "HTTP/1.1 200 OK"
+2025-07-10 21:01:33,039 - app.services.llm - INFO - Ollama raw completion: {"z":3}
+2025-07-10 21:01:33,045 - app.services.llm - INFO - Making direct Ollama call to model model with prompt:
+any
+2025-07-10 21:01:33,061 - httpx - INFO - HTTP Request: POST http://localhost:11434/api/generate "HTTP/1.1 500 Internal Server Error"
+2025-07-10 21:01:33,061 - app.services.llm - ERROR - Ollama call failed: 500: LLM API HTTP error
+2025-07-10 21:01:33,063 - app.services.llm - INFO - Making direct Ollama call to model model with prompt:
+any
+2025-07-10 21:01:33,078 - httpx - INFO - HTTP Request: POST http://localhost:11434/api/generate "HTTP/1.1 200 OK"
+2025-07-10 21:01:33,078 - app.services.llm - INFO - Ollama raw completion: not json
+2025-07-10 21:01:33,078 - app.services.llm - ERROR - Malformed JSON from Ollama: not json
+2025-07-10 21:01:33,078 - app.services.llm - ERROR - Ollama call failed: 500: Invalid JSON from LLM service
+2025-07-10 21:01:33,081 - app.services.llm - INFO - Sending prompt to LLM:
+hello
+2025-07-10 21:01:33,081 - app.services.llm - INFO - Making direct Ollama call to model mymodel with prompt:
+hello
+2025-07-10 21:01:33,096 - app.services.llm - ERROR - Ollama call failed: RESPX: <Request('POST', 'http://localhost:11434/api/generate')> not mocked!
+2025-07-10 21:01:33,244 - app.services.llm - INFO - Sending prompt to LLM:
+hello
+2025-07-10 21:01:33,244 - app.services.llm - INFO - Making direct Ollama call to model mymodel with prompt:
+hello
+2025-07-10 21:01:33,260 - httpx - INFO - HTTP Request: POST http://localhost:11434/api/generate "HTTP/1.1 500 Internal Server Error"
+2025-07-10 21:01:33,260 - app.services.llm - ERROR - Ollama call failed: 500: LLM API HTTP error
+2025-07-10 21:01:33,270 - app.services.llm - INFO - Sending prompt to LLM:
+hi
+2025-07-10 21:01:33,270 - app.services.llm - INFO - Making OpenAI call to model None with prompt:
+hi
+2025-07-10 21:01:33,270 - app.services.llm - ERROR - OpenAI call failed: DummyOpenAI.chat.completions.create() missing 1 required positional argument: 'temperature'
+2025-07-10 21:01:33,280 - app.services.plant_service - INFO - Fetching plants from database...
+2025-07-10 21:01:33,280 - app.services.plant_service - INFO - No plants found, returning an empty list.
+2025-07-10 21:01:33,281 - app.services.plant_service - INFO - Fetching plants from database...
+2025-07-10 21:01:33,281 - app.services.plant_service - INFO - Fetched 2 plants from the database
+2025-07-10 21:01:33,286 - app.services.plant_service - INFO - Fetching plants from database...
+2025-07-10 21:01:33,286 - app.services.plant_service - ERROR - Database query failed: db is down
+2025-07-10 21:09:39,977 - app.services.supply_chain_service - ERROR - No valid JSON block found in LLM response.
+2025-07-10 21:09:39,981 - app.services.llm - INFO - Sending prompt to LLM:
+hi
+2025-07-10 21:09:40,003 - app.services.llm - INFO - Sending prompt to LLM:
+foo
+2025-07-10 21:09:40,008 - app.services.device_controller - INFO - Sensor readings from http://devip: {'ph': 7.2, 'tds': 450.0}
+2025-07-10 21:09:40,015 - app.services.dose_manager - INFO - Sent dosing commands to device dev1: [{'ok': True, 'pump': 2, 'amount': 25, 'combined': False}]
+2025-07-10 21:09:40,015 - app.services.dose_manager - INFO - Sent dosing commands to device dev1: [{'ok': True, 'pump': 2, 'amount': 25, 'combined': True}]
+2025-07-10 21:09:40,016 - app.services.dose_manager - INFO - Cancellation response for device devX: {'cancelled': True}
+2025-07-10 21:09:40,018 - app.services.llm - ERROR - No valid JSON block found in OpenAI response: no braces at all
+2025-07-10 21:09:40,812 - httpx - INFO - HTTP Request: GET https://google.serper.dev/search?q=optimal+growth.+Focus+on+best+practices+in+Europe+for+Veggie+cultivation.&gl=in&hl=en&apiKey=31e32e860200a40a198e1464a2d3fc3eee6da6d0&num=5&full=true&output=detailed "HTTP/1.1 403 Forbidden"
+2025-07-10 21:09:40,814 - app.services.serper - ERROR - Serper API HTTP error (403): {"message":"Unauthorized.","statusCode":403}
+2025-07-10 21:09:40,932 - httpx - INFO - HTTP Request: GET http://localhost:11434/api/tags "HTTP/1.1 200 OK"
+2025-07-10 21:09:40,932 - app.services.llm - INFO - Making direct Ollama call to model deepseek-r1:1.5b with prompt:
+Return exactly this JSON: {"foo": 42}
+2025-07-10 21:10:12,946 - httpx - INFO - HTTP Request: POST http://localhost:11434/api/generate "HTTP/1.1 200 OK"
+2025-07-10 21:10:12,952 - app.services.llm - INFO - Ollama raw completion: <think>
+Okay, so I need to return the exact JSON string that's "{'foo': 42}". Let me think about how to do this. 
+
+First, I know that in programming languages like Python or JavaScript, when you want to output a specific JSON value, you enclose it within double quotes and put curly braces around the key-value pairs. So for a simple object like {"foo": 42}, the structure is important.
+
+Wait, but if someone just writes "{'foo': 42}", would that work? Let me test this mentally. In Python, writing '{"foo": 42}' will give me {'foo': 42} when printed or viewed. But wait, in some contexts, especially when using JSON libraries like json.dumps(), you need to wrap the entire object with quotes.
+
+But the user wants to return exactly the JSON string "{'foo': 42}". So maybe they mean that we shouldn't use any of Python's syntax but just write it directly without any quotes or double braces. 
+
+Hmm, is there a way in some other languages to get this exact output? For example, in JavaScript, if I just write "{'foo': 42}", does it return the same JSON string? Let me think about that.
+
+In JavaScript, when you use "..." syntax for strings, surrounding without quotes would result in single-quoted strings. So "{'foo': 42}" would actually be interpreted as a string literal with single quotes inside, which isn't the same as a properly formatted JSON object. So that wouldn't work.
+
+What if I try using an array or some other structure? Like ["{'foo': 42}"] or something else, but that seems unrelated to returning the exact JSON value we want.
+
+Wait, maybe in some cases like when using certain libraries or functions, they might interpret it differently. For example, if I use json.dumps({"foo": 42}), does it return "{'foo': 42}"? Let me recall. In Python's print statement, yes, it would show that string. But when you actually assign a variable in Python like x = {"foo":42}, what happens? If you just write x, it would display the same as above but without quotes.
+
+Wait, no. Wait, if I have x = [{"foo": 42}], and then print(x[0]), does that show "{'foo': 42}" or not?
+
+Let me think again. Maybe in some contexts where JSON is required, like when using json.dumps(), the exact string will be returned without quotes unless specified otherwise.
+
+But regardless of how I write it, the user wants exactly "{'foo': 42}". So if I'm writing this in a Python script, and I want to ensure that when printed or displayed, it shows as that string, perhaps I need to enclose it within double quotes. But wait, would that cause any issues with how it's evaluated?
+
+Alternatively, maybe the user just wants to write the exact JSON literal without worrying about the formatting in terms of surrounding quotes. So if they just write "{'foo': 42}", it should return exactly what they want.
+
+I'm a bit confused because different languages handle these encodings differently. In Python, strings are treated as Python strings by default when using single quotes inside double quotes. But for JSON purposes, we need to use double quotes and curly braces properly.
+
+Wait, but in the example given, the JSON is written with single quotes inside the string. So maybe the user wants to return a string that looks like a JSON object, meaning it should be enclosed in double quotes, starting and ending with them, and have proper syntax for key-value pairs.
+
+So perhaps the best way is to write "{'foo': 42}", assuming that when this code is evaluated without any context that changes it, it would return exactly what's desired. Because sometimes, especially when using certain libraries or string formatting functions, quotes can be ignored if they are not necessary.
+
+But I'm not entirely sure about the exact behavior in different environments. To be safe, maybe wrapping it with double quotes and properly formatted braces is the way to go.
+</think>
+
+The exact JSON string that should be returned is "{'foo': 42}". This ensures proper syntax and correct formatting when enclosed within appropriate quotation marks.
+
+```json
+{"foo": 42}
+```
+2025-07-10 21:10:12,952 - app.services.llm - ERROR - Malformed JSON from Ollama: <think>
+Okay, so I need to return the exact JSON string that's "{'foo': 42}". Let me think about how to do this. 
+
+First, I know that in programming languages like Python or JavaScript, when you want to output a specific JSON value, you enclose it within double quotes and put curly braces around the key-value pairs. So for a simple object like {"foo": 42}, the structure is important.
+
+Wait, but if someone just writes "{'foo': 42}", would that work? Let me test this mentally. In Python, writing '{"foo": 42}' will give me {'foo': 42} when printed or viewed. But wait, in some contexts, especially when using JSON libraries like json.dumps(), you need to wrap the entire object with quotes.
+
+But the user wants to return exactly the JSON string "{'foo': 42}". So maybe they mean that we shouldn't use any of Python's syntax but just write it directly without any quotes or double braces. 
+
+Hmm, is there a way in some other languages to get this exact output? For example, in JavaScript, if I just write "{'foo': 42}", does it return the same JSON string? Let me think about that.
+
+In JavaScript, when you use "..." syntax for strings, surrounding without quotes would result in single-quoted strings. So "{'foo': 42}" would actually be interpreted as a string literal with single quotes inside, which isn't the same as a properly formatted JSON object. So that wouldn't work.
+
+What if I try using an array or some other structure? Like ["{'foo': 42}"] or something else, but that seems unrelated to returning the exact JSON value we want.
+
+Wait, maybe in some cases like when using certain libraries or functions, they might interpret it differently. For example, if I use json.dumps({"foo": 42}), does it return "{'foo': 42}"? Let me recall. In Python's print statement, yes, it would show that string. But when you actually assign a variable in Python like x = {"foo":42}, what happens? If you just write x, it would display the same as above but without quotes.
+
+Wait, no. Wait, if I have x = [{"foo": 42}], and then print(x[0]), does that show "{'foo': 42}" or not?
+
+Let me think again. Maybe in some contexts where JSON is required, like when using json.dumps(), the exact string will be returned without quotes unless specified otherwise.
+
+But regardless of how I write it, the user wants exactly "{'foo': 42}". So if I'm writing this in a Python script, and I want to ensure that when printed or displayed, it shows as that string, perhaps I need to enclose it within double quotes. But wait, would that cause any issues with how it's evaluated?
+
+Alternatively, maybe the user just wants to write the exact JSON literal without worrying about the formatting in terms of surrounding quotes. So if they just write "{'foo': 42}", it should return exactly what they want.
+
+I'm a bit confused because different languages handle these encodings differently. In Python, strings are treated as Python strings by default when using single quotes inside double quotes. But for JSON purposes, we need to use double quotes and curly braces properly.
+
+Wait, but in the example given, the JSON is written with single quotes inside the string. So maybe the user wants to return a string that looks like a JSON object, meaning it should be enclosed in double quotes, starting and ending with them, and have proper syntax for key-value pairs.
+
+So perhaps the best way is to write "{'foo': 42}", assuming that when this code is evaluated without any context that changes it, it would return exactly what's desired. Because sometimes, especially when using certain libraries or string formatting functions, quotes can be ignored if they are not necessary.
+
+But I'm not entirely sure about the exact behavior in different environments. To be safe, maybe wrapping it with double quotes and properly formatted braces is the way to go.
+</think>
+
+The exact JSON string that should be returned is "{'foo': 42}". This ensures proper syntax and correct formatting when enclosed within appropriate quotation marks.
+
+```json
+{"foo": 42}
+```
+2025-07-10 21:10:12,953 - app.services.llm - ERROR - Ollama call failed: 500: Invalid JSON from LLM service
+2025-07-10 21:10:13,036 - httpx - INFO - HTTP Request: GET http://localhost:11434/api/tags "HTTP/1.1 200 OK"
+2025-07-10 21:10:13,036 - app.services.llm - INFO - Sending prompt to LLM:
+Return {"x":1}
+2025-07-10 21:10:13,037 - app.services.llm - INFO - Making direct Ollama call to model deepseek-r1:1.5b with prompt:
+Return {"x":1}
+2025-07-10 21:10:27,641 - httpx - INFO - HTTP Request: POST http://localhost:11434/api/generate "HTTP/1.1 200 OK"
+2025-07-10 21:10:27,649 - app.services.llm - INFO - Ollama raw completion: <think>
+Okay, so I need to figure out how to handle the input "x:1". The user provided an example where it's converted into a dictionary like {"x": 1}. But wait, maybe there are different scenarios or cases I should consider. Let me think.
+
+First, if someone just inputs a string, like "x:1", they might want to treat it as a key-value pair in a dictionary. So the output would be something like {"x": 1}, which makes sense because the value is 1. But what if there are other values or more keys? For example, if it's "a:2,b:c", maybe I should split that into an array of objects with each key-value pair.
+
+Also, perhaps sometimes users might want to convert this string directly into a number instead of an object. So in that case, converting "x:1" would give me 1 as a number, not an object. That could be useful depending on the context.
+
+I should also consider if there are other edge cases. Like what if the value is null or undefined? In JavaScript, when you convert a string like "null" or "undefined", it might become a number 0 or NaN. So I need to handle those cases as well.
+
+Another thought: Maybe users sometimes expect both objects and arrays for such inputs. For example, in some programming languages, certain data structures require specific types. But since the initial response was an object, maybe that's more common here.
+
+I should also think about how this can be applied in different scenarios. For instance, if building a database schema or creating a test input generator where different data types are expected for various fields.
+
+Wait, I might have missed some aspects. What about formatting options? Like how the output is formatted—should it be plain text, JSON-like, or something else? The user didn't specify, so maybe defaulting to JSON or object format is acceptable unless they want a specific format.
+
+Also, what if the value is more complex, like an array or another type of data structure? Would I need to handle that in a more robust way? Perhaps adding error handling for unexpected inputs or trying to convert them as much as possible into objects.
+
+I think I should outline these possibilities before finalizing the answer. That way, it's comprehensive and covers different use cases.
+</think>
+
+If you provide a string like "x:1", you can interpret this in several ways depending on the context:
+
+1. **As an Object**:
+   ```javascript
+   {"x": 1}
+   ```
+   This treats "x" as a key-value pair where the value is 1.
+
+2. **Splitting into an Array of Objects**:
+   If the string contains multiple values, it's likely intended to be split into individual objects.
+   Example input: `"a:2,b:c"`
+   Output would be:
+   ```javascript
+   ["a": 2, "b": c]
+   ```
+   
+3. **As a Number**:
+   Convert the entire string directly into a number:
+   ```javascript
+   1
+   ```
+
+4. **Handling Null/Undefined Values**:
+   If the value is null or undefined, it might be treated as 0 or NaN.
+   Example: `"x":null` becomes 0.
+
+5. **Different Data Types Handling**:
+   Some programming languages require specific data types for fields, so adjust accordingly based on context.
+
+6. **Formatting Options**:
+   Consider formatting the output as JSON-like (objects) or plain text.
+
+7. **Error Handling**:
+   If unexpected input formats are provided, handle errors appropriately, possibly converting to a number 0 if invalid.
+
+Each scenario depends on your specific needs and requirements.
+2025-07-10 21:10:27,649 - app.services.llm - ERROR - Malformed JSON from Ollama: <think>
+Okay, so I need to figure out how to handle the input "x:1". The user provided an example where it's converted into a dictionary like {"x": 1}. But wait, maybe there are different scenarios or cases I should consider. Let me think.
+
+First, if someone just inputs a string, like "x:1", they might want to treat it as a key-value pair in a dictionary. So the output would be something like {"x": 1}, which makes sense because the value is 1. But what if there are other values or more keys? For example, if it's "a:2,b:c", maybe I should split that into an array of objects with each key-value pair.
+
+Also, perhaps sometimes users might want to convert this string directly into a number instead of an object. So in that case, converting "x:1" would give me 1 as a number, not an object. That could be useful depending on the context.
+
+I should also consider if there are other edge cases. Like what if the value is null or undefined? In JavaScript, when you convert a string like "null" or "undefined", it might become a number 0 or NaN. So I need to handle those cases as well.
+
+Another thought: Maybe users sometimes expect both objects and arrays for such inputs. For example, in some programming languages, certain data structures require specific types. But since the initial response was an object, maybe that's more common here.
+
+I should also think about how this can be applied in different scenarios. For instance, if building a database schema or creating a test input generator where different data types are expected for various fields.
+
+Wait, I might have missed some aspects. What about formatting options? Like how the output is formatted—should it be plain text, JSON-like, or something else? The user didn't specify, so maybe defaulting to JSON or object format is acceptable unless they want a specific format.
+
+Also, what if the value is more complex, like an array or another type of data structure? Would I need to handle that in a more robust way? Perhaps adding error handling for unexpected inputs or trying to convert them as much as possible into objects.
+
+I think I should outline these possibilities before finalizing the answer. That way, it's comprehensive and covers different use cases.
+</think>
+
+If you provide a string like "x:1", you can interpret this in several ways depending on the context:
+
+1. **As an Object**:
+   ```javascript
+   {"x": 1}
+   ```
+   This treats "x" as a key-value pair where the value is 1.
+
+2. **Splitting into an Array of Objects**:
+   If the string contains multiple values, it's likely intended to be split into individual objects.
+   Example input: `"a:2,b:c"`
+   Output would be:
+   ```javascript
+   ["a": 2, "b": c]
+   ```
+   
+3. **As a Number**:
+   Convert the entire string directly into a number:
+   ```javascript
+   1
+   ```
+
+4. **Handling Null/Undefined Values**:
+   If the value is null or undefined, it might be treated as 0 or NaN.
+   Example: `"x":null` becomes 0.
+
+5. **Different Data Types Handling**:
+   Some programming languages require specific data types for fields, so adjust accordingly based on context.
+
+6. **Formatting Options**:
+   Consider formatting the output as JSON-like (objects) or plain text.
+
+7. **Error Handling**:
+   If unexpected input formats are provided, handle errors appropriately, possibly converting to a number 0 if invalid.
+
+Each scenario depends on your specific needs and requirements.
+2025-07-10 21:10:27,650 - app.services.llm - ERROR - Ollama call failed: 500: Invalid JSON from LLM service
+2025-07-10 21:10:27,699 - app.services.plant_service - INFO - Fetching plants from database...
+2025-07-10 21:10:27,700 - app.services.plant_service - INFO - No plants found, returning an empty list.
+2025-07-10 21:10:27,701 - app.services.plant_service - INFO - Fetching plants from database...
+2025-07-10 21:10:27,701 - app.services.plant_service - INFO - Fetched 2 plants from the database
+2025-07-10 21:10:27,713 - app.services.plant_service - INFO - Fetching plants from database...
+2025-07-10 21:10:27,713 - app.services.plant_service - ERROR - Database query failed: db is down

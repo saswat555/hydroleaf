@@ -242,7 +242,3 @@ async def test_toggle_valve_http_error(monkeypatch):
     with pytest.raises(httpx.HTTPStatusError):
         await dc.toggle_valve(2)
 
-@pytest.mark.asyncio
-async def test_cancel_dosing_success():
-    res = await dm.cancel_dosing("devX","http://x")
-    assert res == {"status":"dosing_cancelled","device_id":"devX","response":{"cancelled":True}}

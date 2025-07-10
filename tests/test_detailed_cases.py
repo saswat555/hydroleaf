@@ -95,14 +95,22 @@ async def test_call_llm_async_openai(monkeypatch):
 # -----------------------------
 # 5) build_dosing_prompt errors
 # -----------------------------
-def test_build_dosing_prompt_raises_on_no_pumps():
-    dummy = Device(id="d1", mac_id="m", name="n", type="dosing_unit",
-                   http_endpoint="e", pump_configurations=None,
-                   sensor_parameters={}, valve_configurations=[],
-                   switch_configurations=[])
+@pytest.mark.asyncio
+async def test_build_dosing_prompt_raises_on_no_pumps():
+    dummy = Device(
+        id="d1",
+        mac_id="m",
+        name="n",
+        type="dosing_unit",
+        http_endpoint="e",
+        pump_configurations=None,
+        sensor_parameters={},
+        valve_configurations=[],
+        switch_configurations=[]
+    )
     with pytest.raises(ValueError):
         # no pump_configurations → ValueError
-        pytest.run(functools.partial(build_dosing_prompt, dummy, {"ph":7,"tds":100}, {}))
+        await build_dosing_prompt(dummy, {"ph": 7, "tds": 100}, {})
 
 # -----------------------------
 # 6) parse_json_response edge

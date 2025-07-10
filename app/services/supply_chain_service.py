@@ -26,7 +26,7 @@ def extract_json_from_response(response_text: str) -> Dict:
     """
     try:
         response_text = response_text.replace("'", '"').strip()
-        json_match = re.search(r"(\{.*\})", response_text, flags=re.DOTALL)
+        json_match = re.search(r"(\{.*?\})", response_text, flags=re.DOTALL)
         if json_match:
             cleaned_json = json_match.group(1)
             return json.loads(cleaned_json)

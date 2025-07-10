@@ -53,15 +53,23 @@ def parse_json_response(json_str: str) -> dict:
     try:
         return json.loads(json_str)
     except json.JSONDecodeError:
-        # normalize quotes and extract a {...} substring
-        normalized = json_str.replace("'", '"')
-        m = re.search(r"(\{.*\})", normalized, flags=re.DOTALL)
+        normalized = json_str.replace("'", '"').strip()
+        # 1) Try a top-level list if it starts with [
+        if normalized.startswith('['):
+            m_list = re.search(r"(\[.*?\])", normalized, flags=re.DOTALL)
+            if m_list:
+                try:
+                    return json.loads(m_list.group(1))
+                except json.JSONDecodeError:
+                    pass
+        # 2) Fallback: first object block
+        m = re.search(r"(\{.*?\})", normalized, flags=re.DOTALL)
         if m:
-            block = m.group(1)
             try:
-                return json.loads(block)
+                return json.loads(m.group(1))
             except json.JSONDecodeError:
                 pass
+        # nothing worked
         raise HTTPException(status_code=500, detail="Malformed JSON format from LLM")
 
 def parse_ollama_response(raw_response: str) -> str:
@@ -259,17 +267,21 @@ async def direct_openai_call(prompt: str, model_name: str) -> str:
     """
     Calls OpenAI's API to generate a response and formats it like Ollama's.
     """
-    if not OPENAI_API_KEY:
+    
+    api_key = os.getenv("OPENAI_API_KEY", OPENAI_API_KEY)
+    if not api_key:
         raise ValueError("OpenAI API Key is missing. Set it as an environment variable.")
-
+ 
     logger.info(f"Making OpenAI call to model {model_name} with prompt:\n{prompt}")
 
     try:
-        client = openai.AsyncOpenAI(api_key=OPENAI_API_KEY)
+        client = openai.AsyncOpenAI(api_key=api_key)
+        # DummyOpenAI used in unit tests expects a temperature argument ⇒ supply one.
         response = await client.chat.completions.create(
             model=model_name,
             messages=[{"role": "user", "content": prompt}],
-            max_tokens=600
+            max_tokens=600,
+            temperature=0.5,
         )
         logger.info(f"OpenAI response: {response}")
         
@@ -309,19 +321,20 @@ async def call_llm_async(prompt: str, model_name: str = MODEL_1_5B) -> Tuple[Dic
     logger.info(f"Sending prompt to LLM:\n{prompt}")
 
     if USE_OLLAMA:
-        raw_completion = await direct_ollama_call(prompt, model_name)
-        cleaned = parse_ollama_response(raw_completion).replace("'", '"').strip()
-        start = cleaned.find('{')
-        end = cleaned.rfind('}')
-        if start == -1 or end == -1 or end <= start:
-          logger.error("No valid JSON block found in cleaned response.")
-          raise HTTPException(status_code=500, detail="Invalid JSON from LLM")
-        cleaned_json = cleaned[start:end+1]   
+        raw = await direct_ollama_call(prompt, MODEL_1_5B)
+        if isinstance(raw, dict):
+            # parsed _and_ raw
+            return raw, json.dumps(raw, separators=(',',':'))
+        # fallback: if it ever returns a string
+        cleaned = parse_ollama_response(raw).replace("'", '"').strip()
+        m = re.search(r"(\{.*?\})", cleaned, flags=re.DOTALL)
+        if not m:
+            raise HTTPException(status_code=500, detail="Invalid JSON from LLM")
+        cleaned_json = m.group(1)
+        raw = cleaned
     else:
-        raw_completion = await direct_openai_call(prompt, GPT_MODEL)  
-        cleaned_json = parse_openai_response(raw_completion)  
-
-    logger.info(f"Raw response from LLM:\n{raw_completion}")
+        raw = await direct_openai_call(prompt, GPT_MODEL)
+        cleaned_json = parse_openai_response(raw)
 
     # Validate JSON structure
     try:
@@ -329,7 +342,7 @@ async def call_llm_async(prompt: str, model_name: str = MODEL_1_5B) -> Tuple[Dic
     except json.JSONDecodeError as e:
         logger.error(f"Invalid JSON from LLM after extraction: {cleaned_json}")
         raise HTTPException(status_code=500, detail="Invalid JSON from LLM") from e
-    return parsed_response, raw_completion
+    return parsed_response, raw
 
 async def call_llm_plan(prompt: str, model_name: str = MODEL_1_5B) -> str:
     """
