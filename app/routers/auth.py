@@ -4,7 +4,7 @@ from fastapi.security import OAuth2PasswordRequestForm
 from app.models import User
 from app.core.database import get_db
 from sqlalchemy.future import select
-import jwt  # This is from PyJWT
+from jose import jwt, JWTError
 import os
 import datetime
 from passlib.context import CryptContext
