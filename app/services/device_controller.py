@@ -1,146 +1,152 @@
-# device_controller.py
+# app/services/device_controller.py
 import logging
-import asyncio
 from datetime import datetime
 from typing import Dict, Optional
+
 import httpx
 from fastapi import HTTPException
-import re
-logger = logging.getLogger(__name__)
+
 from app.schemas import DeviceType
+
+logger = logging.getLogger(__name__)
 
 class DeviceController:
     """
-    Unified controller for the dosing and monitoring device.
-    Provides methods for:
-      - Discovering the device via its /discovery endpoint.
-      - Executing dosing commands via /pump or the combined /dose_monitor endpoint.
-      - Fetching sensor readings via the /monitor endpoint.
+    Unified controller for IoT devices. Supports:
+      - Discovery (/discovery, /state)
+      - Version check (/version)
+      - Sensor readings (/monitor)
+      - Dosing (/pump, /dose_monitor)
+      - Cancellation (/pump_calibration)
+      - Valve state (/state, /toggle)
     """
     def __init__(self, device_ip: str, request_timeout: float = 10.0):
-        self.device_ip = device_ip
+        # remember exactly what user passed in, for tests
+        self._raw_ip = device_ip
+        # ensure base_url is always a proper URL for AsyncClient
+        if not device_ip.startswith(("http://", "https://")):
+            device_ip = f"http://{device_ip}"
+        self.base_url = device_ip.rstrip("/")
         self.request_timeout = request_timeout
 
     async def discover(self) -> Optional[Dict]:
         """
-        Try /discovery first; if that fails, assume it's a valve controller and call /state.
+        1) GET  /discovery
+        2) GET  /state  (valve-controller fallback)
         """
-        async with httpx.AsyncClient(timeout=self.request_timeout) as client:
-            # 1) Try standard discovery
+        async with httpx.AsyncClient(base_url=self.base_url, timeout=self.request_timeout) as client:
+            # primary discovery
             try:
-                url = await self._build_url("discovery")
-                res = await client.get(url)
+                res = await client.get("/discovery")
                 if res.status_code == 200:
                     data = res.json()
-                    data["ip"] = self.device_ip
+                    data.setdefault("type", data.get("type", DeviceType.DOSING_UNIT.value))
+                    data["ip"] = self._raw_ip
                     return data
             except Exception:
-                logger.debug(f"/discovery failed for {self.device_ip}, trying /state")
+                logger.debug(f"/discovery failed for {self.base_url}")
 
-            # 2) Fallback to valve controller /state
+            # fallback for valve controllers (check status_code, not raise_for_status)
             try:
-                url = await self._build_url("state")
-                res = await client.get(url)
-                res.raise_for_status()
-                state = res.json()
-                # expect { device_id, valves: [ {id, state}, … ] }
-                return {
-                    "device_id": state.get("device_id"),
-                    "type": DeviceType.VALVE_CONTROLLER.value,
-                    "valves": state.get("valves", []),
-                    "ip": self.device_ip
-                }
-            except Exception as e:
-                logger.debug(f"/state discovery failed for {self.device_ip}: {e}")
+                res = await client.get("/state")
+                if res.status_code == 200:
+                    state = res.json()
+                    return {
+                        "device_id": state.get("device_id"),
+                        "type":       DeviceType.VALVE_CONTROLLER.value,
+                        "valves":     state.get("valves", []),
+                        "ip":         self._raw_ip,
+                    }
+                else:
+                    logger.debug(f"/state returned {res.status_code} for {self.base_url}")
+            except Exception:
+                logger.debug(f"/state discovery failed for {self.base_url}")
 
         return None
 
-    async def get_version(self) -> str:
+    async def get_version(self) -> Optional[str]:
         """
-        Try /version first, fallback to /discovery.
+        GET /version, fallback to discovery.version
         """
-        async with httpx.AsyncClient(timeout=self.request_timeout) as client:
-            url = await self._build_url("version")
+        async with httpx.AsyncClient(base_url=self.base_url, timeout=self.request_timeout) as client:
             try:
-                res = await client.get(url)
+                res = await client.get("/version")
                 if res.status_code == 200:
-                    data = res.json()
-                    # assume { version: "x.y.z" }
-                    return data.get("version")
+                    return res.json().get("version")
             except Exception:
-                pass
-            # fallback
-            disc = await self.discover()
-            return disc.get("version") if disc else None
+                logger.debug(f"/version failed for {self.base_url}")
+
+        # fallback to discovery payload
+        disc = await self.discover()
+        return disc.get("version") if disc else None
 
     async def get_sensor_readings(self) -> Dict:
         """
-        Retrieve averaged sensor readings from the device via the /monitor endpoint.
-        (The device now returns averaged pH and TDS values.)
+        GET /monitor → { ph: float, tds: float }
+        Raises httpx.HTTPStatusError on non-200.
         """
-        url = f"http://{self.device_ip}/monitor"
-        try:
-            async with httpx.AsyncClient(timeout=self.request_timeout) as client:
-                response = await client.get(url)
-                if response.status_code == 200:
-                    data = response.json()
-                    logger.info(f"Sensor readings from {self.device_ip}: {data}")
-                    return data
-                else:
-                    raise HTTPException(status_code=response.status_code, detail=f"Sensor reading failed: {response.text}")
-        except Exception as e:
-            logger.error(f"Error fetching sensor readings: {e}")
-            raise HTTPException(status_code=500, detail=str(e))
+        async with httpx.AsyncClient(base_url=self.base_url, timeout=self.request_timeout) as client:
+            res = await client.get("/monitor")
+            if res.status_code != 200:
+                raise httpx.HTTPStatusError(
+                    f"Sensor read failed: {res.status_code}", request=None, response=res
+                )
+            data = res.json()
+            logger.info(f"Sensor readings from {self.base_url}: {data}")
+            return data
+
+    async def execute_dosing(self, pump: int, amount: int, combined: bool = False) -> Dict:
+        """
+        POST /pump  or  /dose_monitor  { pump, amount, timestamp }
+        """
+        endpoint = "/dose_monitor" if combined else "/pump"
+        payload = {"pump": pump, "amount": amount, "timestamp": datetime.utcnow().isoformat()}
+        async with httpx.AsyncClient(base_url=self.base_url, timeout=self.request_timeout) as client:
+            res = await client.post(endpoint, json=payload)
+            if res.status_code != 200:
+                raise httpx.HTTPStatusError(
+                    f"Dosing command failed: {res.status_code}", request=None, response=res
+                )
+            return res.json()
+
     async def cancel_dosing(self) -> Dict:
         """
-        Cancel dosing by sending a stop command to the device.
-        Uses the /pump_calibration endpoint with {"command": "stop"}.
+        POST /pump_calibration  { command: stop }
         """
-        url = f"http://{self.device_ip}/pump_calibration"
-        payload = {"command": "stop"}
-        try:
-            async with httpx.AsyncClient(timeout=self.request_timeout) as client:
-                response = await client.post(url, json=payload)
-                if response.status_code == 200:
-                    logger.info(f"Cancellation command sent to {url}: {payload}")
-                    return response.json()
-                else:
-                    raise HTTPException(status_code=response.status_code, detail=f"Cancellation failed: {response.text}")
-        except Exception as e:
-            logger.error(f"Error sending cancellation command: {e}")
-            raise HTTPException(status_code=500, detail=str(e))
-    
-    async def _build_url(self, path: str) -> str:
-        base = self.device_ip
-        if not base.startswith(("http://","https://")):
-            base = f"http://{base}"
-        return f"{base.rstrip('/')}/{path.lstrip('/')}"
-    
-    async def execute_dosing(self, pump: int, amount: int, combined: bool = False) -> Dict:
-        endpoint = "dose_monitor" if combined else "pump"
-        url = await self._build_url(endpoint)
-        payload = {"pump": pump, "amount": amount, "timestamp": datetime.utcnow().isoformat()}
-        async with httpx.AsyncClient(timeout=self.request_timeout) as client:
-            resp = await client.post(url, json=payload)
-            resp.raise_for_status()
-            return resp.json()
+        async with httpx.AsyncClient(base_url=self.base_url, timeout=self.request_timeout) as client:
+            res = await client.post("/pump_calibration", json={"command": "stop"})
+            if res.status_code != 200:
+                raise httpx.HTTPStatusError(
+                    f"Cancel dosing failed: {res.status_code}", request=None, response=res
+                )
+            return res.json()
     async def get_state(self) -> Dict:
         """
-        Fetch the current valves state from /state.
+        GET /state  →  generic state (valves or switches)
         """
-        url = await self._build_url("state")
-        async with httpx.AsyncClient(timeout=self.request_timeout) as client:
-            res = await client.get(url)
-            res.raise_for_status()
+        async with httpx.AsyncClient(base_url=self.base_url, timeout=self.request_timeout) as client:
+            res = await client.get("/state")
+            if res.status_code != 200:
+                raise httpx.HTTPStatusError(
+                    f"Get state failed: {res.status_code}", request=None, response=res
+                )
             return res.json()
 
     async def toggle_valve(self, valve_id: int) -> Dict:
         """
-        Toggle a single valve via /toggle.
+        POST /toggle  { valve_id }  --  raises ValueError if valve_id not in 1–4
         """
-        url = await self._build_url("toggle")
-        payload = {"valve_id": valve_id}
-        async with httpx.AsyncClient(timeout=self.request_timeout) as client:
-            res = await client.post(url, json=payload)
-            res.raise_for_status()
+        if not (1 <= valve_id <= 4):
+            raise ValueError("Invalid valve_id (must be 1–4)")
+
+        async with httpx.AsyncClient(base_url=self.base_url, timeout=self.request_timeout) as client:
+            res = await client.post("/toggle", json={"valve_id": valve_id})
+            if res.status_code != 200:
+                raise httpx.HTTPStatusError(
+                    f"Toggle valve failed: {res.status_code}", request=None, response=res
+                )
             return res.json()
+
+# Factory for override/mocking in tests
+def get_device_controller(device_ip: str) -> DeviceController:
+    return DeviceController(device_ip)

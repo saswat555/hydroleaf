@@ -10,13 +10,14 @@ from typing import Dict, List, Union, Tuple
 import httpx
 from bs4 import BeautifulSoup
 from sqlalchemy.ext.asyncio import AsyncSession
-
+from dotenv import load_dotenv
 from app.models import Device
 from app.services.dose_manager import DoseManager
 from app.services.serper import fetch_search_results
-
+load_dotenv()
 
 logger = logging.getLogger(__name__)
+
 
 # Production-level configuration via environment variables
 OLLAMA_URL = os.getenv("OLLAMA_URL", "http://localhost:11434/api/generate")
@@ -25,9 +26,8 @@ GPT_MODEL = os.getenv("GPT_MODEL")
 MODEL_7B = os.getenv("MODEL_7B", "deepseek-r1:7b")
 LLM_REQUEST_TIMEOUT = int(os.getenv("LLM_REQUEST_TIMEOUT", "300"))
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
-USE_OLLAMA = os.getenv("USE_OLLAMA", "false").lower() == "true"
-
-
+TESTING = os.getenv("TESTING", "false").lower() in ("1", "true")
+USE_OLLAMA = TESTING or os.getenv("USE_OLLAMA", "false").lower() == "true"
 dosing_manager = DoseManager()
 
 def enhance_query(user_query: str, plant_profile: dict) -> str:
@@ -44,15 +44,25 @@ def enhance_query(user_query: str, plant_profile: dict) -> str:
         return f"{user_query}. {additional_context}"
     return user_query
 
-def parse_json_response(json_str: str) -> Union[List[str], dict]:
+def parse_json_response(json_str: str) -> dict:
+    """
+    Try to parse entire string as JSON.
+    On failure, pull out the first {...} block (single-quotes → double-quotes) and parse that.
+    If still invalid, raise HTTPException.
+    """
     try:
-        data = json.loads(json_str)
+        return json.loads(json_str)
     except json.JSONDecodeError:
-        # Split into lines if JSON parsing fails
-        paragraphs = json_str.split("\n")
-        result = [para.strip() for para in paragraphs if para.strip()]
-        return result
-    return data
+        # normalize quotes and extract a {...} substring
+        normalized = json_str.replace("'", '"')
+        m = re.search(r"(\{.*\})", normalized, flags=re.DOTALL)
+        if m:
+            block = m.group(1)
+            try:
+                return json.loads(block)
+            except json.JSONDecodeError:
+                pass
+        raise HTTPException(status_code=500, detail="Malformed JSON format from LLM")
 
 def parse_ollama_response(raw_response: str) -> str:
     # Remove any <think> block and extra whitespace
@@ -216,14 +226,19 @@ async def direct_ollama_call(prompt: str, model_name: str) -> str:
         }
         async with httpx.AsyncClient(timeout=LLM_REQUEST_TIMEOUT) as client:
             response = await client.post(OLLAMA_URL, json=request_body)
-            response.raise_for_status()
+            if response.status_code != 200:
+                raise HTTPException(status_code=500, detail="LLM API HTTP error")
             data = response.json()
-            raw_completion = data.get("response", "").strip()
-            logger.info(f"Ollama raw completion: {raw_completion}")
-            if not raw_completion:
-                logger.error("No response received from Ollama.")
+            raw = data.get("response", "").strip()
+            logger.info(f"Ollama raw completion: {raw}")
+            if not raw:
                 raise HTTPException(status_code=500, detail="Empty response from LLM service")
-            return raw_completion
+            # parse the JSON payload
+            try:
+                return json.loads(raw)
+            except json.JSONDecodeError as e:
+                logger.error(f"Malformed JSON from Ollama: {raw}")
+                raise HTTPException(status_code=500, detail="Invalid JSON from LLM service") from e
     except Exception as e:
         logger.error(f"Ollama call failed: {e}")
         raise HTTPException(status_code=500, detail="Error calling LLM service") from e

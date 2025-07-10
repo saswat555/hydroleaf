@@ -143,21 +143,7 @@ async def health_check():
         "uptime": uptime,
     }
 from fastapi import Depends
-from app.dependencies import verify_camera_token
-from app.routers.cameras import upload_day_frame, upload_night_frame
 
-app.add_api_route(
-    "/upload/{camera_id}/day",
-    upload_day_frame,
-    methods=["POST"],
-    dependencies=[Depends(verify_camera_token)],
-)
-app.add_api_route(
-    "/upload/{camera_id}/night",
-    upload_night_frame,
-    methods=["POST"],
-    dependencies=[Depends(verify_camera_token)],
-)
 @app.get(f"{API_V1_STR}/health/database")
 async def database_health():
     return await check_db_connection()

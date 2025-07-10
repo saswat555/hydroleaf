@@ -1053,21 +1053,7 @@ async def health_check():
         "uptime": uptime,
     }
 from fastapi import Depends
-from app.dependencies import verify_camera_token
-from app.routers.cameras import upload_day_frame, upload_night_frame
 
-app.add_api_route(
-    "/upload/{camera_id}/day",
-    upload_day_frame,
-    methods=["POST"],
-    dependencies=[Depends(verify_camera_token)],
-)
-app.add_api_route(
-    "/upload/{camera_id}/night",
-    upload_night_frame,
-    methods=["POST"],
-    dependencies=[Depends(verify_camera_token)],
-)
 @app.get(f"{API_V1_STR}/health/database")
 async def database_health():
     return await check_db_connection()
@@ -4360,19 +4346,6 @@ async def offline_watcher(db_factory, interval_seconds: float = 30.0):
             await sess.commit()
 
 
------ app/utils/json_utils.py -----
-from datetime import datetime
-import json
-
-class CustomJSONEncoder(json.JSONEncoder):
-    def default(self, obj):
-        if isinstance(obj, datetime):
-            return obj.isoformat()
-        return super().default(obj)
-
-def format_json_response(data):
-    return json.dumps(data, cls=CustomJSONEncoder, indent=2)
-
 ----- app/utils/camera_queue.py -----
 import asyncio
 from pathlib import Path
@@ -4700,21 +4673,6 @@ async def fetch_and_average_value(query: str) -> float:
 
 
 
------ app/services/device_discovery.py -----
-import time
-
-# In‑memory registry: key=device_id, value=dict(ip=<ip>, last_seen=<timestamp>)
-_connected_devices = {}
-
-def update_device(device_id: str, ip: str) -> None:
-    _connected_devices[device_id] = {"ip": ip, "last_seen": time.time()}
-
-def get_connected_devices() -> dict:
-    now = time.time()
-    # Only return devices seen in the last 60 seconds (adjust as needed)
-    return {device_id: info for device_id, info in _connected_devices.items() if now - info["last_seen"] < 60}
-
-
 ----- app/services/serper.py -----
 import os
 import asyncio
@@ -4859,13 +4817,14 @@ from typing import Dict, List, Union, Tuple
 import httpx
 from bs4 import BeautifulSoup
 from sqlalchemy.ext.asyncio import AsyncSession
-
+from dotenv import load_dotenv
 from app.models import Device
 from app.services.dose_manager import DoseManager
 from app.services.serper import fetch_search_results
-
+load_dotenv()
 
 logger = logging.getLogger(__name__)
+
 
 # Production-level configuration via environment variables
 OLLAMA_URL = os.getenv("OLLAMA_URL", "http://localhost:11434/api/generate")
@@ -4874,9 +4833,8 @@ GPT_MODEL = os.getenv("GPT_MODEL")
 MODEL_7B = os.getenv("MODEL_7B", "deepseek-r1:7b")
 LLM_REQUEST_TIMEOUT = int(os.getenv("LLM_REQUEST_TIMEOUT", "300"))
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
-USE_OLLAMA = os.getenv("USE_OLLAMA", "false").lower() == "true"
-
-
+TESTING = os.getenv("TESTING", "false").lower() in ("1", "true")
+USE_OLLAMA = TESTING or os.getenv("USE_OLLAMA", "false").lower() == "true"
 dosing_manager = DoseManager()
 
 def enhance_query(user_query: str, plant_profile: dict) -> str:
@@ -4893,15 +4851,25 @@ def enhance_query(user_query: str, plant_profile: dict) -> str:
         return f"{user_query}. {additional_context}"
     return user_query
 
-def parse_json_response(json_str: str) -> Union[List[str], dict]:
+def parse_json_response(json_str: str) -> dict:
+    """
+    Try to parse entire string as JSON.
+    On failure, pull out the first {...} block (single-quotes → double-quotes) and parse that.
+    If still invalid, raise HTTPException.
+    """
     try:
-        data = json.loads(json_str)
+        return json.loads(json_str)
     except json.JSONDecodeError:
-        # Split into lines if JSON parsing fails
-        paragraphs = json_str.split("\n")
-        result = [para.strip() for para in paragraphs if para.strip()]
-        return result
-    return data
+        # normalize quotes and extract a {...} substring
+        normalized = json_str.replace("'", '"')
+        m = re.search(r"(\{.*\})", normalized, flags=re.DOTALL)
+        if m:
+            block = m.group(1)
+            try:
+                return json.loads(block)
+            except json.JSONDecodeError:
+                pass
+        raise HTTPException(status_code=500, detail="Malformed JSON format from LLM")
 
 def parse_ollama_response(raw_response: str) -> str:
     # Remove any <think> block and extra whitespace
@@ -5065,14 +5033,19 @@ async def direct_ollama_call(prompt: str, model_name: str) -> str:
         }
         async with httpx.AsyncClient(timeout=LLM_REQUEST_TIMEOUT) as client:
             response = await client.post(OLLAMA_URL, json=request_body)
-            response.raise_for_status()
+            if response.status_code != 200:
+                raise HTTPException(status_code=500, detail="LLM API HTTP error")
             data = response.json()
-            raw_completion = data.get("response", "").strip()
-            logger.info(f"Ollama raw completion: {raw_completion}")
-            if not raw_completion:
-                logger.error("No response received from Ollama.")
+            raw = data.get("response", "").strip()
+            logger.info(f"Ollama raw completion: {raw}")
+            if not raw:
                 raise HTTPException(status_code=500, detail="Empty response from LLM service")
-            return raw_completion
+            # parse the JSON payload
+            try:
+                return json.loads(raw)
+            except json.JSONDecodeError as e:
+                logger.error(f"Malformed JSON from Ollama: {raw}")
+                raise HTTPException(status_code=500, detail="Invalid JSON from LLM service") from e
     except Exception as e:
         logger.error(f"Ollama call failed: {e}")
         raise HTTPException(status_code=500, detail="Error calling LLM service") from e
@@ -5352,152 +5325,159 @@ async def generate_final_decision(transport_analysis: Dict, market_price: Dict) 
 
 
 ----- app/services/device_controller.py -----
-# device_controller.py
+# app/services/device_controller.py
 import logging
-import asyncio
 from datetime import datetime
 from typing import Dict, Optional
+
 import httpx
 from fastapi import HTTPException
-import re
-logger = logging.getLogger(__name__)
+
 from app.schemas import DeviceType
+
+logger = logging.getLogger(__name__)
 
 class DeviceController:
     """
-    Unified controller for the dosing and monitoring device.
-    Provides methods for:
-      - Discovering the device via its /discovery endpoint.
-      - Executing dosing commands via /pump or the combined /dose_monitor endpoint.
-      - Fetching sensor readings via the /monitor endpoint.
+    Unified controller for IoT devices. Supports:
+      - Discovery (/discovery, /state)
+      - Version check (/version)
+      - Sensor readings (/monitor)
+      - Dosing (/pump, /dose_monitor)
+      - Cancellation (/pump_calibration)
+      - Valve state (/state, /toggle)
     """
     def __init__(self, device_ip: str, request_timeout: float = 10.0):
-        self.device_ip = device_ip
+        # remember exactly what user passed in, for tests
+        self._raw_ip = device_ip
+        # ensure base_url is always a proper URL for AsyncClient
+        if not device_ip.startswith(("http://", "https://")):
+            device_ip = f"http://{device_ip}"
+        self.base_url = device_ip.rstrip("/")
         self.request_timeout = request_timeout
 
     async def discover(self) -> Optional[Dict]:
         """
-        Try /discovery first; if that fails, assume it's a valve controller and call /state.
+        1) GET  /discovery
+        2) GET  /state  (valve-controller fallback)
         """
-        async with httpx.AsyncClient(timeout=self.request_timeout) as client:
-            # 1) Try standard discovery
+        async with httpx.AsyncClient(base_url=self.base_url, timeout=self.request_timeout) as client:
+            # primary discovery
             try:
-                url = await self._build_url("discovery")
-                res = await client.get(url)
+                res = await client.get("/discovery")
                 if res.status_code == 200:
                     data = res.json()
-                    data["ip"] = self.device_ip
+                    data.setdefault("type", data.get("type", DeviceType.DOSING_UNIT.value))
+                    data["ip"] = self._raw_ip
                     return data
             except Exception:
-                logger.debug(f"/discovery failed for {self.device_ip}, trying /state")
+                logger.debug(f"/discovery failed for {self.base_url}")
 
-            # 2) Fallback to valve controller /state
+            # fallback for valve controllers (check status_code, not raise_for_status)
             try:
-                url = await self._build_url("state")
-                res = await client.get(url)
-                res.raise_for_status()
-                state = res.json()
-                # expect { device_id, valves: [ {id, state}, … ] }
-                return {
-                    "device_id": state.get("device_id"),
-                    "type": DeviceType.VALVE_CONTROLLER.value,
-                    "valves": state.get("valves", []),
-                    "ip": self.device_ip
-                }
-            except Exception as e:
-                logger.debug(f"/state discovery failed for {self.device_ip}: {e}")
+                res = await client.get("/state")
+                if res.status_code == 200:
+                    state = res.json()
+                    return {
+                        "device_id": state.get("device_id"),
+                        "type":       DeviceType.VALVE_CONTROLLER.value,
+                        "valves":     state.get("valves", []),
+                        "ip":         self._raw_ip,
+                    }
+                else:
+                    logger.debug(f"/state returned {res.status_code} for {self.base_url}")
+            except Exception:
+                logger.debug(f"/state discovery failed for {self.base_url}")
 
         return None
 
-    async def get_version(self) -> str:
+    async def get_version(self) -> Optional[str]:
         """
-        Try /version first, fallback to /discovery.
+        GET /version, fallback to discovery.version
         """
-        async with httpx.AsyncClient(timeout=self.request_timeout) as client:
-            url = await self._build_url("version")
+        async with httpx.AsyncClient(base_url=self.base_url, timeout=self.request_timeout) as client:
             try:
-                res = await client.get(url)
+                res = await client.get("/version")
                 if res.status_code == 200:
-                    data = res.json()
-                    # assume { version: "x.y.z" }
-                    return data.get("version")
+                    return res.json().get("version")
             except Exception:
-                pass
-            # fallback
-            disc = await self.discover()
-            return disc.get("version") if disc else None
+                logger.debug(f"/version failed for {self.base_url}")
+
+        # fallback to discovery payload
+        disc = await self.discover()
+        return disc.get("version") if disc else None
 
     async def get_sensor_readings(self) -> Dict:
         """
-        Retrieve averaged sensor readings from the device via the /monitor endpoint.
-        (The device now returns averaged pH and TDS values.)
+        GET /monitor → { ph: float, tds: float }
+        Raises httpx.HTTPStatusError on non-200.
         """
-        url = f"http://{self.device_ip}/monitor"
-        try:
-            async with httpx.AsyncClient(timeout=self.request_timeout) as client:
-                response = await client.get(url)
-                if response.status_code == 200:
-                    data = response.json()
-                    logger.info(f"Sensor readings from {self.device_ip}: {data}")
-                    return data
-                else:
-                    raise HTTPException(status_code=response.status_code, detail=f"Sensor reading failed: {response.text}")
-        except Exception as e:
-            logger.error(f"Error fetching sensor readings: {e}")
-            raise HTTPException(status_code=500, detail=str(e))
+        async with httpx.AsyncClient(base_url=self.base_url, timeout=self.request_timeout) as client:
+            res = await client.get("/monitor")
+            if res.status_code != 200:
+                raise httpx.HTTPStatusError(
+                    f"Sensor read failed: {res.status_code}", request=None, response=res
+                )
+            data = res.json()
+            logger.info(f"Sensor readings from {self.base_url}: {data}")
+            return data
+
+    async def execute_dosing(self, pump: int, amount: int, combined: bool = False) -> Dict:
+        """
+        POST /pump  or  /dose_monitor  { pump, amount, timestamp }
+        """
+        endpoint = "/dose_monitor" if combined else "/pump"
+        payload = {"pump": pump, "amount": amount, "timestamp": datetime.utcnow().isoformat()}
+        async with httpx.AsyncClient(base_url=self.base_url, timeout=self.request_timeout) as client:
+            res = await client.post(endpoint, json=payload)
+            if res.status_code != 200:
+                raise httpx.HTTPStatusError(
+                    f"Dosing command failed: {res.status_code}", request=None, response=res
+                )
+            return res.json()
+
     async def cancel_dosing(self) -> Dict:
         """
-        Cancel dosing by sending a stop command to the device.
-        Uses the /pump_calibration endpoint with {"command": "stop"}.
+        POST /pump_calibration  { command: stop }
         """
-        url = f"http://{self.device_ip}/pump_calibration"
-        payload = {"command": "stop"}
-        try:
-            async with httpx.AsyncClient(timeout=self.request_timeout) as client:
-                response = await client.post(url, json=payload)
-                if response.status_code == 200:
-                    logger.info(f"Cancellation command sent to {url}: {payload}")
-                    return response.json()
-                else:
-                    raise HTTPException(status_code=response.status_code, detail=f"Cancellation failed: {response.text}")
-        except Exception as e:
-            logger.error(f"Error sending cancellation command: {e}")
-            raise HTTPException(status_code=500, detail=str(e))
-    
-    async def _build_url(self, path: str) -> str:
-        base = self.device_ip
-        if not base.startswith(("http://","https://")):
-            base = f"http://{base}"
-        return f"{base.rstrip('/')}/{path.lstrip('/')}"
-    
-    async def execute_dosing(self, pump: int, amount: int, combined: bool = False) -> Dict:
-        endpoint = "dose_monitor" if combined else "pump"
-        url = await self._build_url(endpoint)
-        payload = {"pump": pump, "amount": amount, "timestamp": datetime.utcnow().isoformat()}
-        async with httpx.AsyncClient(timeout=self.request_timeout) as client:
-            resp = await client.post(url, json=payload)
-            resp.raise_for_status()
-            return resp.json()
+        async with httpx.AsyncClient(base_url=self.base_url, timeout=self.request_timeout) as client:
+            res = await client.post("/pump_calibration", json={"command": "stop"})
+            if res.status_code != 200:
+                raise httpx.HTTPStatusError(
+                    f"Cancel dosing failed: {res.status_code}", request=None, response=res
+                )
+            return res.json()
     async def get_state(self) -> Dict:
         """
-        Fetch the current valves state from /state.
+        GET /state  →  generic state (valves or switches)
         """
-        url = await self._build_url("state")
-        async with httpx.AsyncClient(timeout=self.request_timeout) as client:
-            res = await client.get(url)
-            res.raise_for_status()
+        async with httpx.AsyncClient(base_url=self.base_url, timeout=self.request_timeout) as client:
+            res = await client.get("/state")
+            if res.status_code != 200:
+                raise httpx.HTTPStatusError(
+                    f"Get state failed: {res.status_code}", request=None, response=res
+                )
             return res.json()
 
     async def toggle_valve(self, valve_id: int) -> Dict:
         """
-        Toggle a single valve via /toggle.
+        POST /toggle  { valve_id }  --  raises ValueError if valve_id not in 1–4
         """
-        url = await self._build_url("toggle")
-        payload = {"valve_id": valve_id}
-        async with httpx.AsyncClient(timeout=self.request_timeout) as client:
-            res = await client.post(url, json=payload)
-            res.raise_for_status()
+        if not (1 <= valve_id <= 4):
+            raise ValueError("Invalid valve_id (must be 1–4)")
+
+        async with httpx.AsyncClient(base_url=self.base_url, timeout=self.request_timeout) as client:
+            res = await client.post("/toggle", json={"valve_id": valve_id})
+            if res.status_code != 200:
+                raise httpx.HTTPStatusError(
+                    f"Toggle valve failed: {res.status_code}", request=None, response=res
+                )
             return res.json()
+
+# Factory for override/mocking in tests
+def get_device_controller(device_ip: str) -> DeviceController:
+    return DeviceController(device_ip)
+
 
 ----- app/services/ph_tds.py -----
 import logging
@@ -5706,5 +5686,910 @@ async def delete_plant(plant_id: int, db: AsyncSession):
     await db.delete(plant)
     await db.commit()
     return {"message": "Plant deleted successfully"}
+
+
+======= Directory: tests =======
+
+----- tests/test_detailed_cases.py -----
+# tests/test_detailed_cases.py
+
+import functools
+import pytest
+import httpx
+import importlib
+import asyncio
+from fastapi import HTTPException
+from app.services.device_controller import DeviceController, get_device_controller
+from app.services.llm import call_llm_async, direct_ollama_call, direct_openai_call, parse_openai_response
+from app.services.supply_chain_service import extract_json_from_response
+from app.services.llm import USE_OLLAMA as LL_USE_OLLAMA
+from app.services.llm import parse_json_response
+from app.services.llm import build_dosing_prompt
+from app.models import Device
+
+# -----------------------------
+# 1) Discover fallback ’ip’
+# -----------------------------
+@pytest.mark.asyncio
+async def test_discover_fallback_ip_strips_http_prefix(monkeypatch):
+    # only /discovery fails, /state succeeds
+    class DummyRes:
+        def __init__(self, code, data):
+            self.status_code = code
+            self._json = data
+        def json(self): return self._json
+    class FakeCli:
+        def __init__(self, *a, **k): pass
+        async def __aenter__(self): return self
+        async def __aexit__(self, *a): pass
+        async def get(self, path, *a, **k):
+            if path == "/discovery":
+                return DummyRes(500, {})
+            if path == "/state":
+                return DummyRes(200, {"device_id":"X","valves":[]})
+            return DummyRes(404,{})
+    monkeypatch.setattr(httpx, "AsyncClient", lambda *a,**k: FakeCli())
+
+    dc = DeviceController("10.0.0.5")
+    result = await dc.discover()
+    assert result["ip"] == "10.0.0.5"
+    assert "http://" not in result["ip"]
+
+# -----------------------------
+# 2) extract_json_from_response
+# -----------------------------
+def test_extract_json_happy_path():
+    s = "ignore { \"a\": 1, \"b\": 2 } trailing"
+    out = extract_json_from_response(s)
+    assert out == {"a":1,"b":2}
+
+def test_extract_json_throws_on_no_json():
+    with pytest.raises(HTTPException):
+        extract_json_from_response("no JSON here")
+
+# -----------------------------
+# 3) dynamic USE_OLLAMA logic
+# -----------------------------
+def test_use_ollama_flag_respects_testing(monkeypatch):
+    # force TESTING=1, USE_OLLAMA env=0
+    monkeypatch.setenv("USE_OLLAMA", "false")
+    monkeypatch.setenv("TESTING", "1")
+    import app.services.llm as llm
+    importlib.reload(llm)
+    assert llm.USE_OLLAMA is True
+
+def test_use_ollama_flag_respects_env_when_not_testing(monkeypatch):
+    monkeypatch.setenv("USE_OLLAMA", "true")
+    monkeypatch.setenv("TESTING", "0")
+    import app.services.llm as llm
+    importlib.reload(llm)
+    assert llm.USE_OLLAMA is True
+
+# -----------------------------
+# 4) call_llm_async openai path
+# -----------------------------
+@pytest.mark.asyncio
+async def test_call_llm_async_openai(monkeypatch):
+    # simulate openai branch
+    monkeypatch.setenv("USE_OLLAMA", "false")
+    monkeypatch.setenv("TESTING", "0")
+    import app.services.llm as llm
+    importlib.reload(llm)
+
+    # stub out the OpenAI call+parser
+    async def fake_openai(prompt, model):
+        return '{"actions":[{"pump_number":1,"chemical_name":"X","dose_ml":5,"reasoning":"OK"}]}'
+    monkeypatch.setattr(llm, "direct_openai_call", lambda p,m: asyncio.sleep(0, result='{"actions":[{}]}'))
+    monkeypatch.setattr(llm, "parse_openai_response", lambda r: r)
+    parsed, raw = await llm.call_llm_async("hi", "mymodel")
+    assert isinstance(parsed, dict)
+    assert raw.startswith("{")
+
+# -----------------------------
+# 5) build_dosing_prompt errors
+# -----------------------------
+def test_build_dosing_prompt_raises_on_no_pumps():
+    dummy = Device(id="d1", mac_id="m", name="n", type="dosing_unit",
+                   http_endpoint="e", pump_configurations=None,
+                   sensor_parameters={}, valve_configurations=[],
+                   switch_configurations=[])
+    with pytest.raises(ValueError):
+        # no pump_configurations → ValueError
+        pytest.run(functools.partial(build_dosing_prompt, dummy, {"ph":7,"tds":100}, {}))
+
+# -----------------------------
+# 6) parse_json_response edge
+# -----------------------------
+def test_parse_json_response_strips_extra_text():
+    s = "junk { 'x': 10 } more junk"
+    out = parse_json_response(s)
+    assert out == {"x":10}
+
+@pytest.mark.asyncio
+async def test_discover_both_endpoints_fail(monkeypatch):
+    """
+    If both /discovery and /state return non-200, discover() should return None.
+    """
+    class DummyRes:
+        def __init__(self, code): self.status_code = code
+        def json(self): return {}
+    class FakeCli:
+        async def __aenter__(self): return self
+        async def __aexit__(self,*a): pass
+        async def get(self, path, *a,**k):
+            return DummyRes(500)  # always fail
+    monkeypatch.setattr(httpx, "AsyncClient", lambda *a,**k: FakeCli())
+
+    dc = DeviceController("10.0.0.99")
+    result = await dc.discover()
+    assert result is None
+
+
+def test_extract_json_multiple_json_blocks():
+    s = "prefix {\"a\":1} middle {\"b\":2} suffix"
+    out = extract_json_from_response(s)
+    # should grab the *first* {...} block
+    assert out == {"a":1}
+
+@pytest.mark.asyncio
+async def test_call_llm_async_ollama_http_error(monkeypatch):
+    """If direct_ollama_call raises HTTPException, call_llm_async propagates it."""
+    monkeypatch.setenv("USE_OLLAMA","true")
+    monkeypatch.setenv("TESTING","1")
+    import app.services.llm as llm; importlib.reload(llm)
+
+    async def boom(prompt,model):
+        raise llm.HTTPException(status_code=500, detail="boom")
+    monkeypatch.setattr(llm, "direct_ollama_call", boom)
+
+    with pytest.raises(llm.HTTPException):
+        await llm.call_llm_async("foo","bar")
+
+def test_parse_json_response_top_level_list():
+    s = "[ {'x':10}, {'y':20} ] extra"
+    out = parse_json_response(s)
+    assert isinstance(out, list)
+    assert out == [{"x":10},{"y":20}]
+
+@pytest.mark.asyncio
+async def test_build_dosing_prompt_many_pumps():
+    class D:
+        def __init__(self):
+            self.pump_configurations = [
+                {"pump_number": i, "chemical_name": f"C{i}", "chemical_description":"D"} for i in range(1,5)
+            ]
+            self.id = "X"
+    dev = D()
+    sensor = {"ph":7,"tds":100}
+    profile = {
+        "plant_name":"P","plant_type":"T","growth_stage":"G",
+        "seeding_date":"2020","region":"R","location":"L",
+        "target_ph_min":5,"target_ph_max":8,
+        "target_tds_min":50,"target_tds_max":150,
+        "dosing_schedule":{}
+    }
+    prompt = await build_dosing_prompt(dev,sensor,profile)
+    for i in range(1,5):
+        assert f"Pump {i}:" in prompt
+
+
+----- tests/conftest.py -----
+# tests/conftest.py
+
+import os
+import sys
+import pytest
+
+# ── ensure the project root (where app/ lives) is on sys.path ────────────────
+ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+if ROOT not in sys.path:
+    sys.path.insert(0, ROOT)
+
+# ── force the TESTING flag before any FastAPI startup logic ─────────────────
+os.environ["TESTING"] = "1"
+
+from app.main import app
+from httpx import AsyncClient
+
+# ── A mock that we only want to use for endpoint tests ───────────────────────
+class MockController:
+    """
+    Returns a canned discovery payload depending on the trailing path fragment.
+    """
+    def __init__(self, device_ip: str, request_timeout: float = 10.0):
+        self.device_ip = device_ip
+
+    async def discover(self):
+        if self.device_ip.endswith("dosing"):
+            return {
+                "device_id": "dev-dosing",
+                "name":      "Mock Dosing",
+                "type":      "dosing_unit",
+                "ip":        self.device_ip,
+            }
+        if self.device_ip.endswith("sensor"):
+            return {
+                "device_id": "dev-sensor",
+                "name":      "Mock Sensor",
+                "type":      "ph_tds_sensor",
+                "ip":        self.device_ip,
+            }
+        if self.device_ip.endswith("valve"):
+            return {
+                "device_id": "dev-valve",
+                "name":      "Mock Valve",
+                "type":      "valve_controller",
+                "ip":        self.device_ip,
+            }
+        if self.device_ip.endswith("switch"):
+            return {
+                "device_id": "dev-switch",
+                "name":      "Mock Switch",
+                "type":      "smart_switch",
+                "ip":        self.device_ip,
+            }
+        return None
+
+@pytest.fixture(autouse=True)
+def _patch_device_controller_for_endpoints(monkeypatch, request):
+    """
+    Only patch DeviceController → MockController when the test
+    actually needs the FastAPI client (i.e. endpoint tests).
+    """
+    if "async_client" in request.fixturenames:
+        import app.services.device_controller as dc_mod
+        monkeypatch.setattr(dc_mod, "DeviceController", MockController)
+
+# ── async_client fixture for making requests against FastAPI ────────────────
+@pytest.fixture
+async def async_client():
+    async with AsyncClient(app=app, base_url="http://testserver") as client:
+        yield client
+
+
+----- tests/test_plant_service.py -----
+# tests/test_plant_service.py
+import pytest
+from fastapi import HTTPException
+from app.services.plant_service import (
+    get_all_plants,
+    get_plant_by_id,
+    create_plant,
+    delete_plant,
+)
+from app.models import Plant
+
+# --- helpers to fake the DB session and results ---
+class DummyResult:
+    def __init__(self, items):
+        self._items = items
+    def scalars(self):
+        return self
+    def all(self):
+        return self._items
+
+class FakeSession:
+    def __init__(self, plants=None, single=None):
+        self._plants = plants or []
+        self._single = single
+    async def execute(self, stmt):
+        return DummyResult(self._plants)
+    async def get(self, model, pk):
+        return self._single
+    async def add(self, obj): pass
+    async def commit(self): pass
+    async def refresh(self, obj): pass
+    async def delete(self, obj): pass
+
+@pytest.mark.asyncio
+async def test_get_all_plants_empty():
+    sess = FakeSession(plants=[])
+    plants = await get_all_plants(sess)
+    assert plants == []
+
+@pytest.mark.asyncio
+async def test_get_all_plants_nonempty():
+    p1 = Plant(id=1, name="A", type="T", growth_stage="G", seeding_date="2020-01-01", region="R", location="L")
+    p2 = Plant(id=2, name="B", type="T", growth_stage="G", seeding_date="2020-01-02", region="R", location="L")
+    sess = FakeSession(plants=[p1, p2])
+    plants = await get_all_plants(sess)
+    assert plants == [p1, p2]
+
+@pytest.mark.asyncio
+async def test_get_plant_by_id_found():
+    p = Plant(id=5, name="X", type="T", growth_stage="G", seeding_date="2020-01-03", region="R", location="L")
+    sess = FakeSession(single=p)
+    got = await get_plant_by_id(5, sess)
+    assert got is p
+
+@pytest.mark.asyncio
+async def test_get_plant_by_id_not_found():
+    sess = FakeSession(single=None)
+    with pytest.raises(HTTPException) as exc:
+        await get_plant_by_id(123, sess)
+    assert exc.value.status_code == 404
+
+@pytest.mark.asyncio
+async def test_create_and_delete_plant(tmp_path, monkeypatch):
+    # For create_plant and delete_plant we actually need a DB, but we can at least
+    # assert that they return the right types and messages under a fake session.
+    class FakePS(FakeSession):
+        async def commit(self): pass
+        async def refresh(self, obj): pass
+    fake = FakePS()
+    # create_plant
+    create_schema = type("S", (), {"model_dump": lambda self: {
+        "name":"P","type":"T","growth_stage":"G","seeding_date":"2020-01-01","region":"R","location":"L"}})()
+    new = await create_plant(create_schema, fake)
+    assert isinstance(new, Plant)
+    # delete_plant: if single is None -> 404
+    fake2 = FakeSession(single=None)
+    with pytest.raises(HTTPException):
+        await delete_plant(1, fake2)
+    # if present -> returns dict
+    fake3 = FakeSession(single=new)
+    out = await delete_plant(new.id, fake3)
+    assert out == {"message": "Plant deleted successfully"}
+
+@pytest.mark.asyncio
+async def test_delete_plant_success(monkeypatch):
+    """If the plant exists, delete_plant returns the success dict."""
+    p = Plant(id=99, name="A", type="T", growth_stage="G",
+              seeding_date="2020-01-01", region="R", location="L")
+    sess = FakeSession(single=p)
+    out = await delete_plant(99, sess)
+    assert out == {"message":"Plant deleted successfully"}
+
+@pytest.mark.asyncio
+async def test_get_all_plants_db_error(monkeypatch):
+    """If sess.execute raises, get_all_plants should return [] (per implementation)."""
+    class BadSession(FakeSession):
+        async def execute(self, stmt):
+            raise RuntimeError("db is down")
+    sess = BadSession()
+    plants = await get_all_plants(sess)
+    assert plants == []
+
+
+----- tests/test_llm_service.py -----
+# tests/test_llm_service.py
+
+import pytest
+import json
+import asyncio
+from fastapi import HTTPException
+import respx
+from httpx import Response
+
+import app.services.llm as llm
+from app.services.llm import (
+    enhance_query,
+    parse_json_response,
+    parse_ollama_response,
+    parse_openai_response,
+    validate_llm_response,
+    build_dosing_prompt,
+    build_plan_prompt,
+    call_llm_async,
+    direct_ollama_call,
+    OLLAMA_URL,
+)
+
+
+# ─── enhance_query ───────────────────────────────────────────────────────────
+
+def test_enhance_query_adds_context():
+    q = "Adjust dose"
+    profile = {
+        "plant_name": "Rose",
+        "plant_type": "Flower",
+        "growth_stage": "Veg",
+        "seeding_date": "2020",
+        "location": "Farm",
+    }
+    out = enhance_query(q, profile)
+    assert "Please consider that the plant 'Rose'" in out
+
+def test_enhance_query_no_duplicate_location():
+    q = "dose in Farm"
+    profile = {"location": "Farm"}
+    out = enhance_query(q, profile)
+    assert "Please consider that the plant" not in out
+
+
+# ─── parse_json_response ──────────────────────────────────────────────────────
+
+def test_parse_json_response_valid():
+    s = "{ 'a': 1, 'b': 2 } extra"
+    res = parse_json_response(s)
+    assert res == {"a": 1, "b": 2}
+
+def test_parse_json_response_malformed():
+    with pytest.raises(HTTPException):
+        parse_json_response("no json here")
+
+
+# ─── parse_ollama_response ────────────────────────────────────────────────────
+
+def test_parse_ollama_response_removes_think():
+    raw = "<think>debug</think>{\"x\":1}"
+    cleaned = parse_ollama_response(raw)
+    assert cleaned == "{\"x\":1}"
+
+
+# ─── parse_openai_response ───────────────────────────────────────────────────
+
+def test_parse_openai_response_good():
+    raw = "Some text {\"y\":2}\n"
+    out = parse_openai_response(raw)
+    # Should return a JSON string
+    assert out == json.dumps({"y": 2})
+
+def test_parse_openai_response_bad():
+    with pytest.raises(ValueError):
+        parse_openai_response("no json here")
+
+
+# ─── validate_llm_response ────────────────────────────────────────────────────
+
+def test_validate_llm_response_good():
+    data = {
+        "actions": [
+            {
+                "pump_number": 1,
+                "chemical_name": "A",
+                "dose_ml": 10,
+                "reasoning": "ok",
+            }
+        ]
+    }
+    # No exception
+    validate_llm_response(data)
+
+def test_validate_llm_response_missing_actions():
+    with pytest.raises(ValueError):
+        validate_llm_response({})
+
+
+# ─── build_dosing_prompt ─────────────────────────────────────────────────────
+
+class DummyDevice:
+    def __init__(self):
+        self.id = "d1"
+        self.pump_configurations = [
+            {"pump_number": 1, "chemical_name": "Chem", "chemical_description": "Desc"}
+        ]
+
+@pytest.mark.asyncio
+async def test_build_dosing_prompt_contains_all():
+    device = DummyDevice()
+    sensor = {"ph": 6.5, "tds": 300}
+    profile = {
+        "plant_name": "P",
+        "plant_type": "T",
+        "growth_stage": "G",
+        "seeding_date": "2020",
+        "region": "R",
+        "location": "L",
+        "target_ph_min": 5,
+        "target_ph_max": 7,
+        "target_tds_min": 100,
+        "target_tds_max": 500,
+        "dosing_schedule": {},
+    }
+    prompt = await build_dosing_prompt(device, sensor, profile)
+    assert "Pump 1: Chem" in prompt
+    assert "- pH: 6.5" in prompt
+
+
+# ─── build_plan_prompt ───────────────────────────────────────────────────────
+
+@pytest.mark.asyncio
+async def test_build_plan_prompt_with_search(monkeypatch):
+    # stub out fetch_search_results to return one organic result
+    fake = {"organic": [{"title": "T1", "snippet": "S1", "link": "http://l"}]}
+    monkeypatch.setattr(
+        "app.services.llm.fetch_search_results",
+        lambda *args, **kwargs: asyncio.sleep(0, result=fake),
+    )
+    pd = {
+        "plant_name": "X",
+        "plant_type": "Y",
+        "growth_stage": "Z",
+        "seeding_date": "D",
+        "region": "R",
+        "location": "L",
+    }
+    p = await build_plan_prompt({"P": 1, "TDS": 2}, pd, "hello")
+    assert "Title: T1" in p
+    assert "Detailed Search Insights" in p
+
+
+# ─── direct_ollama_call (HTTP) ───────────────────────────────────────────────
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_direct_ollama_call_success(respx_mock):
+    # stub the Ollama endpoint
+    respx_mock.post(OLLAMA_URL).mock(
+        return_value=Response(200, json={"response": "{\"z\":3}"})
+    )
+
+    out = await direct_ollama_call("any prompt", "any-model")
+    assert out == {"z": 3}
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_direct_ollama_call_http_error(respx_mock):
+    respx_mock.post(OLLAMA_URL).mock(return_value=Response(500, json={}))
+
+    with pytest.raises(HTTPException):
+        await direct_ollama_call("prompt", "model")
+
+
+# ─── call_llm_async (HTTP + JSON parsing) ────────────────────────────────────
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_call_llm_async_ollama_via_http(respx_mock):
+    # make sure llm.USE_OLLAMA is True (set in your .env)
+    body = {"model": llm.MODEL_1_5B, "prompt": "hello", "stream": False}
+    stub = {
+        "response": "{\"actions\":[{\"pump_number\":2,\"chemical_name\":\"Foo\",\"dose_ml\":20,\"reasoning\":\"Test\"}]}"
+    }
+    route = respx_mock.post(OLLAMA_URL, json=body).mock(
+        return_value=Response(200, json=stub)
+    )
+
+    parsed, raw = await call_llm_async("hello", llm.MODEL_1_5B)
+    assert isinstance(parsed, dict)
+    assert parsed["actions"][0]["pump_number"] == 2
+    assert raw == stub["response"]
+    assert route.called
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_call_llm_async_ollama_http_error(respx_mock):
+    body = {"model": llm.MODEL_1_5B, "prompt": "hello", "stream": False}
+    respx_mock.post(OLLAMA_URL, json=body).mock(return_value=Response(500, json={}))
+
+    with pytest.raises(HTTPException):
+        await call_llm_async("hello", llm.MODEL_1_5B)
+
+def test_validate_llm_response_bad_dose():
+    bad = {"actions":[{"pump_number":1,"chemical_name":"A","dose_ml":-5,"reasoning":"ok"}]}
+    with pytest.raises(ValueError):
+        validate_llm_response(bad)
+@pytest.mark.asyncio
+async def test_build_plan_prompt_no_search(monkeypatch):
+    """When fetch_search_results returns no 'organic', we still get a prompt with fallback."""
+    monkeypatch.setattr("app.services.llm.fetch_search_results",
+                        lambda *a,**k: asyncio.sleep(0, result={"organic":[]}))
+
+    pd = {"plant_name":"X","plant_type":"Y","growth_stage":"Z",
+          "seeding_date":"D","region":"R","location":"L"}
+    p = await build_plan_prompt({"P":1,"TDS":2}, pd, "query")
+    assert "Detailed Search Insights" in p
+    assert "No additional information available." in p
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_direct_ollama_call_malformed_json(respx_mock):
+    respx_mock.post(OLLAMA_URL).mock(return_value=Response(200, json={"response":"not json"}))
+    with pytest.raises(HTTPException):
+        await direct_ollama_call("p","m")
+
+def test_parse_openai_response_nested_braces():
+    raw = "foo {\"a\": {\"b\":2}} bar"
+    out = parse_openai_response(raw)
+    assert out == json.dumps({"a":{"b":2}})
+
+
+----- tests/test_devices.py -----
+# tests/test_device_controller.py
+import pytest
+import httpx
+from app.services.device_controller import DeviceController, get_device_controller
+
+# ----------------------------------------
+# Helpers for mocking HTTPX AsyncClient
+# ----------------------------------------
+class DummyResponse:
+    def __init__(self, status_code: int, json_data: dict):
+        self.status_code = status_code
+        self._json = json_data
+    def json(self) -> dict:
+        return self._json
+    def raise_for_status(self):
+        if self.status_code >= 400:
+            raise httpx.HTTPStatusError(f"Status code {self.status_code}", request=None, response=self)
+
+class FakeAsyncClient:
+    def __init__(self, responses: dict[str, tuple[int, dict]]):
+        # responses: path suffix -> (status_code, json_data)
+        self._responses = responses
+    async def __aenter__(self):
+        return self
+    async def __aexit__(self, exc_type, exc, tb):
+        pass
+    async def get(self, url: str, *args, **kwargs):
+        for path, (code, data) in self._responses.items():
+            if url.endswith(path):
+                return DummyResponse(code, data)
+        return DummyResponse(404, {})
+    async def post(self, url: str, *args, json=None, **kwargs):
+        for path, (code, data) in self._responses.items():
+            if url.endswith(path):
+                return DummyResponse(code, data)
+        return DummyResponse(404, {})
+
+# ----------------------------------------
+# Global fixture: patch httpx.AsyncClient
+# ----------------------------------------
+@pytest.fixture(autouse=True)
+def patch_async_client(monkeypatch):
+    # Default mock behavior for all endpoints
+    default_responses = {
+        '/discovery': (200, {'device_id': 'dev123', 'type': 'dosing_unit', 'version': '1.2.3'}),
+        '/version': (200, {'version': '2.0.0'}),
+        '/monitor': (200, {'ph': 7.2, 'tds': 450.0}),
+        '/pump': (200, {'message': 'pump executed'}),
+        '/dose_monitor': (200, {'message': 'combined pump executed'}),
+        '/pump_calibration': (200, {'message': 'dosing cancelled'}),
+        '/state': (200, {'device_id': 'valve456', 'valves': [{'id': 1, 'state': 'on'}]}),
+        '/toggle': (200, {'new_state': 'off'}),
+    }
+    monkeypatch.setattr(httpx, 'AsyncClient', lambda *args, **kwargs: FakeAsyncClient(default_responses))
+
+# ----------------------------------------
+# Test cases for discovery
+# ----------------------------------------
+@pytest.mark.asyncio
+async def test_discover_via_discovery_endpoint():
+    """
+    Ensure discover() returns primary discovery JSON when /discovery succeeds.
+    """
+    dc = get_device_controller('http://mock-device')
+    data = await dc.discover()
+    assert data['device_id'] == 'dev123'
+    assert data['type'] == 'dosing_unit'
+    assert data['version'] == '1.2.3'
+    assert data['ip'] == 'http://mock-device'
+
+@pytest.mark.asyncio
+async def test_discover_fallback_to_state_on_discovery_failure(monkeypatch):
+    """
+    Simulate /discovery failure and verify fallback to /state for valve_controller.
+    """
+    # Patch AsyncClient with only /state
+    responses = {'/discovery': (500, {}), '/state': (200, {'device_id': 'valve789', 'valves': [{'id': 2, 'state': 'off'}]})}
+    monkeypatch.setattr(httpx, 'AsyncClient', lambda *args, **kwargs: FakeAsyncClient(responses))
+
+    dc = DeviceController('192.168.0.10')
+    result = await dc.discover()
+    assert result['device_id'] == 'valve789'
+    assert result['type'] == 'valve_controller'
+    assert isinstance(result['valves'], list)
+    assert result['valves'][0]['id'] == 2
+    assert result['ip'] == '192.168.0.10'
+
+# ----------------------------------------
+# Test cases for version endpoint
+# ----------------------------------------
+@pytest.mark.asyncio
+async def test_get_version_prefers_version_endpoint():
+    """
+    get_version() should return /version when available.
+    """
+    dc = get_device_controller('device-ip')
+    version = await dc.get_version()
+    assert version == '2.0.0'
+
+@pytest.mark.asyncio
+async def test_get_version_fallbacks_to_discover_on_error(monkeypatch):
+    """
+    If /version returns error, get_version() should fallback to discover().
+    """
+    responses = {'/version': (404, {}), '/discovery': (200, {'device_id': 'd1', 'version': '3.3.3'})}
+    monkeypatch.setattr(httpx, 'AsyncClient', lambda *args, **kwargs: FakeAsyncClient(responses))
+
+    dc = DeviceController('devip')
+    version = await dc.get_version()
+    assert version == '3.3.3'
+
+# ----------------------------------------
+# Test cases for sensor readings
+# ----------------------------------------
+@pytest.mark.asyncio
+async def test_get_sensor_readings_success():
+    """
+    get_sensor_readings() should parse ph and tds correctly.
+    """
+    dc = get_device_controller('devip')
+    readings = await dc.get_sensor_readings()
+    assert isinstance(readings, dict)
+    assert readings['ph'] == pytest.approx(7.2)
+    assert readings['tds'] == pytest.approx(450.0)
+
+@pytest.mark.asyncio
+async def test_get_sensor_readings_http_error(monkeypatch):
+    """
+    get_sensor_readings() should raise HTTPException on non-200.
+    """
+    responses = {'/monitor': (500, {'error': 'fail'})}
+    monkeypatch.setattr(httpx, 'AsyncClient', lambda *args, **kwargs: FakeAsyncClient(responses))
+
+    dc = DeviceController('devip')
+    with pytest.raises(httpx.HTTPStatusError):
+        await dc.get_sensor_readings()
+
+# ----------------------------------------
+# Test cases for dosing operations
+# ----------------------------------------
+@pytest.mark.asyncio
+async def test_execute_dosing_single_and_combined():
+    """
+    execute_dosing() should call /pump and /dose_monitor based on flag.
+    """
+    dc = get_device_controller('devip')
+    single = await dc.execute_dosing(1, 100)
+    assert single['message'] == 'pump executed'
+    combined = await dc.execute_dosing(2, 50, combined=True)
+    assert combined['message'] == 'combined pump executed'
+
+@pytest.mark.asyncio
+async def test_cancel_dosing_command():
+    """
+    cancel_dosing() should post to /pump_calibration with stop command.
+    """
+    dc = get_device_controller('devip')
+    res = await dc.cancel_dosing()
+    assert res['message'] == 'dosing cancelled'
+
+# ----------------------------------------
+# Test cases for valve state and toggle
+# ----------------------------------------
+@pytest.mark.asyncio
+async def test_get_state_success():
+    """
+    get_state() should fetch full valve state JSON.
+    """
+    dc = get_device_controller('devip')
+    state = await dc.get_state()
+    assert state['device_id'] == 'valve456'
+    assert isinstance(state['valves'], list)
+    assert state['valves'][0]['state'] == 'on'
+
+@pytest.mark.asyncio
+async def test_toggle_valve_success():
+    """
+    toggle_valve() should post to /toggle and return new_state.
+    """
+    dc = get_device_controller('devip')
+    result = await dc.toggle_valve(1)
+    assert 'new_state' in result
+    assert result['new_state'] == 'off'
+
+# ----------------------------------------
+# Test invalid inputs
+# ----------------------------------------
+@pytest.mark.asyncio
+async def test_toggle_valve_invalid_channel(monkeypatch):
+    """
+    toggle_valve() should raise ValueError if channel not in 1-4.
+    """
+    dc = get_device_controller('devip')
+    with pytest.raises(ValueError):
+        # channel 0 is invalid
+        await dc.toggle_valve(0)
+
+@pytest.mark.asyncio
+async def test_get_version_both_fail(monkeypatch):
+    """If both /version and /discovery fail, get_version returns None."""
+    class DR:
+        def __init__(self, code): self.status_code=code
+        def json(self): return {}
+    class FC:
+        async def __aenter__(self): return self
+        async def __aexit__(self,*a): pass
+        async def get(self, path, *a,**k):
+            return DR(500)  # always error
+    monkeypatch.setattr(httpx, 'AsyncClient', lambda *a,**k: FC())
+    dc = DeviceController("10.1.1.1")
+    v = await dc.get_version()
+    assert v is None
+
+@pytest.mark.asyncio
+async def test_execute_dosing_http_error(monkeypatch):
+    """If the /pump endpoint returns 500, execute_dosing raises HTTPStatusError."""
+    # arrange FakeAsyncClient whose /pump returns 500
+    from app.services.device_controller import DeviceController
+    class FR:
+        def __init__(self,*a,**k): pass
+        async def __aenter__(self): return self
+        async def __aexit__(self,*a): pass
+        async def post(self, url, *a, json=None, **k):
+            return DummyResponse(500, {})
+    monkeypatch.setattr(httpx, 'AsyncClient', lambda *a,**k: FR())
+    dc = DeviceController("ip")
+    with pytest.raises(httpx.HTTPStatusError):
+        await dc.execute_dosing(1,100)
+
+@pytest.mark.asyncio
+async def test_toggle_valve_http_error(monkeypatch):
+    """If /toggle returns 500, toggle_valve raises HTTPStatusError."""
+    class FR:
+        def __init__(self,*a,**k): pass
+        async def __aenter__(self): return self
+        async def __aexit__(self,*a): pass
+        async def post(self, url, *a, json=None, **k):
+            return DummyResponse(500,{})
+    from app.services.device_controller import DeviceController
+    monkeypatch.setattr(httpx,'AsyncClient',lambda *a,**k: FR())
+    dc = DeviceController("ip")
+    with pytest.raises(httpx.HTTPStatusError):
+        await dc.toggle_valve(2)
+
+@pytest.mark.asyncio
+async def test_cancel_dosing_success():
+    res = await dm.cancel_dosing("devX","http://x")
+    assert res == {"status":"dosing_cancelled","device_id":"devX","response":{"cancelled":True}}
+
+
+----- tests/test_dose_manager.py -----
+# tests/test_dose_manager.py
+import pytest
+from fastapi import HTTPException
+from app.services.dose_manager import DoseManager
+
+class DummyController:
+    def __init__(self, *args, **kw): pass
+    async def execute_dosing(self, pump, amount, combined=False):
+        return {"ok": True, "pump": pump, "amount": amount, "combined": combined}
+    async def cancel_dosing(self):
+        return {"cancelled": True}
+
+@pytest.fixture(autouse=True)
+def patch_controller(monkeypatch):
+    # replace DeviceController inside DoseManager with our dummy
+    monkeypatch.setattr("app.services.dose_manager.DeviceController", lambda *a, **k: DummyController())
+
+dm = DoseManager()
+
+@pytest.mark.asyncio
+async def test_execute_dosing_empty_actions():
+    with pytest.raises(ValueError):
+        await dm.execute_dosing("dev1", "http://x", [], combined=False)
+
+@pytest.mark.asyncio
+async def test_execute_dosing_missing_fields():
+    # action missing pump or dose
+    with pytest.raises(ValueError):
+        await dm.execute_dosing("dev1", "http://x", [{"foo":1}], combined=True)
+
+@pytest.mark.asyncio
+async def test_execute_dosing_success_single_and_combined():
+    actions = [{"pump_number": 2, "dose_ml": 25}]
+    res = await dm.execute_dosing("dev1", "http://x", actions, combined=False)
+    assert res["status"] == "command_sent"
+    assert res["device_id"] == "dev1"
+    assert res["actions"] == actions
+    # combined
+    res2 = await dm.execute_dosing("dev1", "http://x", actions, combined=True)
+    assert res2["status"] == "command_sent"
+    assert res2["actions"] == actions
+
+@pytest.mark.asyncio
+async def test_cancel_dosing_success():
+    res = await dm.cancel_dosing("dev1", "http://x")
+    assert res["status"] == "dosing_cancelled"
+    assert res["device_id"] == "dev1"
+    assert res["response"] == {"cancelled": True}
+
+@pytest.mark.asyncio
+async def test_cancel_dosing_success():
+    res = await dm.cancel_dosing("devX","http://x")
+    assert res == {"status":"dosing_cancelled","device_id":"devX","response":{"cancelled":True}}
 
 

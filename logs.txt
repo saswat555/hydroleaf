@@ -1,0 +1,371 @@
+2025-07-10 17:13:14,179 - app.main - INFO - GET / • ip=127.0.0.1 • device_id=- • 404 • 1.0ms
+2025-07-10 17:13:14,246 - app.main - INFO - GET /favicon.ico • ip=127.0.0.1 • device_id=- • 404 • 0.6ms
+2025-07-10 17:13:18,706 - app.main - INFO - GET / • ip=127.0.0.1 • device_id=- • 404 • 1.4ms
+2025-07-10 17:13:30,637 - uvicorn.error - INFO - Started server process [47368]
+2025-07-10 17:13:30,637 - uvicorn.error - INFO - Waiting for application startup.
+2025-07-10 17:13:30,665 - uvicorn.error - INFO - Application startup complete.
+2025-07-10 17:13:30,665 - uvicorn.error - INFO - Uvicorn running on http://0.0.0.0:8000 (Press CTRL+C to quit)
+2025-07-10 17:13:38,297 - app.main - INFO - GET / • ip=127.0.0.1 • device_id=- • 404 • 13.1ms
+2025-07-10 17:14:28,202 - uvicorn.error - INFO - Shutting down
+2025-07-10 17:14:28,311 - uvicorn.error - INFO - Waiting for application shutdown.
+2025-07-10 17:14:28,316 - uvicorn.error - INFO - Application shutdown complete.
+2025-07-10 17:14:28,317 - uvicorn.error - INFO - Finished server process [47368]
+2025-07-10 19:02:50,927 - uvicorn.error - INFO - Started server process [48765]
+2025-07-10 19:02:50,928 - uvicorn.error - INFO - Waiting for application startup.
+2025-07-10 19:02:50,991 - uvicorn.error - INFO - Application startup complete.
+2025-07-10 19:02:50,991 - uvicorn.error - INFO - Uvicorn running on http://0.0.0.0:8000 (Press CTRL+C to quit)
+2025-07-10 19:04:11,547 - app.main - INFO - GET /docs • ip=127.0.0.1 • device_id=- • 404 • 1.2ms
+2025-07-10 19:04:11,661 - app.main - INFO - GET /favicon.ico • ip=127.0.0.1 • device_id=- • 404 • 0.6ms
+2025-07-10 19:06:28,318 - uvicorn.error - INFO - Shutting down
+2025-07-10 19:06:28,430 - uvicorn.error - INFO - Waiting for application shutdown.
+2025-07-10 19:06:28,434 - uvicorn.error - INFO - Application shutdown complete.
+2025-07-10 19:06:28,435 - uvicorn.error - INFO - Finished server process [48765]
+2025-07-10 19:11:51,998 - uvicorn.error - INFO - Started server process [49220]
+2025-07-10 19:11:51,998 - uvicorn.error - INFO - Waiting for application startup.
+2025-07-10 19:11:52,051 - uvicorn.error - INFO - Application startup complete.
+2025-07-10 19:11:52,052 - uvicorn.error - INFO - Uvicorn running on http://0.0.0.0:8000 (Press CTRL+C to quit)
+2025-07-10 19:11:54,356 - app.main - INFO - GET /api/v1/docs • ip=127.0.0.1 • device_id=- • 200 • 0.6ms
+2025-07-10 19:11:54,834 - app.main - INFO - GET /api/v1/openapi.json • ip=127.0.0.1 • device_id=- • 200 • 41.4ms
+2025-07-10 19:17:46,704 - uvicorn.error - INFO - Shutting down
+2025-07-10 19:17:46,814 - uvicorn.error - INFO - Waiting for application shutdown.
+2025-07-10 19:17:46,819 - uvicorn.error - INFO - Application shutdown complete.
+2025-07-10 19:17:46,821 - uvicorn.error - INFO - Finished server process [49220]
+2025-07-10 19:37:12,287 - app.services.dose_manager - INFO - Sent dosing commands to device dev1: [{'ok': True, 'pump': 2, 'amount': 25, 'combined': False}]
+2025-07-10 19:37:12,287 - app.services.dose_manager - INFO - Sent dosing commands to device dev1: [{'ok': True, 'pump': 2, 'amount': 25, 'combined': True}]
+2025-07-10 19:37:12,288 - app.services.dose_manager - INFO - Cancellation response for device dev1: {'cancelled': True}
+2025-07-10 19:37:12,296 - app.services.llm - ERROR - No valid JSON block found in OpenAI response: no json here
+2025-07-10 19:37:12,297 - app.services.llm - INFO - Making direct Ollama call to model model with prompt:
+prompt
+2025-07-10 19:37:12,297 - app.services.llm - INFO - Ollama raw completion: {"z":3}
+2025-07-10 19:37:12,299 - app.services.llm - INFO - Making direct Ollama call to model m with prompt:
+p
+2025-07-10 19:37:12,299 - app.services.llm - ERROR - Ollama call failed: HTTPStatusError.__init__() takes 2 positional arguments but 4 were given
+2025-07-10 19:37:12,301 - app.services.llm - INFO - Sending prompt to LLM:
+p
+2025-07-10 19:37:12,301 - app.services.llm - INFO - Raw response from LLM:
+{"actions":[{}]}
+2025-07-10 19:37:12,302 - app.services.llm - INFO - Sending prompt to LLM:
+p
+2025-07-10 19:37:12,302 - app.services.llm - ERROR - No valid JSON block found in cleaned response.
+2025-07-10 19:37:12,302 - app.services.plant_service - INFO - Fetching plants from database...
+2025-07-10 19:37:12,302 - app.services.plant_service - INFO - No plants found, returning an empty list.
+2025-07-10 19:37:12,321 - app.services.plant_service - INFO - Fetching plants from database...
+2025-07-10 19:37:12,321 - app.services.plant_service - INFO - Fetched 2 plants from the database
+2025-07-10 19:50:51,886 - uvicorn.error - INFO - Started server process [51354]
+2025-07-10 19:50:51,886 - uvicorn.error - INFO - Waiting for application startup.
+2025-07-10 19:50:51,949 - uvicorn.error - INFO - Application startup complete.
+2025-07-10 19:50:51,949 - uvicorn.error - INFO - Uvicorn running on http://0.0.0.0:8000 (Press CTRL+C to quit)
+2025-07-10 19:50:55,083 - uvicorn.error - INFO - Shutting down
+2025-07-10 19:50:55,185 - uvicorn.error - INFO - Waiting for application shutdown.
+2025-07-10 19:50:55,188 - uvicorn.error - INFO - Application shutdown complete.
+2025-07-10 19:50:55,189 - uvicorn.error - INFO - Finished server process [51354]
+2025-07-10 19:51:01,826 - app.services.dose_manager - INFO - Sent dosing commands to device dev1: [{'ok': True, 'pump': 2, 'amount': 25, 'combined': False}]
+2025-07-10 19:51:01,827 - app.services.dose_manager - INFO - Sent dosing commands to device dev1: [{'ok': True, 'pump': 2, 'amount': 25, 'combined': True}]
+2025-07-10 19:51:01,827 - app.services.dose_manager - INFO - Cancellation response for device dev1: {'cancelled': True}
+2025-07-10 19:51:01,830 - app.services.llm - ERROR - No valid JSON block found in OpenAI response: no json here
+2025-07-10 19:51:01,831 - app.services.llm - INFO - Making direct Ollama call to model model with prompt:
+prompt
+2025-07-10 19:51:01,831 - app.services.llm - INFO - Ollama raw completion: {"z":3}
+2025-07-10 19:51:01,831 - app.services.llm - INFO - Making direct Ollama call to model m with prompt:
+p
+2025-07-10 19:51:01,831 - app.services.llm - ERROR - Ollama call failed: 500: LLM API HTTP error
+2025-07-10 19:51:01,833 - app.services.llm - INFO - Sending prompt to LLM:
+p
+2025-07-10 19:51:01,833 - app.services.llm - INFO - Raw response from LLM:
+{"actions":[{}]}
+2025-07-10 19:51:01,834 - app.services.llm - INFO - Sending prompt to LLM:
+p
+2025-07-10 19:51:01,834 - app.services.llm - ERROR - No valid JSON block found in cleaned response.
+2025-07-10 19:51:01,835 - app.services.plant_service - INFO - Fetching plants from database...
+2025-07-10 19:51:01,835 - app.services.plant_service - INFO - No plants found, returning an empty list.
+2025-07-10 19:51:01,853 - app.services.plant_service - INFO - Fetching plants from database...
+2025-07-10 19:51:01,853 - app.services.plant_service - INFO - Fetched 2 plants from the database
+2025-07-10 19:55:50,420 - app.services.dose_manager - INFO - Sent dosing commands to device dev1: [{'ok': True, 'pump': 2, 'amount': 25, 'combined': False}]
+2025-07-10 19:55:50,421 - app.services.dose_manager - INFO - Sent dosing commands to device dev1: [{'ok': True, 'pump': 2, 'amount': 25, 'combined': True}]
+2025-07-10 19:55:50,422 - app.services.dose_manager - INFO - Cancellation response for device dev1: {'cancelled': True}
+2025-07-10 19:55:50,424 - app.services.llm - ERROR - No valid JSON block found in OpenAI response: no json here
+2025-07-10 19:55:50,424 - app.services.llm - INFO - Making direct Ollama call to model model with prompt:
+prompt
+2025-07-10 19:55:50,425 - app.services.llm - INFO - Ollama raw completion: {"z":3}
+2025-07-10 19:55:50,425 - app.services.llm - INFO - Making direct Ollama call to model m with prompt:
+p
+2025-07-10 19:55:50,425 - app.services.llm - ERROR - Ollama call failed: 500: LLM API HTTP error
+2025-07-10 19:55:50,426 - app.services.llm - INFO - Sending prompt to LLM:
+p
+2025-07-10 19:55:50,427 - app.services.llm - INFO - Raw response from LLM:
+{"actions":[{}]}
+2025-07-10 19:55:50,427 - app.services.llm - INFO - Sending prompt to LLM:
+p
+2025-07-10 19:55:50,427 - app.services.llm - ERROR - No valid JSON block found in cleaned response.
+2025-07-10 19:55:50,428 - app.services.plant_service - INFO - Fetching plants from database...
+2025-07-10 19:55:50,428 - app.services.plant_service - INFO - No plants found, returning an empty list.
+2025-07-10 19:55:50,447 - app.services.plant_service - INFO - Fetching plants from database...
+2025-07-10 19:55:50,447 - app.services.plant_service - INFO - Fetched 2 plants from the database
+2025-07-10 19:56:13,565 - app.services.device_controller - INFO - Sensor readings from http://devip: {'ph': 7.2, 'tds': 450.0}
+2025-07-10 19:56:13,570 - app.services.dose_manager - INFO - Sent dosing commands to device dev1: [{'ok': True, 'pump': 2, 'amount': 25, 'combined': False}]
+2025-07-10 19:56:13,571 - app.services.dose_manager - INFO - Sent dosing commands to device dev1: [{'ok': True, 'pump': 2, 'amount': 25, 'combined': True}]
+2025-07-10 19:56:13,571 - app.services.dose_manager - INFO - Cancellation response for device dev1: {'cancelled': True}
+2025-07-10 19:56:13,574 - app.services.llm - ERROR - No valid JSON block found in OpenAI response: no json here
+2025-07-10 19:56:13,575 - app.services.llm - INFO - Making direct Ollama call to model model with prompt:
+prompt
+2025-07-10 19:56:13,575 - app.services.llm - INFO - Ollama raw completion: {"z":3}
+2025-07-10 19:56:13,575 - app.services.llm - INFO - Making direct Ollama call to model m with prompt:
+p
+2025-07-10 19:56:13,575 - app.services.llm - ERROR - Ollama call failed: 500: LLM API HTTP error
+2025-07-10 19:56:13,577 - app.services.llm - INFO - Sending prompt to LLM:
+p
+2025-07-10 19:56:13,577 - app.services.llm - INFO - Raw response from LLM:
+{"actions":[{}]}
+2025-07-10 19:56:13,577 - app.services.llm - INFO - Sending prompt to LLM:
+p
+2025-07-10 19:56:13,577 - app.services.llm - ERROR - No valid JSON block found in cleaned response.
+2025-07-10 19:56:13,578 - app.services.plant_service - INFO - Fetching plants from database...
+2025-07-10 19:56:13,578 - app.services.plant_service - INFO - No plants found, returning an empty list.
+2025-07-10 19:56:13,597 - app.services.plant_service - INFO - Fetching plants from database...
+2025-07-10 19:56:13,598 - app.services.plant_service - INFO - Fetched 2 plants from the database
+2025-07-10 20:03:34,386 - app.services.supply_chain_service - ERROR - No valid JSON block found in LLM response.
+2025-07-10 20:03:34,410 - app.services.llm - INFO - Sending prompt to LLM:
+hi
+2025-07-10 20:03:34,410 - app.services.llm - INFO - Raw response from LLM:
+{"actions":[{}]}
+2025-07-10 20:03:34,435 - app.services.device_controller - INFO - Sensor readings from http://devip: {'ph': 7.2, 'tds': 450.0}
+2025-07-10 20:03:34,440 - app.services.dose_manager - INFO - Sent dosing commands to device dev1: [{'ok': True, 'pump': 2, 'amount': 25, 'combined': False}]
+2025-07-10 20:03:34,440 - app.services.dose_manager - INFO - Sent dosing commands to device dev1: [{'ok': True, 'pump': 2, 'amount': 25, 'combined': True}]
+2025-07-10 20:03:34,440 - app.services.dose_manager - INFO - Cancellation response for device dev1: {'cancelled': True}
+2025-07-10 20:03:34,443 - app.services.llm - ERROR - No valid JSON block found in OpenAI response: no json here
+2025-07-10 20:03:34,444 - app.services.llm - INFO - Making direct Ollama call to model model with prompt:
+prompt
+2025-07-10 20:03:34,444 - app.services.llm - INFO - Ollama raw completion: {"z":3}
+2025-07-10 20:03:34,444 - app.services.llm - INFO - Making direct Ollama call to model m with prompt:
+p
+2025-07-10 20:03:34,444 - app.services.llm - ERROR - Ollama call failed: 500: LLM API HTTP error
+2025-07-10 20:03:34,446 - app.services.llm - INFO - Sending prompt to LLM:
+p
+2025-07-10 20:03:34,455 - app.services.llm - INFO - Sending prompt to LLM:
+p
+2025-07-10 20:03:34,463 - app.services.plant_service - INFO - Fetching plants from database...
+2025-07-10 20:03:34,463 - app.services.plant_service - INFO - No plants found, returning an empty list.
+2025-07-10 20:03:34,463 - app.services.plant_service - INFO - Fetching plants from database...
+2025-07-10 20:03:34,464 - app.services.plant_service - INFO - Fetched 2 plants from the database
+2025-07-10 20:07:22,472 - app.services.supply_chain_service - ERROR - No valid JSON block found in LLM response.
+2025-07-10 20:07:22,496 - app.services.llm - INFO - Sending prompt to LLM:
+hi
+2025-07-10 20:07:22,496 - app.services.llm - INFO - Raw response from LLM:
+{"actions":[{}]}
+2025-07-10 20:07:22,520 - app.services.device_controller - INFO - Sensor readings from http://devip: {'ph': 7.2, 'tds': 450.0}
+2025-07-10 20:07:22,525 - app.services.dose_manager - INFO - Sent dosing commands to device dev1: [{'ok': True, 'pump': 2, 'amount': 25, 'combined': False}]
+2025-07-10 20:07:22,526 - app.services.dose_manager - INFO - Sent dosing commands to device dev1: [{'ok': True, 'pump': 2, 'amount': 25, 'combined': True}]
+2025-07-10 20:07:22,526 - app.services.dose_manager - INFO - Cancellation response for device dev1: {'cancelled': True}
+2025-07-10 20:07:22,528 - app.services.llm - ERROR - No valid JSON block found in OpenAI response: no json here
+2025-07-10 20:07:22,531 - app.services.llm - INFO - Making direct Ollama call to model any-model with prompt:
+any prompt
+2025-07-10 20:07:22,551 - httpx - INFO - HTTP Request: POST http://localhost:11434/api/generate "HTTP/1.1 200 OK"
+2025-07-10 20:07:22,551 - app.services.llm - INFO - Ollama raw completion: {"z":3}
+2025-07-10 20:07:22,651 - app.services.llm - INFO - Making direct Ollama call to model model with prompt:
+prompt
+2025-07-10 20:07:22,666 - httpx - INFO - HTTP Request: POST http://localhost:11434/api/generate "HTTP/1.1 500 Internal Server Error"
+2025-07-10 20:07:22,666 - app.services.llm - ERROR - Ollama call failed: 500: LLM API HTTP error
+2025-07-10 20:07:22,668 - app.services.llm - INFO - Sending prompt to LLM:
+hello
+2025-07-10 20:07:22,677 - app.services.llm - INFO - Sending prompt to LLM:
+hello
+2025-07-10 20:07:22,685 - app.services.plant_service - INFO - Fetching plants from database...
+2025-07-10 20:07:22,685 - app.services.plant_service - INFO - No plants found, returning an empty list.
+2025-07-10 20:07:22,685 - app.services.plant_service - INFO - Fetching plants from database...
+2025-07-10 20:07:22,685 - app.services.plant_service - INFO - Fetched 2 plants from the database
+2025-07-10 20:20:43,061 - app.services.supply_chain_service - ERROR - No valid JSON block found in LLM response.
+2025-07-10 20:20:43,066 - app.services.llm - INFO - Sending prompt to LLM:
+hi
+2025-07-10 20:20:43,066 - app.services.llm - INFO - Raw response from LLM:
+{"actions":[{}]}
+2025-07-10 20:20:43,117 - app.services.device_controller - INFO - Sensor readings from http://devip: {'ph': 7.2, 'tds': 450.0}
+2025-07-10 20:20:43,124 - app.services.dose_manager - INFO - Sent dosing commands to device dev1: [{'ok': True, 'pump': 2, 'amount': 25, 'combined': False}]
+2025-07-10 20:20:43,124 - app.services.dose_manager - INFO - Sent dosing commands to device dev1: [{'ok': True, 'pump': 2, 'amount': 25, 'combined': True}]
+2025-07-10 20:20:43,124 - app.services.dose_manager - INFO - Cancellation response for device dev1: {'cancelled': True}
+2025-07-10 20:20:43,127 - app.services.llm - ERROR - No valid JSON block found in OpenAI response: no json here
+2025-07-10 20:20:43,130 - app.services.llm - INFO - Making direct Ollama call to model any-model with prompt:
+any prompt
+2025-07-10 20:20:43,151 - httpx - INFO - HTTP Request: POST http://localhost:11434/api/generate "HTTP/1.1 200 OK"
+2025-07-10 20:20:43,152 - app.services.llm - INFO - Ollama raw completion: {"z":3}
+2025-07-10 20:20:43,158 - app.services.llm - INFO - Making direct Ollama call to model model with prompt:
+prompt
+2025-07-10 20:20:43,175 - httpx - INFO - HTTP Request: POST http://localhost:11434/api/generate "HTTP/1.1 500 Internal Server Error"
+2025-07-10 20:20:43,175 - app.services.llm - ERROR - Ollama call failed: 500: LLM API HTTP error
+2025-07-10 20:20:43,178 - app.services.llm - INFO - Sending prompt to LLM:
+hello
+2025-07-10 20:20:43,187 - app.services.llm - INFO - Sending prompt to LLM:
+hello
+2025-07-10 20:20:43,194 - app.services.plant_service - INFO - Fetching plants from database...
+2025-07-10 20:20:43,194 - app.services.plant_service - INFO - No plants found, returning an empty list.
+2025-07-10 20:20:43,195 - app.services.plant_service - INFO - Fetching plants from database...
+2025-07-10 20:20:43,195 - app.services.plant_service - INFO - Fetched 2 plants from the database
+2025-07-10 20:26:23,511 - app.services.supply_chain_service - ERROR - No valid JSON block found in LLM response.
+2025-07-10 20:26:23,516 - app.services.llm - INFO - Sending prompt to LLM:
+hi
+2025-07-10 20:26:23,516 - app.services.llm - INFO - Raw response from LLM:
+{"actions":[{}]}
+2025-07-10 20:26:23,561 - app.services.supply_chain_service - ERROR - JSON Parsing Error: Extra data: line 1 column 9 (char 8). Response: prefix {"a":1} middle {"b":2} suffix
+2025-07-10 20:26:23,571 - app.services.llm - INFO - Sending prompt to LLM:
+foo
+2025-07-10 20:26:23,588 - app.services.device_controller - INFO - Sensor readings from http://devip: {'ph': 7.2, 'tds': 450.0}
+2025-07-10 20:26:23,594 - app.services.dose_manager - INFO - Sent dosing commands to device dev1: [{'ok': True, 'pump': 2, 'amount': 25, 'combined': False}]
+2025-07-10 20:26:23,594 - app.services.dose_manager - INFO - Sent dosing commands to device dev1: [{'ok': True, 'pump': 2, 'amount': 25, 'combined': True}]
+2025-07-10 20:26:23,594 - app.services.dose_manager - INFO - Cancellation response for device dev1: {'cancelled': True}
+2025-07-10 20:26:23,597 - app.services.llm - ERROR - No valid JSON block found in OpenAI response: no json here
+2025-07-10 20:26:23,599 - app.services.llm - INFO - Making direct Ollama call to model any-model with prompt:
+any prompt
+2025-07-10 20:26:23,619 - httpx - INFO - HTTP Request: POST http://localhost:11434/api/generate "HTTP/1.1 200 OK"
+2025-07-10 20:26:23,619 - app.services.llm - INFO - Ollama raw completion: {"z":3}
+2025-07-10 20:26:23,625 - app.services.llm - INFO - Making direct Ollama call to model model with prompt:
+prompt
+2025-07-10 20:26:23,641 - httpx - INFO - HTTP Request: POST http://localhost:11434/api/generate "HTTP/1.1 500 Internal Server Error"
+2025-07-10 20:26:23,641 - app.services.llm - ERROR - Ollama call failed: 500: LLM API HTTP error
+2025-07-10 20:26:23,642 - app.services.llm - INFO - Sending prompt to LLM:
+hello
+2025-07-10 20:26:23,643 - app.services.llm - INFO - Making direct Ollama call to model deepseek-r1:1.5b with prompt:
+hello
+2025-07-10 20:26:23,658 - httpx - INFO - HTTP Request: POST http://localhost:11434/api/generate "HTTP/1.1 200 OK"
+2025-07-10 20:26:23,658 - app.services.llm - INFO - Ollama raw completion: {"actions":[{"pump_number":2,"chemical_name":"Foo","dose_ml":20,"reasoning":"Test"}]}
+2025-07-10 20:26:23,669 - app.services.llm - INFO - Sending prompt to LLM:
+hello
+2025-07-10 20:26:23,669 - app.services.llm - INFO - Making direct Ollama call to model deepseek-r1:1.5b with prompt:
+hello
+2025-07-10 20:26:23,684 - httpx - INFO - HTTP Request: POST http://localhost:11434/api/generate "HTTP/1.1 500 Internal Server Error"
+2025-07-10 20:26:23,684 - app.services.llm - ERROR - Ollama call failed: 500: LLM API HTTP error
+2025-07-10 20:26:23,686 - app.services.plant_service - INFO - Fetching plants from database...
+2025-07-10 20:26:23,686 - app.services.plant_service - INFO - No plants found, returning an empty list.
+2025-07-10 20:26:23,687 - app.services.plant_service - INFO - Fetching plants from database...
+2025-07-10 20:26:23,687 - app.services.plant_service - INFO - Fetched 2 plants from the database
+2025-07-10 20:29:25,778 - app.services.supply_chain_service - ERROR - No valid JSON block found in LLM response.
+2025-07-10 20:29:25,783 - app.services.llm - INFO - Sending prompt to LLM:
+hi
+2025-07-10 20:29:25,783 - app.services.llm - INFO - Raw response from LLM:
+{"actions":[{}]}
+2025-07-10 20:29:25,826 - app.services.supply_chain_service - ERROR - JSON Parsing Error: Extra data: line 1 column 9 (char 8). Response: prefix {"a":1} middle {"b":2} suffix
+2025-07-10 20:29:25,838 - app.services.llm - INFO - Sending prompt to LLM:
+foo
+2025-07-10 20:29:25,857 - app.services.device_controller - INFO - Sensor readings from http://devip: {'ph': 7.2, 'tds': 450.0}
+2025-07-10 20:29:25,867 - app.services.dose_manager - INFO - Sent dosing commands to device dev1: [{'ok': True, 'pump': 2, 'amount': 25, 'combined': False}]
+2025-07-10 20:29:25,867 - app.services.dose_manager - INFO - Sent dosing commands to device dev1: [{'ok': True, 'pump': 2, 'amount': 25, 'combined': True}]
+2025-07-10 20:29:25,868 - app.services.dose_manager - INFO - Cancellation response for device devX: {'cancelled': True}
+2025-07-10 20:29:25,871 - app.services.llm - ERROR - No valid JSON block found in OpenAI response: no json here
+2025-07-10 20:29:25,874 - app.services.llm - INFO - Making direct Ollama call to model any-model with prompt:
+any prompt
+2025-07-10 20:29:25,893 - httpx - INFO - HTTP Request: POST http://localhost:11434/api/generate "HTTP/1.1 200 OK"
+2025-07-10 20:29:25,893 - app.services.llm - INFO - Ollama raw completion: {"z":3}
+2025-07-10 20:29:25,899 - app.services.llm - INFO - Making direct Ollama call to model model with prompt:
+prompt
+2025-07-10 20:29:25,913 - httpx - INFO - HTTP Request: POST http://localhost:11434/api/generate "HTTP/1.1 500 Internal Server Error"
+2025-07-10 20:29:25,914 - app.services.llm - ERROR - Ollama call failed: 500: LLM API HTTP error
+2025-07-10 20:29:25,915 - app.services.llm - INFO - Sending prompt to LLM:
+hello
+2025-07-10 20:29:25,915 - app.services.llm - INFO - Making direct Ollama call to model deepseek-r1:1.5b with prompt:
+hello
+2025-07-10 20:29:25,930 - httpx - INFO - HTTP Request: POST http://localhost:11434/api/generate "HTTP/1.1 200 OK"
+2025-07-10 20:29:25,930 - app.services.llm - INFO - Ollama raw completion: {"actions":[{"pump_number":2,"chemical_name":"Foo","dose_ml":20,"reasoning":"Test"}]}
+2025-07-10 20:29:26,010 - app.services.llm - INFO - Sending prompt to LLM:
+hello
+2025-07-10 20:29:26,010 - app.services.llm - INFO - Making direct Ollama call to model deepseek-r1:1.5b with prompt:
+hello
+2025-07-10 20:29:26,025 - httpx - INFO - HTTP Request: POST http://localhost:11434/api/generate "HTTP/1.1 500 Internal Server Error"
+2025-07-10 20:29:26,025 - app.services.llm - ERROR - Ollama call failed: 500: LLM API HTTP error
+2025-07-10 20:29:26,028 - app.services.llm - INFO - Making direct Ollama call to model m with prompt:
+p
+2025-07-10 20:29:26,043 - httpx - INFO - HTTP Request: POST http://localhost:11434/api/generate "HTTP/1.1 200 OK"
+2025-07-10 20:29:26,043 - app.services.llm - INFO - Ollama raw completion: not json
+2025-07-10 20:29:26,043 - app.services.llm - ERROR - Malformed JSON from Ollama: not json
+2025-07-10 20:29:26,043 - app.services.llm - ERROR - Ollama call failed: 500: Invalid JSON from LLM service
+2025-07-10 20:29:26,045 - app.services.plant_service - INFO - Fetching plants from database...
+2025-07-10 20:29:26,045 - app.services.plant_service - INFO - No plants found, returning an empty list.
+2025-07-10 20:29:26,046 - app.services.plant_service - INFO - Fetching plants from database...
+2025-07-10 20:29:26,046 - app.services.plant_service - INFO - Fetched 2 plants from the database
+2025-07-10 20:29:26,050 - app.services.plant_service - INFO - Fetching plants from database...
+2025-07-10 20:29:26,051 - app.services.plant_service - ERROR - Database query failed: db is down
+2025-07-10 20:29:56,669 - app.services.supply_chain_service - ERROR - No valid JSON block found in LLM response.
+2025-07-10 20:29:56,674 - app.services.llm - INFO - Sending prompt to LLM:
+hi
+2025-07-10 20:29:56,674 - app.services.llm - INFO - Raw response from LLM:
+{"actions":[{}]}
+2025-07-10 20:29:56,716 - app.services.supply_chain_service - ERROR - JSON Parsing Error: Extra data: line 1 column 9 (char 8). Response: prefix {"a":1} middle {"b":2} suffix
+2025-07-10 20:29:56,726 - app.services.llm - INFO - Sending prompt to LLM:
+foo
+2025-07-10 20:29:56,742 - app.services.device_controller - INFO - Sensor readings from http://devip: {'ph': 7.2, 'tds': 450.0}
+2025-07-10 20:29:56,752 - app.services.dose_manager - INFO - Sent dosing commands to device dev1: [{'ok': True, 'pump': 2, 'amount': 25, 'combined': False}]
+2025-07-10 20:29:56,753 - app.services.dose_manager - INFO - Sent dosing commands to device dev1: [{'ok': True, 'pump': 2, 'amount': 25, 'combined': True}]
+2025-07-10 20:29:56,753 - app.services.dose_manager - INFO - Cancellation response for device devX: {'cancelled': True}
+2025-07-10 20:29:56,756 - app.services.llm - ERROR - No valid JSON block found in OpenAI response: no json here
+2025-07-10 20:29:56,758 - app.services.llm - INFO - Making direct Ollama call to model any-model with prompt:
+any prompt
+2025-07-10 20:29:56,778 - httpx - INFO - HTTP Request: POST http://localhost:11434/api/generate "HTTP/1.1 200 OK"
+2025-07-10 20:29:56,778 - app.services.llm - INFO - Ollama raw completion: {"z":3}
+2025-07-10 20:29:56,784 - app.services.llm - INFO - Making direct Ollama call to model model with prompt:
+prompt
+2025-07-10 20:29:56,800 - httpx - INFO - HTTP Request: POST http://localhost:11434/api/generate "HTTP/1.1 500 Internal Server Error"
+2025-07-10 20:29:56,800 - app.services.llm - ERROR - Ollama call failed: 500: LLM API HTTP error
+2025-07-10 20:29:56,801 - app.services.llm - INFO - Sending prompt to LLM:
+hello
+2025-07-10 20:29:56,802 - app.services.llm - INFO - Making direct Ollama call to model deepseek-r1:1.5b with prompt:
+hello
+2025-07-10 20:29:56,817 - httpx - INFO - HTTP Request: POST http://localhost:11434/api/generate "HTTP/1.1 200 OK"
+2025-07-10 20:29:56,817 - app.services.llm - INFO - Ollama raw completion: {"actions":[{"pump_number":2,"chemical_name":"Foo","dose_ml":20,"reasoning":"Test"}]}
+2025-07-10 20:29:56,828 - app.services.llm - INFO - Sending prompt to LLM:
+hello
+2025-07-10 20:29:56,828 - app.services.llm - INFO - Making direct Ollama call to model deepseek-r1:1.5b with prompt:
+hello
+2025-07-10 20:29:56,843 - httpx - INFO - HTTP Request: POST http://localhost:11434/api/generate "HTTP/1.1 500 Internal Server Error"
+2025-07-10 20:29:56,843 - app.services.llm - ERROR - Ollama call failed: 500: LLM API HTTP error
+2025-07-10 20:29:56,846 - app.services.llm - INFO - Making direct Ollama call to model m with prompt:
+p
+2025-07-10 20:29:56,861 - httpx - INFO - HTTP Request: POST http://localhost:11434/api/generate "HTTP/1.1 200 OK"
+2025-07-10 20:29:56,861 - app.services.llm - INFO - Ollama raw completion: not json
+2025-07-10 20:29:56,861 - app.services.llm - ERROR - Malformed JSON from Ollama: not json
+2025-07-10 20:29:56,861 - app.services.llm - ERROR - Ollama call failed: 500: Invalid JSON from LLM service
+2025-07-10 20:29:56,863 - app.services.plant_service - INFO - Fetching plants from database...
+2025-07-10 20:29:56,863 - app.services.plant_service - INFO - No plants found, returning an empty list.
+2025-07-10 20:29:56,864 - app.services.plant_service - INFO - Fetching plants from database...
+2025-07-10 20:29:56,864 - app.services.plant_service - INFO - Fetched 2 plants from the database
+2025-07-10 20:29:56,869 - app.services.plant_service - INFO - Fetching plants from database...
+2025-07-10 20:29:56,869 - app.services.plant_service - ERROR - Database query failed: db is down
+2025-07-10 20:32:05,748 - uvicorn.error - INFO - Started server process [55301]
+2025-07-10 20:32:05,749 - uvicorn.error - INFO - Waiting for application startup.
+2025-07-10 20:32:06,049 - uvicorn.error - INFO - Application startup complete.
+2025-07-10 20:32:06,051 - uvicorn.error - INFO - Uvicorn running on http://0.0.0.0:8000 (Press CTRL+C to quit)
+2025-07-10 20:32:08,682 - uvicorn.error - INFO - Shutting down
+2025-07-10 20:32:08,785 - uvicorn.error - INFO - Finished server process [55301]
+2025-07-10 20:32:08,796 - uvicorn.error - ERROR - Traceback (most recent call last):
+  File "/opt/homebrew/anaconda3/lib/python3.12/asyncio/runners.py", line 194, in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+  File "/opt/homebrew/anaconda3/lib/python3.12/asyncio/runners.py", line 118, in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "uvloop/loop.pyx", line 1512, in uvloop.loop.Loop.run_until_complete
+  File "uvloop/loop.pyx", line 1505, in uvloop.loop.Loop.run_until_complete
+  File "uvloop/loop.pyx", line 1379, in uvloop.loop.Loop.run_forever
+  File "uvloop/loop.pyx", line 557, in uvloop.loop.Loop._run
+  File "uvloop/loop.pyx", line 476, in uvloop.loop.Loop._on_idle
+  File "uvloop/cbhandles.pyx", line 83, in uvloop.loop.Handle._run
+  File "uvloop/cbhandles.pyx", line 63, in uvloop.loop.Handle._run
+  File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/uvicorn/server.py", line 69, in serve
+    with self.capture_signals():
+         ^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/homebrew/anaconda3/lib/python3.12/contextlib.py", line 144, in __exit__
+    next(self.gen)
+  File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/uvicorn/server.py", line 330, in capture_signals
+    signal.raise_signal(captured_signal)
+  File "/opt/homebrew/anaconda3/lib/python3.12/asyncio/runners.py", line 157, in _on_sigint
+    raise KeyboardInterrupt()
+KeyboardInterrupt
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/starlette/routing.py", line 699, in lifespan
+    await receive()
+  File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/uvicorn/lifespan/on.py", line 137, in receive
+    return await self.receive_queue.get()
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/homebrew/anaconda3/lib/python3.12/asyncio/queues.py", line 158, in get
+    await getter
+asyncio.exceptions.CancelledError
+
