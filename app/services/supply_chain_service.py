@@ -1,6 +1,6 @@
 import os
 import asyncio
-import json
+import json, ast
 import logging
 import re
 from datetime import datetime
@@ -8,7 +8,7 @@ from fastapi import HTTPException
 from typing import Dict, Any, Tuple, Union, List
 import httpx
 from sqlalchemy.ext.asyncio import AsyncSession
-
+from app.services.llm import _first_json_block
 from app.models import SupplyChainAnalysis, ConversationLog
 from app.services.serper import fetch_search_results
 
@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 # Production-level configuration via environment variables
 OLLAMA_URL = os.getenv("OLLAMA_URL", "http://localhost:11434/api/generate")
 MODEL_1_5B = os.getenv("MODEL_1_5B", "deepseek-r1:1.5b")
-MODEL_7B = os.getenv("MODEL_7B", "gemma3")
+MODEL_7B = os.getenv("MODEL_7B", "deepseek-r1:1.5b")
 LLM_REQUEST_TIMEOUT = int(os.getenv("LLM_REQUEST_TIMEOUT", "300"))
 
 def extract_json_from_response(response_text: str) -> Dict:
@@ -186,3 +186,14 @@ async def fetch_and_average_value(query: str) -> float:
         return 2.5
     return 0.0
 
+def extract_json_from_response(raw: str):
+    block = _first_json_block(raw)
+    if block is None:
+        raise HTTPException(status_code=400, detail="No JSON found")
+    try:
+        return json.loads(block)
+    except json.JSONDecodeError:
+        try:
+            return ast.literal_eval(block)
+        except Exception:
+            raise HTTPException(status_code=400, detail="Malformed JSON") from None

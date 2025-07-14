@@ -6,10 +6,10 @@ from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy import select
-from app.models import ActivationKey, CameraToken, Device, DosingDeviceToken, Subscription, SubscriptionPlan, SwitchDeviceToken, User, Admin, ValveDeviceToken
+from app.models import ActivationKey, CameraToken, Device, Subscription, SubscriptionPlan, User, Admin
 from app.core.database import get_db
 from sqlalchemy.ext.asyncio import AsyncSession
-
+from app.models import DeviceType, DeviceToken
 bearer_scheme = HTTPBearer() 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login")
 ALGORITHM = "HS256"
@@ -107,48 +107,31 @@ async def verify_camera_token(
         )
     return camera_id
 
-async def verify_dosing_device_token(
+async def verify_device_token(
     creds: HTTPAuthorizationCredentials = Depends(bearer_scheme),
-    db=Depends(get_db),
+    db: AsyncSession = Depends(get_db),
+    *,
+    expected_type: DeviceType | None = None
 ) -> str:
     """
-    Validates a dosing-unit’s bearer token and returns its device_id.
+    Validate a bearer token in `device_tokens`.
+    Optionally assert that the stored device_type matches `expected_type`.
+    Returns the device_id.
     """
-    token = creds.credentials
     tok = await db.scalar(
-        select(DosingDeviceToken).where(DosingDeviceToken.token == token)
+        select(DeviceToken).where(DeviceToken.token == creds.credentials)
     )
     if not tok:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid dosing device token")
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid device token")
+    if expected_type:
+        exp_val = expected_type.value if isinstance(expected_type, DeviceType) else str(expected_type)
+        tok_val = tok.device_type.value if isinstance(tok.device_type, DeviceType) else str(tok.device_type)
+        if tok_val != exp_val:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Token/device type mismatch"
+            )
+    if tok.expires_at and tok.expires_at < datetime.now(timezone.utc):
+        raise HTTPException(status_code=401, detail="Device token expired")
     return tok.device_id
 
-async def verify_valve_device_token(
-    creds: HTTPAuthorizationCredentials = Depends(bearer_scheme),
-    db=Depends(get_db),
-) -> str:
-    """
-    Validates a valve-controller’s bearer token and returns its device_id.
-    """
-    token = creds.credentials
-    tok = await db.scalar(
-        select(ValveDeviceToken).where(ValveDeviceToken.token == token)
-    )
-    if not tok:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid valve device token")
-    return tok.device_id
-
-
-async def verify_switch_device_token(
-    creds: HTTPAuthorizationCredentials = Depends(bearer_scheme),
-    db=Depends(get_db),
-) -> str:
-    """
-    Validates a smart-switch’s bearer token and returns its device_id.
-    """
-    token = creds.credentials
-    tok = await db.scalar(
-        select(SwitchDeviceToken).where(SwitchDeviceToken.token == token)
-    )
-    if not tok:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid switch device token")
-    return tok.device_id

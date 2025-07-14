@@ -34,13 +34,13 @@ async def login(form_data: OAuth2PasswordRequestForm = Depends(), db=Depends(get
         raise HTTPException(status_code=400, detail="Invalid credentials")
 
     # 4) Issue JWT
-    token_data = {
-        "user_id": user.id,
-        "role":    user.role,
-        "exp":     datetime.datetime.utcnow() + datetime.timedelta(hours=1)
+    token_data = {"user_id": user.id, "role": user.role, "exp": datetime.datetime.utcnow() + datetime.timedelta(hours=1)}
+    jwt_token  = jwt.encode(token_data, SECRET_KEY, algorithm=ALGORITHM)
+    return {
+        "access_token": jwt_token,
+        "token_type":   "bearer",
+        "user":         UserResponse.from_orm(user),
     }
-    token = jwt.encode(token_data, SECRET_KEY, algorithm=ALGORITHM)
-    return {"access_token": token, "token_type": "bearer"}
 
 
 @router.post("/signup", response_model=AuthResponse)

@@ -1,105 +1,147 @@
 # app/routers/admin.py
+"""
+Admin-only endpoints for Hydroleaf Cloud.
 
+Changes in this revision
+────────────────────────
+• Uses the *unified* `device_tokens` table – no more separate tables for each
+  device type.
+• Keeps the previous functionality (device & camera listings, image download,
+  remote switch toggle) but modernises a few rough edges.
+"""
+
+from __future__ import annotations
+
+import httpx
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import List
 
 from fastapi import APIRouter, Body, Depends, HTTPException, Query
 from fastapi.responses import FileResponse
-import httpx
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.future import select
 
 from app.core.config import DATA_ROOT, PROCESSED_DIR, RAW_DIR
 from app.core.database import get_db
 from app.dependencies import get_current_admin
-from app.models import Device, Camera, DosingDeviceToken, SwitchDeviceToken, ValveDeviceToken
-from app.schemas import DeviceResponse, CameraReportResponse, DeviceType
+from app.models import Device, DeviceToken, DeviceType
+from app.schemas import DeviceResponse, CameraReportResponse
 
+# ─────────────────────────────────────────────────────────────────────────────
 router = APIRouter(
     prefix="/admin",
     tags=["admin"],
-    dependencies=[Depends(get_current_admin)]
+    dependencies=[Depends(get_current_admin)],
 )
-
+# ─────────────────────────────────────────────────────────────────────────────
+# Device listings
+# ─────────────────────────────────────────────────────────────────────────────
 @router.get(
     "/devices/dosing",
-    response_model=list[DeviceResponse],
-    summary="List all dosing‐unit devices"
+    response_model=List[DeviceResponse],
+    summary="List all dosing-unit devices",
 )
 async def list_dosing_devices(db: AsyncSession = Depends(get_db)):
-    q = await db.execute(
-        select(Device).where(Device.type == DeviceType.DOSING_UNIT)
-    )
-    return q.scalars().all()
+    rows = await db.execute(select(Device).where(Device.type == DeviceType.DOSING_UNIT))
+    return rows.scalars().all()
+
 
 @router.get(
     "/devices/valves",
-    response_model=list[DeviceResponse],
-    summary="List all valve‐controller devices"
+    response_model=List[DeviceResponse],
+    summary="List all valve-controller devices",
 )
 async def list_valve_devices(db: AsyncSession = Depends(get_db)):
-    q = await db.execute(
+    rows = await db.execute(
         select(Device).where(Device.type == DeviceType.VALVE_CONTROLLER)
     )
-    return q.scalars().all()
+    return rows.scalars().all()
+
 
 @router.get(
     "/devices/switches",
-    response_model=list[DeviceResponse],
-    summary="List all smart‐switch devices"
+    response_model=List[DeviceResponse],
+    summary="List all smart-switch devices",
 )
 async def list_switch_devices(db: AsyncSession = Depends(get_db)):
-    q = await db.execute(
+    rows = await db.execute(
         select(Device).where(Device.type == DeviceType.SMART_SWITCH)
     )
-    return q.scalars().all()
+    return rows.scalars().all()
+
+
+@router.get(
+    "/devices/all",
+    response_model=List[DeviceResponse],
+    summary="List every registered device (all types)",
+)
+async def list_all_devices(db: AsyncSession = Depends(get_db)):
+    rows = await db.execute(select(Device))
+    return rows.scalars().all()
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Tokens
+# ─────────────────────────────────────────────────────────────────────────────
+@router.get(
+    "/devices/authenticated",
+    summary="List devices that currently hold a device token",
+)
+async def list_authenticated_devices(db: AsyncSession = Depends(get_db)):
+    rows = await db.execute(select(DeviceToken))
+    return [
+        {
+            "device_id": tok.device_id,
+            "token": tok.token,
+            "issued_at": tok.issued_at.isoformat()
+            if isinstance(tok.issued_at, datetime)
+            else tok.issued_at,
+        }
+        for tok in rows.scalars().all()
+    ]
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Camera helpers
+# ─────────────────────────────────────────────────────────────────────────────
 @router.get(
     "/cameras/list",
-    response_model=list[CameraReportResponse],
-    summary="List all registered cameras"
+    response_model=List[CameraReportResponse],
+    summary="List every camera that has stored frames",
 )
-async def list_registered_cameras(db: AsyncSession = Depends(get_db)):
-    """
-    List all camera IDs that have a folder under DATA_ROOT.
-    """
+async def list_registered_cameras():
     root = Path(DATA_ROOT)
     if not root.exists():
         raise HTTPException(404, "Camera data root not found")
-    cameras = []
-    # any directory under DATA_ROOT is a camera
+
+    cameras: list[CameraReportResponse] = []
     for cam_dir in sorted(root.iterdir()):
         if not cam_dir.is_dir():
             continue
-        cameras.append(CameraReportResponse(
-            camera_id=cam_dir.name,
-            detections=[],
-        ))
+        cameras.append(
+            CameraReportResponse(camera_id=cam_dir.name, detections=[])
+        )
     return cameras
 
 
 @router.get(
     "/cameras/streams",
-    summary="List all camera IDs and their last stream time"
+    summary="Last streamed frame time for each camera",
 )
 async def list_camera_stream_times():
-    """
-    For each camera folder under DATA_ROOT, return its most recent processed frame timestamp
-    (or latest.jpg if no processed frames exist).
-    """
     root = Path(DATA_ROOT)
     if not root.exists():
         raise HTTPException(404, "Camera data root not found")
 
-    output = []
+    output: list[dict] = []
     for cam_dir in sorted(root.iterdir()):
         if not cam_dir.is_dir():
             continue
 
-        # try processed frames first
-        proc = cam_dir / PROCESSED_DIR
-        frames = list(proc.glob("*.jpg")) if proc.exists() else []
+        processed = cam_dir / PROCESSED_DIR
+        frames = list(processed.glob("*.jpg")) if processed.exists() else []
 
-        # fallback to latest.jpg
         if not frames:
             latest = cam_dir / "latest.jpg"
             if latest.exists():
@@ -109,111 +151,87 @@ async def list_camera_stream_times():
             continue
 
         newest = max(frames, key=lambda f: f.stat().st_mtime)
-        ts = datetime.fromtimestamp(newest.stat().st_mtime, timezone.utc).isoformat()
-        output.append({
-            "camera_id": cam_dir.name,
-            "last_stream_time": ts
-        })
+        ts = datetime.fromtimestamp(
+            newest.stat().st_mtime, timezone.utc
+        ).isoformat()
+        output.append({"camera_id": cam_dir.name, "last_stream_time": ts})
 
     return output
 
-@router.get(
-    "/devices/all",
-    response_model=list[DeviceResponse],
-    summary="List every registered device"
-)
-async def list_all_devices(db: AsyncSession = Depends(get_db)):
-    result = await db.execute(select(Device))
-    return result.scalars().all()
 
-# ─── NEW: List devices that have a *device token* (i.e. have authenticated) ─
-@router.get(
-    "/devices/authenticated",
-    summary="List devices which hold an active device token"
-)
-async def list_authenticated_devices(db: AsyncSession = Depends(get_db)):
-    async def fetch_tokens(model):
-        rows = (await db.execute(select(model))).scalars().all()
-        return [
-            {
-                "device_id": row.device_id,
-                "token":      row.token,
-                "issued_at":  row.issued_at.isoformat() if isinstance(row.issued_at, datetime) else row.issued_at
-            }
-            for row in rows
-        ]
-
-    dosing_tokens  = await fetch_tokens(DosingDeviceToken)
-    valve_tokens   = await fetch_tokens(ValveDeviceToken)
-    switch_tokens  = await fetch_tokens(SwitchDeviceToken)
-
-    return {
-        "dosing_unit_tokens": dosing_tokens,
-        "valve_controller_tokens": valve_tokens,
-        "smart_switch_tokens": switch_tokens,
-    }
-
+# ─────────────────────────────────────────────────────────────────────────────
+# Image search & download
+# ─────────────────────────────────────────────────────────────────────────────
 @router.get(
     "/images",
-    summary="List all frames between two timestamps"
+    summary="List every frame captured between two timestamps",
 )
 async def list_images(
-    start: datetime = Query(..., description="ISO start time"),
-    end:   datetime = Query(..., description="ISO end time")
+    start: datetime = Query(..., description="Start (ISO-8601)"),
+    end: datetime = Query(..., description="End (ISO-8601)"),
 ):
-    """
-    Returns a list of { camera_id, filename, timestamp, processed:bool } for every
-    frame in RAW_DIR whose timestamp ∈ [start, end].
-    """
-    out = []
     root = Path(DATA_ROOT)
+    out: list[dict] = []
+
     for cam_dir in sorted(root.iterdir()):
-        if not cam_dir.is_dir(): continue
+        if not cam_dir.is_dir():
+            continue
         raw = cam_dir / RAW_DIR
         for img in raw.glob("*.jpg"):
-            ts = datetime.fromtimestamp(int(img.stem)/1000, tz=start.tzinfo)
+            ts = datetime.fromtimestamp(int(img.stem) / 1000, tz=start.tzinfo)
             if start <= ts <= end:
-                proc = cam_dir / PROCESSED_DIR / img.name
-                out.append({
-                    "camera_id":  cam_dir.name,
-                    "filename":   img.name,
-                    "timestamp":  ts,
-                    "processed":  proc.exists(),
-                })
+                processed = cam_dir / PROCESSED_DIR / img.name
+                out.append(
+                    {
+                        "camera_id": cam_dir.name,
+                        "filename": img.name,
+                        "timestamp": ts,
+                        "processed": processed.exists(),
+                    }
+                )
     return out
+
 
 @router.get(
     "/images/{camera_id}/{filename}",
-    summary="Download a frame (processed if available)"
+    summary="Download a raw or processed frame",
 )
 async def download_image(camera_id: str, filename: str):
     base = Path(DATA_ROOT) / camera_id
-    proc = base / PROCESSED_DIR / filename
-    raw  = base / RAW_DIR       / filename
-    if proc.exists():
-        return FileResponse(proc, media_type="image/jpeg", filename=filename)
+    processed = base / PROCESSED_DIR / filename
+    raw = base / RAW_DIR / filename
+
+    if processed.exists():
+        return FileResponse(processed, media_type="image/jpeg", filename=filename)
     if raw.exists():
         return FileResponse(raw, media_type="image/jpeg", filename=filename)
     raise HTTPException(404, "Image not found")
 
-router.post(
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Remote actions – smart switch only
+# ─────────────────────────────────────────────────────────────────────────────
+@router.post(
     "/devices/{device_id}/switch/toggle",
-    summary="(Admin) Toggle smart switch channel",
+    summary="(Admin) Toggle a smart-switch channel",
 )
 async def admin_toggle_switch(
     device_id: str,
-    channel:    int = Body(..., embed=True),
-    db: AsyncSession = Depends(get_db)
+    channel: int = Body(..., embed=True, ge=1, le=8),
+    db: AsyncSession = Depends(get_db),
 ):
     """
-    Admin endpoint that uses the device’s own HTTP endpoint to toggle a channel.
+    Sends a *direct* HTTP request to a smart-switch's local endpoint.  
+    Primarily used for diagnostics and emergency actions.
     """
     dev = await db.get(Device, device_id)
     if not dev or dev.type != DeviceType.SMART_SWITCH:
         raise HTTPException(404, "Smart switch not found")
+
     # forward the toggle
     async with httpx.AsyncClient() as client:
-        r = await client.post(f"{dev.http_endpoint.rstrip('/')}/toggle", json={"channel":channel})
+        r = await client.post(
+            f"{dev.http_endpoint.rstrip('/')}/toggle", json={"channel": channel}
+        )
         r.raise_for_status()
-        data = r.json()
-    return data
+        return r.json()

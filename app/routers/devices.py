@@ -19,7 +19,6 @@ from app.models import Device, Subscription, User
 from app.dependencies import get_current_user
 from app.core.database import get_db
 from app.services.device_controller import DeviceController
-from app.services.llm import getSensorData
 from app.schemas import (
     DosingDeviceCreate,
     SensorDeviceCreate,

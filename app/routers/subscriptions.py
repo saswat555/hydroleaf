@@ -12,12 +12,10 @@ from app.core.database import get_db
 from app.dependencies import get_current_user
 from app.models import (
     ActivationKey,
+    DeviceToken,
     Subscription,
     SubscriptionPlan,
     Device,
-    DosingDeviceToken,
-    ValveDeviceToken,
-    SwitchDeviceToken,
 )
 from app.schemas import SubscriptionPlanResponse, SubscriptionResponse
 
@@ -88,12 +86,11 @@ async def redeem_key(
 
     # 5) Issue the appropriate device token
     token = secrets.token_urlsafe(32)
-    if device.type.value == "dosing_unit":
-        db.add(DosingDeviceToken(device_id=device_id, token=token))
-    elif device.type.value == "valve_controller":
-        db.add(ValveDeviceToken(device_id=device_id, token=token))
-    elif device.type.value == "smart_switch":
-        db.add(SwitchDeviceToken(device_id=device_id, token=token))
+    db.add(DeviceToken(
+        device_id   = device_id,
+        token       = token,
+        device_type = device.type,
+    ))
 
     # 6) Persist everything
     db.add_all([ak, device, sub])

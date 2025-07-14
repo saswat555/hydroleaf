@@ -9,7 +9,7 @@ from fastapi import HTTPException
 from app.services.device_controller import DeviceController, get_device_controller
 from app.services.llm import call_llm_async, direct_ollama_call, direct_openai_call, parse_openai_response
 from app.services.supply_chain_service import extract_json_from_response
-from app.services.llm import USE_OLLAMA as LL_USE_OLLAMA
+from app.services.llm import _use_ollama as LL_USE_OLLAMA
 from app.services.llm import parse_json_response
 from app.services.llm import build_dosing_prompt
 from app.models import Device

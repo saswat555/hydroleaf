@@ -1,6 +1,6 @@
 # app/routers/payments.py
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, File
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from app.core.database import get_db
@@ -25,7 +25,11 @@ admin_router = APIRouter(
 # Where to save QR images
 QR_DIR = Path("app/static/qr_codes")
 QR_DIR.mkdir(parents=True, exist_ok=True)
+expires = datetime.utcnow() + timedelta(minutes=15)
+order   = PaymentOrder(..., expires_at=expires)
 
+resp    = PaymentOrderResponse.from_orm(order)
+resp.qr_code_url = f"/static/qr_codes/order_{order.id}.png"
 @router.post("/create", response_model=PaymentOrderResponse, status_code=status.HTTP_201_CREATED)
 async def create_payment(
     req: CreatePaymentRequest,
@@ -127,3 +131,39 @@ async def approve_payment(
     resp = PaymentOrderResponse.from_orm(order)
     resp.qr_code_url = f"/static/qr_codes/order_{order.id}.png"
     return resp
+
+@router.post("/upload/{order_id}", response_model=PaymentOrderResponse)
+async def upload_screenshot(
+    order_id: int,
+    file: bytes = File(..., description="JPEG/PNG proof"),
+    db: AsyncSession = Depends(get_db),
+    user = Depends(get_current_user),
+):
+    order = await db.get(PaymentOrder, order_id)
+    if not order or order.user_id != user.id:
+        raise HTTPException(404, "Order not found")
+    if order.status != PaymentStatus.PENDING:
+        raise HTTPException(400, "Cannot upload screenshot in current state")
+
+    img_path = QR_DIR / f"proof_{order.id}.jpg"
+    img_path.write_bytes(file)
+    order.screenshot_path = str(img_path)
+    await db.commit(); await db.refresh(order)
+    return PaymentOrderResponse.from_orm(order)
+
+# --- modify confirm_payment --------------------------------------------------
+if order.expires_at < datetime.utcnow():
+    raise HTTPException(400, "Order expired")
+
+if not order.screenshot_path:
+    raise HTTPException(400, "Please upload payment proof first")
+
+@admin_router.post("/reject/{order_id}", response_model=PaymentOrderResponse)
+async def reject_payment(order_id: int, db: AsyncSession = Depends(get_db)):
+    order = await db.get(PaymentOrder, order_id)
+    if not order: raise HTTPException(404, "Order not found")
+    if order.status not in (PaymentStatus.PENDING, PaymentStatus.PROCESSING):
+        raise HTTPException(400, "Cannot reject in this state")
+    order.status = PaymentStatus.FAILED
+    await db.commit(); await db.refresh(order)
+    return PaymentOrderResponse.from_orm(order)

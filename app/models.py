@@ -13,7 +13,8 @@ from sqlalchemy import (
     Boolean,
     ForeignKey,
     JSON,
-    func
+    func,
+    text
 )
 from sqlalchemy.orm import relationship
 from sqlalchemy import Enum as Enum 
@@ -335,20 +336,17 @@ class PaymentOrder(Base):
     device_id          = Column(String(64), ForeignKey("devices.id", ondelete="CASCADE"))
     plan_id            = Column(Integer, ForeignKey("subscription_plans.id", ondelete="SET NULL"), nullable=False)
     amount_cents       = Column(Integer, nullable=False)
-    status             = Column(
-                             Enum(PaymentStatus, name="payment_status"),
-                             default=PaymentStatus.PENDING,
-                             nullable=False,
-                         )
+    status             = Column(Enum(PaymentStatus, name="payment_status"), default=PaymentStatus.PENDING, nullable=False)
     upi_transaction_id = Column(String(64))
+    # 👇 NEW
+    screenshot_path    = Column(String(256))
+    expires_at         = Column(DateTime(timezone=True), nullable=False)
     created_at         = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at         = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
 
     user   = relationship("User", back_populates="payment_orders")
     device = relationship("Device", back_populates="payment_orders")
     plan   = relationship("SubscriptionPlan", back_populates="payment_orders")
-
-
 # -------------------------------------------------------------------
 # CAMERAS & DETECTIONS
 # -------------------------------------------------------------------
@@ -434,28 +432,6 @@ class Admin(Base):
         lazy="selectin",
     )
     
-class DosingDeviceToken(Base):
-    __tablename__ = "dosing_device_tokens"
-
-    device_id = Column(
-        String(64),
-        ForeignKey("devices.id", ondelete="CASCADE"),
-        primary_key=True,
-    )
-    token     = Column(String(64), unique=True, nullable=False, index=True)
-    issued_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
-
-
-class ValveDeviceToken(Base):
-    __tablename__ = "valve_device_tokens"
-
-    device_id = Column(
-        String(64),
-        ForeignKey("devices.id", ondelete="CASCADE"),
-        primary_key=True,
-    )
-    token     = Column(String(64), unique=True, nullable=False, index=True)
-    issued_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
 class ValveState(Base):
     __tablename__ = "valve_states"
@@ -466,18 +442,6 @@ class ValveState(Base):
                         onupdate=func.now(),
                         nullable=False)
     
-
-class SwitchDeviceToken(Base):
-    __tablename__ = "switch_device_tokens"
-
-    device_id = Column(
-        String(64),
-        ForeignKey("devices.id", ondelete="CASCADE"),
-        primary_key=True,
-    )
-    token     = Column(String(64), unique=True, nullable=False, index=True)
-    issued_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
-
 class SwitchState(Base):
     __tablename__ = "switch_states"
     device_id  = Column(String(64), primary_key=True, index=True)
@@ -496,3 +460,19 @@ class CloudKeyUsage(Base):
     used_at      = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
     cloud_key = relationship("CloudKey", back_populates="usages")
+
+# -------------------------------------------------------------------
+# DEVICE TOKENS (generic)
+# -------------------------------------------------------------------
+class DeviceToken(Base):
+    __tablename__ = "device_tokens"
+
+    device_id   = Column(String(64), ForeignKey("devices.id", ondelete="CASCADE"), primary_key=True)
+    token       = Column(String(64), unique=True, nullable=False, index=True)
+    device_type = Column(Enum(DeviceType, name="token_device_type"), nullable=False)
+    issued_at   = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    # 👇 NEW: tokens are valid 30 days by default
+    expires_at  = Column(DateTime(timezone=True), nullable=False,
+                         server_default=text("(now() at time zone 'utc') + interval '30 days'"))
+
+    device = relationship("Device", lazy="joined")

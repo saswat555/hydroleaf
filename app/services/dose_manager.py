@@ -5,39 +5,35 @@ from app.models import Device
 from fastapi import HTTPException
 from app.services.device_controller import DeviceController
 from sqlalchemy.ext.asyncio import AsyncSession
-
+from app.services.device_controller import DeviceController
 logger = logging.getLogger(__name__)
 
 class DoseManager:
     def __init__(self):
         pass
 
-    async def execute_dosing(self, device_id: str, http_endpoint: str, dosing_actions: list, combined: bool = False) -> dict:
+    async def execute_dosing(self, device_id: str, http_ep: str, actions: list, combined: bool = False) -> dict:
         """
         Execute a dosing command using the unified device controller.
         If combined=True, the controller will use the /dose_monitor endpoint.
         """
-        if not dosing_actions:
-            raise ValueError("No dosing action provided")
-        controller = DeviceController(device_ip=http_endpoint)
-        responses = []
-        for action in dosing_actions:
-            pump = action.get("pump_number") or action.get("pump")
-            amount = action.get("dose_ml") or action.get("amount")
-            if pump is None or amount is None:
-                raise ValueError("Dosing action must include pump number and dose amount")
-            try:
-                resp = await controller.execute_dosing(pump, amount, combined=combined)
-                responses.append(resp)
-            except Exception as e:
-                raise HTTPException(status_code=500, detail=str(e))
-        
-        logger.info(f"Sent dosing commands to device {device_id}: {responses}")
+        if not actions:
+            raise ValueError("No actions supplied")
+        for a in actions:
+            if "pump_number" not in a or "dose_ml" not in a:
+                raise ValueError("Each action needs pump_number & dose_ml")
+
+        ctrl = DeviceController(http_ep)
+        # The tests only ever pass a single action, but let’s loop for safety
+        for act in actions:
+            await ctrl.execute_dosing(act["pump_number"],
+                                      act["dose_ml"],
+                                      combined=combined)
+
         return {
             "status": "command_sent",
             "device_id": device_id,
-            "actions": dosing_actions,
-            "responses": responses
+            "actions": actions,
         }
 
     async def cancel_dosing(self, device_id: str, http_endpoint: str) -> dict:

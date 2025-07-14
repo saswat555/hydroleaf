@@ -8,9 +8,6 @@ import secrets
 
 from app.models import (
     ActivationKey,
-    DosingDeviceToken,
-    ValveDeviceToken,
-    SwitchDeviceToken,
     SubscriptionPlan,
     Device,
     User,
@@ -63,77 +60,35 @@ async def generate_device_activation_key(
 
     return {"activation_key": key}
 
-
 @router.post(
-    "/device/{device_id}/issue-dosing-token",
+    "/device/{device_id}/issue-token",
     status_code=status.HTTP_201_CREATED,
+    response_model=dict,
     dependencies=[Depends(get_current_admin)],
 )
-async def issue_dosing_token(
+async def issue_device_token(
     device_id: str,
     db: AsyncSession = Depends(get_db),
 ):
     """
-    Generate or rotate a DosingDeviceToken for the given device_id.
+    Generate or rotate a DeviceToken regardless of device type.
     """
-    existing = await db.get(DosingDeviceToken, device_id)
-    token = secrets.token_urlsafe(32)
+    device = await db.get(Device, device_id)
+    if not device:
+        raise HTTPException(status_code=404, detail="Device not found")
 
-    if existing:
-        existing.token = token
-        existing.issued_at = func.now()
+    token  = secrets.token_urlsafe(32)
+    record = await db.get(DeviceToken, device_id)
+    if record:
+        record.token       = token
+        record.issued_at   = func.now()
     else:
-        db.add(DosingDeviceToken(device_id=device_id, token=token))
-
+        record = DeviceToken(
+            device_id   = device_id,
+            token       = token,
+            device_type = device.type,
+        )
+        db.add(record)
     await db.commit()
-    return {"token": token}
+    return {"device_id": device_id, "token": token}
 
-
-@router.post(
-    "/device/{device_id}/issue-valve-token",
-    status_code=status.HTTP_201_CREATED,
-    dependencies=[Depends(get_current_admin)],
-)
-async def issue_valve_token(
-    device_id: str,
-    db: AsyncSession = Depends(get_db),
-):
-    """
-    Generate or rotate a ValveDeviceToken for the given device_id.
-    """
-    existing = await db.get(ValveDeviceToken, device_id)
-    token = secrets.token_urlsafe(32)
-
-    if existing:
-        existing.token = token
-        existing.issued_at = func.now()
-    else:
-        db.add(ValveDeviceToken(device_id=device_id, token=token))
-
-    await db.commit()
-    return {"token": token}
-
-
-@router.post(
-    "/device/{device_id}/issue-switch-token",
-    status_code=status.HTTP_201_CREATED,
-    dependencies=[Depends(get_current_admin)],
-)
-async def issue_switch_token(
-    device_id: str,
-    db: AsyncSession = Depends(get_db),
-):
-    """
-    Generate or rotate a SwitchDeviceToken for the given device_id.
-    """
-    existing = await db.get(SwitchDeviceToken, device_id)
-    token = secrets.token_urlsafe(32)
-
-    if existing:
-        existing.token = token
-        existing.issued_at = func.now()
-    else:
-        db.add(SwitchDeviceToken(device_id=device_id, token=token))
-
-    await db.commit()
-    return {"token": token}

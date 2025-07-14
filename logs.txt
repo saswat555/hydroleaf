@@ -1,1329 +1,44 @@
-2025-07-10 17:13:14,179 - app.main - INFO - GET / • ip=127.0.0.1 • device_id=- • 404 • 1.0ms
-2025-07-10 17:13:14,246 - app.main - INFO - GET /favicon.ico • ip=127.0.0.1 • device_id=- • 404 • 0.6ms
-2025-07-10 17:13:18,706 - app.main - INFO - GET / • ip=127.0.0.1 • device_id=- • 404 • 1.4ms
-2025-07-10 17:13:30,637 - uvicorn.error - INFO - Started server process [47368]
-2025-07-10 17:13:30,637 - uvicorn.error - INFO - Waiting for application startup.
-2025-07-10 17:13:30,665 - uvicorn.error - INFO - Application startup complete.
-2025-07-10 17:13:30,665 - uvicorn.error - INFO - Uvicorn running on http://0.0.0.0:8000 (Press CTRL+C to quit)
-2025-07-10 17:13:38,297 - app.main - INFO - GET / • ip=127.0.0.1 • device_id=- • 404 • 13.1ms
-2025-07-10 17:14:28,202 - uvicorn.error - INFO - Shutting down
-2025-07-10 17:14:28,311 - uvicorn.error - INFO - Waiting for application shutdown.
-2025-07-10 17:14:28,316 - uvicorn.error - INFO - Application shutdown complete.
-2025-07-10 17:14:28,317 - uvicorn.error - INFO - Finished server process [47368]
-2025-07-10 19:02:50,927 - uvicorn.error - INFO - Started server process [48765]
-2025-07-10 19:02:50,928 - uvicorn.error - INFO - Waiting for application startup.
-2025-07-10 19:02:50,991 - uvicorn.error - INFO - Application startup complete.
-2025-07-10 19:02:50,991 - uvicorn.error - INFO - Uvicorn running on http://0.0.0.0:8000 (Press CTRL+C to quit)
-2025-07-10 19:04:11,547 - app.main - INFO - GET /docs • ip=127.0.0.1 • device_id=- • 404 • 1.2ms
-2025-07-10 19:04:11,661 - app.main - INFO - GET /favicon.ico • ip=127.0.0.1 • device_id=- • 404 • 0.6ms
-2025-07-10 19:06:28,318 - uvicorn.error - INFO - Shutting down
-2025-07-10 19:06:28,430 - uvicorn.error - INFO - Waiting for application shutdown.
-2025-07-10 19:06:28,434 - uvicorn.error - INFO - Application shutdown complete.
-2025-07-10 19:06:28,435 - uvicorn.error - INFO - Finished server process [48765]
-2025-07-10 19:11:51,998 - uvicorn.error - INFO - Started server process [49220]
-2025-07-10 19:11:51,998 - uvicorn.error - INFO - Waiting for application startup.
-2025-07-10 19:11:52,051 - uvicorn.error - INFO - Application startup complete.
-2025-07-10 19:11:52,052 - uvicorn.error - INFO - Uvicorn running on http://0.0.0.0:8000 (Press CTRL+C to quit)
-2025-07-10 19:11:54,356 - app.main - INFO - GET /api/v1/docs • ip=127.0.0.1 • device_id=- • 200 • 0.6ms
-2025-07-10 19:11:54,834 - app.main - INFO - GET /api/v1/openapi.json • ip=127.0.0.1 • device_id=- • 200 • 41.4ms
-2025-07-10 19:17:46,704 - uvicorn.error - INFO - Shutting down
-2025-07-10 19:17:46,814 - uvicorn.error - INFO - Waiting for application shutdown.
-2025-07-10 19:17:46,819 - uvicorn.error - INFO - Application shutdown complete.
-2025-07-10 19:17:46,821 - uvicorn.error - INFO - Finished server process [49220]
-2025-07-10 19:37:12,287 - app.services.dose_manager - INFO - Sent dosing commands to device dev1: [{'ok': True, 'pump': 2, 'amount': 25, 'combined': False}]
-2025-07-10 19:37:12,287 - app.services.dose_manager - INFO - Sent dosing commands to device dev1: [{'ok': True, 'pump': 2, 'amount': 25, 'combined': True}]
-2025-07-10 19:37:12,288 - app.services.dose_manager - INFO - Cancellation response for device dev1: {'cancelled': True}
-2025-07-10 19:37:12,296 - app.services.llm - ERROR - No valid JSON block found in OpenAI response: no json here
-2025-07-10 19:37:12,297 - app.services.llm - INFO - Making direct Ollama call to model model with prompt:
-prompt
-2025-07-10 19:37:12,297 - app.services.llm - INFO - Ollama raw completion: {"z":3}
-2025-07-10 19:37:12,299 - app.services.llm - INFO - Making direct Ollama call to model m with prompt:
-p
-2025-07-10 19:37:12,299 - app.services.llm - ERROR - Ollama call failed: HTTPStatusError.__init__() takes 2 positional arguments but 4 were given
-2025-07-10 19:37:12,301 - app.services.llm - INFO - Sending prompt to LLM:
-p
-2025-07-10 19:37:12,301 - app.services.llm - INFO - Raw response from LLM:
-{"actions":[{}]}
-2025-07-10 19:37:12,302 - app.services.llm - INFO - Sending prompt to LLM:
-p
-2025-07-10 19:37:12,302 - app.services.llm - ERROR - No valid JSON block found in cleaned response.
-2025-07-10 19:37:12,302 - app.services.plant_service - INFO - Fetching plants from database...
-2025-07-10 19:37:12,302 - app.services.plant_service - INFO - No plants found, returning an empty list.
-2025-07-10 19:37:12,321 - app.services.plant_service - INFO - Fetching plants from database...
-2025-07-10 19:37:12,321 - app.services.plant_service - INFO - Fetched 2 plants from the database
-2025-07-10 19:50:51,886 - uvicorn.error - INFO - Started server process [51354]
-2025-07-10 19:50:51,886 - uvicorn.error - INFO - Waiting for application startup.
-2025-07-10 19:50:51,949 - uvicorn.error - INFO - Application startup complete.
-2025-07-10 19:50:51,949 - uvicorn.error - INFO - Uvicorn running on http://0.0.0.0:8000 (Press CTRL+C to quit)
-2025-07-10 19:50:55,083 - uvicorn.error - INFO - Shutting down
-2025-07-10 19:50:55,185 - uvicorn.error - INFO - Waiting for application shutdown.
-2025-07-10 19:50:55,188 - uvicorn.error - INFO - Application shutdown complete.
-2025-07-10 19:50:55,189 - uvicorn.error - INFO - Finished server process [51354]
-2025-07-10 19:51:01,826 - app.services.dose_manager - INFO - Sent dosing commands to device dev1: [{'ok': True, 'pump': 2, 'amount': 25, 'combined': False}]
-2025-07-10 19:51:01,827 - app.services.dose_manager - INFO - Sent dosing commands to device dev1: [{'ok': True, 'pump': 2, 'amount': 25, 'combined': True}]
-2025-07-10 19:51:01,827 - app.services.dose_manager - INFO - Cancellation response for device dev1: {'cancelled': True}
-2025-07-10 19:51:01,830 - app.services.llm - ERROR - No valid JSON block found in OpenAI response: no json here
-2025-07-10 19:51:01,831 - app.services.llm - INFO - Making direct Ollama call to model model with prompt:
-prompt
-2025-07-10 19:51:01,831 - app.services.llm - INFO - Ollama raw completion: {"z":3}
-2025-07-10 19:51:01,831 - app.services.llm - INFO - Making direct Ollama call to model m with prompt:
-p
-2025-07-10 19:51:01,831 - app.services.llm - ERROR - Ollama call failed: 500: LLM API HTTP error
-2025-07-10 19:51:01,833 - app.services.llm - INFO - Sending prompt to LLM:
-p
-2025-07-10 19:51:01,833 - app.services.llm - INFO - Raw response from LLM:
-{"actions":[{}]}
-2025-07-10 19:51:01,834 - app.services.llm - INFO - Sending prompt to LLM:
-p
-2025-07-10 19:51:01,834 - app.services.llm - ERROR - No valid JSON block found in cleaned response.
-2025-07-10 19:51:01,835 - app.services.plant_service - INFO - Fetching plants from database...
-2025-07-10 19:51:01,835 - app.services.plant_service - INFO - No plants found, returning an empty list.
-2025-07-10 19:51:01,853 - app.services.plant_service - INFO - Fetching plants from database...
-2025-07-10 19:51:01,853 - app.services.plant_service - INFO - Fetched 2 plants from the database
-2025-07-10 19:55:50,420 - app.services.dose_manager - INFO - Sent dosing commands to device dev1: [{'ok': True, 'pump': 2, 'amount': 25, 'combined': False}]
-2025-07-10 19:55:50,421 - app.services.dose_manager - INFO - Sent dosing commands to device dev1: [{'ok': True, 'pump': 2, 'amount': 25, 'combined': True}]
-2025-07-10 19:55:50,422 - app.services.dose_manager - INFO - Cancellation response for device dev1: {'cancelled': True}
-2025-07-10 19:55:50,424 - app.services.llm - ERROR - No valid JSON block found in OpenAI response: no json here
-2025-07-10 19:55:50,424 - app.services.llm - INFO - Making direct Ollama call to model model with prompt:
-prompt
-2025-07-10 19:55:50,425 - app.services.llm - INFO - Ollama raw completion: {"z":3}
-2025-07-10 19:55:50,425 - app.services.llm - INFO - Making direct Ollama call to model m with prompt:
-p
-2025-07-10 19:55:50,425 - app.services.llm - ERROR - Ollama call failed: 500: LLM API HTTP error
-2025-07-10 19:55:50,426 - app.services.llm - INFO - Sending prompt to LLM:
-p
-2025-07-10 19:55:50,427 - app.services.llm - INFO - Raw response from LLM:
-{"actions":[{}]}
-2025-07-10 19:55:50,427 - app.services.llm - INFO - Sending prompt to LLM:
-p
-2025-07-10 19:55:50,427 - app.services.llm - ERROR - No valid JSON block found in cleaned response.
-2025-07-10 19:55:50,428 - app.services.plant_service - INFO - Fetching plants from database...
-2025-07-10 19:55:50,428 - app.services.plant_service - INFO - No plants found, returning an empty list.
-2025-07-10 19:55:50,447 - app.services.plant_service - INFO - Fetching plants from database...
-2025-07-10 19:55:50,447 - app.services.plant_service - INFO - Fetched 2 plants from the database
-2025-07-10 19:56:13,565 - app.services.device_controller - INFO - Sensor readings from http://devip: {'ph': 7.2, 'tds': 450.0}
-2025-07-10 19:56:13,570 - app.services.dose_manager - INFO - Sent dosing commands to device dev1: [{'ok': True, 'pump': 2, 'amount': 25, 'combined': False}]
-2025-07-10 19:56:13,571 - app.services.dose_manager - INFO - Sent dosing commands to device dev1: [{'ok': True, 'pump': 2, 'amount': 25, 'combined': True}]
-2025-07-10 19:56:13,571 - app.services.dose_manager - INFO - Cancellation response for device dev1: {'cancelled': True}
-2025-07-10 19:56:13,574 - app.services.llm - ERROR - No valid JSON block found in OpenAI response: no json here
-2025-07-10 19:56:13,575 - app.services.llm - INFO - Making direct Ollama call to model model with prompt:
-prompt
-2025-07-10 19:56:13,575 - app.services.llm - INFO - Ollama raw completion: {"z":3}
-2025-07-10 19:56:13,575 - app.services.llm - INFO - Making direct Ollama call to model m with prompt:
-p
-2025-07-10 19:56:13,575 - app.services.llm - ERROR - Ollama call failed: 500: LLM API HTTP error
-2025-07-10 19:56:13,577 - app.services.llm - INFO - Sending prompt to LLM:
-p
-2025-07-10 19:56:13,577 - app.services.llm - INFO - Raw response from LLM:
-{"actions":[{}]}
-2025-07-10 19:56:13,577 - app.services.llm - INFO - Sending prompt to LLM:
-p
-2025-07-10 19:56:13,577 - app.services.llm - ERROR - No valid JSON block found in cleaned response.
-2025-07-10 19:56:13,578 - app.services.plant_service - INFO - Fetching plants from database...
-2025-07-10 19:56:13,578 - app.services.plant_service - INFO - No plants found, returning an empty list.
-2025-07-10 19:56:13,597 - app.services.plant_service - INFO - Fetching plants from database...
-2025-07-10 19:56:13,598 - app.services.plant_service - INFO - Fetched 2 plants from the database
-2025-07-10 20:03:34,386 - app.services.supply_chain_service - ERROR - No valid JSON block found in LLM response.
-2025-07-10 20:03:34,410 - app.services.llm - INFO - Sending prompt to LLM:
-hi
-2025-07-10 20:03:34,410 - app.services.llm - INFO - Raw response from LLM:
-{"actions":[{}]}
-2025-07-10 20:03:34,435 - app.services.device_controller - INFO - Sensor readings from http://devip: {'ph': 7.2, 'tds': 450.0}
-2025-07-10 20:03:34,440 - app.services.dose_manager - INFO - Sent dosing commands to device dev1: [{'ok': True, 'pump': 2, 'amount': 25, 'combined': False}]
-2025-07-10 20:03:34,440 - app.services.dose_manager - INFO - Sent dosing commands to device dev1: [{'ok': True, 'pump': 2, 'amount': 25, 'combined': True}]
-2025-07-10 20:03:34,440 - app.services.dose_manager - INFO - Cancellation response for device dev1: {'cancelled': True}
-2025-07-10 20:03:34,443 - app.services.llm - ERROR - No valid JSON block found in OpenAI response: no json here
-2025-07-10 20:03:34,444 - app.services.llm - INFO - Making direct Ollama call to model model with prompt:
-prompt
-2025-07-10 20:03:34,444 - app.services.llm - INFO - Ollama raw completion: {"z":3}
-2025-07-10 20:03:34,444 - app.services.llm - INFO - Making direct Ollama call to model m with prompt:
-p
-2025-07-10 20:03:34,444 - app.services.llm - ERROR - Ollama call failed: 500: LLM API HTTP error
-2025-07-10 20:03:34,446 - app.services.llm - INFO - Sending prompt to LLM:
-p
-2025-07-10 20:03:34,455 - app.services.llm - INFO - Sending prompt to LLM:
-p
-2025-07-10 20:03:34,463 - app.services.plant_service - INFO - Fetching plants from database...
-2025-07-10 20:03:34,463 - app.services.plant_service - INFO - No plants found, returning an empty list.
-2025-07-10 20:03:34,463 - app.services.plant_service - INFO - Fetching plants from database...
-2025-07-10 20:03:34,464 - app.services.plant_service - INFO - Fetched 2 plants from the database
-2025-07-10 20:07:22,472 - app.services.supply_chain_service - ERROR - No valid JSON block found in LLM response.
-2025-07-10 20:07:22,496 - app.services.llm - INFO - Sending prompt to LLM:
-hi
-2025-07-10 20:07:22,496 - app.services.llm - INFO - Raw response from LLM:
-{"actions":[{}]}
-2025-07-10 20:07:22,520 - app.services.device_controller - INFO - Sensor readings from http://devip: {'ph': 7.2, 'tds': 450.0}
-2025-07-10 20:07:22,525 - app.services.dose_manager - INFO - Sent dosing commands to device dev1: [{'ok': True, 'pump': 2, 'amount': 25, 'combined': False}]
-2025-07-10 20:07:22,526 - app.services.dose_manager - INFO - Sent dosing commands to device dev1: [{'ok': True, 'pump': 2, 'amount': 25, 'combined': True}]
-2025-07-10 20:07:22,526 - app.services.dose_manager - INFO - Cancellation response for device dev1: {'cancelled': True}
-2025-07-10 20:07:22,528 - app.services.llm - ERROR - No valid JSON block found in OpenAI response: no json here
-2025-07-10 20:07:22,531 - app.services.llm - INFO - Making direct Ollama call to model any-model with prompt:
-any prompt
-2025-07-10 20:07:22,551 - httpx - INFO - HTTP Request: POST http://localhost:11434/api/generate "HTTP/1.1 200 OK"
-2025-07-10 20:07:22,551 - app.services.llm - INFO - Ollama raw completion: {"z":3}
-2025-07-10 20:07:22,651 - app.services.llm - INFO - Making direct Ollama call to model model with prompt:
-prompt
-2025-07-10 20:07:22,666 - httpx - INFO - HTTP Request: POST http://localhost:11434/api/generate "HTTP/1.1 500 Internal Server Error"
-2025-07-10 20:07:22,666 - app.services.llm - ERROR - Ollama call failed: 500: LLM API HTTP error
-2025-07-10 20:07:22,668 - app.services.llm - INFO - Sending prompt to LLM:
-hello
-2025-07-10 20:07:22,677 - app.services.llm - INFO - Sending prompt to LLM:
-hello
-2025-07-10 20:07:22,685 - app.services.plant_service - INFO - Fetching plants from database...
-2025-07-10 20:07:22,685 - app.services.plant_service - INFO - No plants found, returning an empty list.
-2025-07-10 20:07:22,685 - app.services.plant_service - INFO - Fetching plants from database...
-2025-07-10 20:07:22,685 - app.services.plant_service - INFO - Fetched 2 plants from the database
-2025-07-10 20:20:43,061 - app.services.supply_chain_service - ERROR - No valid JSON block found in LLM response.
-2025-07-10 20:20:43,066 - app.services.llm - INFO - Sending prompt to LLM:
-hi
-2025-07-10 20:20:43,066 - app.services.llm - INFO - Raw response from LLM:
-{"actions":[{}]}
-2025-07-10 20:20:43,117 - app.services.device_controller - INFO - Sensor readings from http://devip: {'ph': 7.2, 'tds': 450.0}
-2025-07-10 20:20:43,124 - app.services.dose_manager - INFO - Sent dosing commands to device dev1: [{'ok': True, 'pump': 2, 'amount': 25, 'combined': False}]
-2025-07-10 20:20:43,124 - app.services.dose_manager - INFO - Sent dosing commands to device dev1: [{'ok': True, 'pump': 2, 'amount': 25, 'combined': True}]
-2025-07-10 20:20:43,124 - app.services.dose_manager - INFO - Cancellation response for device dev1: {'cancelled': True}
-2025-07-10 20:20:43,127 - app.services.llm - ERROR - No valid JSON block found in OpenAI response: no json here
-2025-07-10 20:20:43,130 - app.services.llm - INFO - Making direct Ollama call to model any-model with prompt:
-any prompt
-2025-07-10 20:20:43,151 - httpx - INFO - HTTP Request: POST http://localhost:11434/api/generate "HTTP/1.1 200 OK"
-2025-07-10 20:20:43,152 - app.services.llm - INFO - Ollama raw completion: {"z":3}
-2025-07-10 20:20:43,158 - app.services.llm - INFO - Making direct Ollama call to model model with prompt:
-prompt
-2025-07-10 20:20:43,175 - httpx - INFO - HTTP Request: POST http://localhost:11434/api/generate "HTTP/1.1 500 Internal Server Error"
-2025-07-10 20:20:43,175 - app.services.llm - ERROR - Ollama call failed: 500: LLM API HTTP error
-2025-07-10 20:20:43,178 - app.services.llm - INFO - Sending prompt to LLM:
-hello
-2025-07-10 20:20:43,187 - app.services.llm - INFO - Sending prompt to LLM:
-hello
-2025-07-10 20:20:43,194 - app.services.plant_service - INFO - Fetching plants from database...
-2025-07-10 20:20:43,194 - app.services.plant_service - INFO - No plants found, returning an empty list.
-2025-07-10 20:20:43,195 - app.services.plant_service - INFO - Fetching plants from database...
-2025-07-10 20:20:43,195 - app.services.plant_service - INFO - Fetched 2 plants from the database
-2025-07-10 20:26:23,511 - app.services.supply_chain_service - ERROR - No valid JSON block found in LLM response.
-2025-07-10 20:26:23,516 - app.services.llm - INFO - Sending prompt to LLM:
-hi
-2025-07-10 20:26:23,516 - app.services.llm - INFO - Raw response from LLM:
-{"actions":[{}]}
-2025-07-10 20:26:23,561 - app.services.supply_chain_service - ERROR - JSON Parsing Error: Extra data: line 1 column 9 (char 8). Response: prefix {"a":1} middle {"b":2} suffix
-2025-07-10 20:26:23,571 - app.services.llm - INFO - Sending prompt to LLM:
-foo
-2025-07-10 20:26:23,588 - app.services.device_controller - INFO - Sensor readings from http://devip: {'ph': 7.2, 'tds': 450.0}
-2025-07-10 20:26:23,594 - app.services.dose_manager - INFO - Sent dosing commands to device dev1: [{'ok': True, 'pump': 2, 'amount': 25, 'combined': False}]
-2025-07-10 20:26:23,594 - app.services.dose_manager - INFO - Sent dosing commands to device dev1: [{'ok': True, 'pump': 2, 'amount': 25, 'combined': True}]
-2025-07-10 20:26:23,594 - app.services.dose_manager - INFO - Cancellation response for device dev1: {'cancelled': True}
-2025-07-10 20:26:23,597 - app.services.llm - ERROR - No valid JSON block found in OpenAI response: no json here
-2025-07-10 20:26:23,599 - app.services.llm - INFO - Making direct Ollama call to model any-model with prompt:
-any prompt
-2025-07-10 20:26:23,619 - httpx - INFO - HTTP Request: POST http://localhost:11434/api/generate "HTTP/1.1 200 OK"
-2025-07-10 20:26:23,619 - app.services.llm - INFO - Ollama raw completion: {"z":3}
-2025-07-10 20:26:23,625 - app.services.llm - INFO - Making direct Ollama call to model model with prompt:
-prompt
-2025-07-10 20:26:23,641 - httpx - INFO - HTTP Request: POST http://localhost:11434/api/generate "HTTP/1.1 500 Internal Server Error"
-2025-07-10 20:26:23,641 - app.services.llm - ERROR - Ollama call failed: 500: LLM API HTTP error
-2025-07-10 20:26:23,642 - app.services.llm - INFO - Sending prompt to LLM:
-hello
-2025-07-10 20:26:23,643 - app.services.llm - INFO - Making direct Ollama call to model deepseek-r1:1.5b with prompt:
-hello
-2025-07-10 20:26:23,658 - httpx - INFO - HTTP Request: POST http://localhost:11434/api/generate "HTTP/1.1 200 OK"
-2025-07-10 20:26:23,658 - app.services.llm - INFO - Ollama raw completion: {"actions":[{"pump_number":2,"chemical_name":"Foo","dose_ml":20,"reasoning":"Test"}]}
-2025-07-10 20:26:23,669 - app.services.llm - INFO - Sending prompt to LLM:
-hello
-2025-07-10 20:26:23,669 - app.services.llm - INFO - Making direct Ollama call to model deepseek-r1:1.5b with prompt:
-hello
-2025-07-10 20:26:23,684 - httpx - INFO - HTTP Request: POST http://localhost:11434/api/generate "HTTP/1.1 500 Internal Server Error"
-2025-07-10 20:26:23,684 - app.services.llm - ERROR - Ollama call failed: 500: LLM API HTTP error
-2025-07-10 20:26:23,686 - app.services.plant_service - INFO - Fetching plants from database...
-2025-07-10 20:26:23,686 - app.services.plant_service - INFO - No plants found, returning an empty list.
-2025-07-10 20:26:23,687 - app.services.plant_service - INFO - Fetching plants from database...
-2025-07-10 20:26:23,687 - app.services.plant_service - INFO - Fetched 2 plants from the database
-2025-07-10 20:29:25,778 - app.services.supply_chain_service - ERROR - No valid JSON block found in LLM response.
-2025-07-10 20:29:25,783 - app.services.llm - INFO - Sending prompt to LLM:
-hi
-2025-07-10 20:29:25,783 - app.services.llm - INFO - Raw response from LLM:
-{"actions":[{}]}
-2025-07-10 20:29:25,826 - app.services.supply_chain_service - ERROR - JSON Parsing Error: Extra data: line 1 column 9 (char 8). Response: prefix {"a":1} middle {"b":2} suffix
-2025-07-10 20:29:25,838 - app.services.llm - INFO - Sending prompt to LLM:
-foo
-2025-07-10 20:29:25,857 - app.services.device_controller - INFO - Sensor readings from http://devip: {'ph': 7.2, 'tds': 450.0}
-2025-07-10 20:29:25,867 - app.services.dose_manager - INFO - Sent dosing commands to device dev1: [{'ok': True, 'pump': 2, 'amount': 25, 'combined': False}]
-2025-07-10 20:29:25,867 - app.services.dose_manager - INFO - Sent dosing commands to device dev1: [{'ok': True, 'pump': 2, 'amount': 25, 'combined': True}]
-2025-07-10 20:29:25,868 - app.services.dose_manager - INFO - Cancellation response for device devX: {'cancelled': True}
-2025-07-10 20:29:25,871 - app.services.llm - ERROR - No valid JSON block found in OpenAI response: no json here
-2025-07-10 20:29:25,874 - app.services.llm - INFO - Making direct Ollama call to model any-model with prompt:
-any prompt
-2025-07-10 20:29:25,893 - httpx - INFO - HTTP Request: POST http://localhost:11434/api/generate "HTTP/1.1 200 OK"
-2025-07-10 20:29:25,893 - app.services.llm - INFO - Ollama raw completion: {"z":3}
-2025-07-10 20:29:25,899 - app.services.llm - INFO - Making direct Ollama call to model model with prompt:
-prompt
-2025-07-10 20:29:25,913 - httpx - INFO - HTTP Request: POST http://localhost:11434/api/generate "HTTP/1.1 500 Internal Server Error"
-2025-07-10 20:29:25,914 - app.services.llm - ERROR - Ollama call failed: 500: LLM API HTTP error
-2025-07-10 20:29:25,915 - app.services.llm - INFO - Sending prompt to LLM:
-hello
-2025-07-10 20:29:25,915 - app.services.llm - INFO - Making direct Ollama call to model deepseek-r1:1.5b with prompt:
-hello
-2025-07-10 20:29:25,930 - httpx - INFO - HTTP Request: POST http://localhost:11434/api/generate "HTTP/1.1 200 OK"
-2025-07-10 20:29:25,930 - app.services.llm - INFO - Ollama raw completion: {"actions":[{"pump_number":2,"chemical_name":"Foo","dose_ml":20,"reasoning":"Test"}]}
-2025-07-10 20:29:26,010 - app.services.llm - INFO - Sending prompt to LLM:
-hello
-2025-07-10 20:29:26,010 - app.services.llm - INFO - Making direct Ollama call to model deepseek-r1:1.5b with prompt:
-hello
-2025-07-10 20:29:26,025 - httpx - INFO - HTTP Request: POST http://localhost:11434/api/generate "HTTP/1.1 500 Internal Server Error"
-2025-07-10 20:29:26,025 - app.services.llm - ERROR - Ollama call failed: 500: LLM API HTTP error
-2025-07-10 20:29:26,028 - app.services.llm - INFO - Making direct Ollama call to model m with prompt:
-p
-2025-07-10 20:29:26,043 - httpx - INFO - HTTP Request: POST http://localhost:11434/api/generate "HTTP/1.1 200 OK"
-2025-07-10 20:29:26,043 - app.services.llm - INFO - Ollama raw completion: not json
-2025-07-10 20:29:26,043 - app.services.llm - ERROR - Malformed JSON from Ollama: not json
-2025-07-10 20:29:26,043 - app.services.llm - ERROR - Ollama call failed: 500: Invalid JSON from LLM service
-2025-07-10 20:29:26,045 - app.services.plant_service - INFO - Fetching plants from database...
-2025-07-10 20:29:26,045 - app.services.plant_service - INFO - No plants found, returning an empty list.
-2025-07-10 20:29:26,046 - app.services.plant_service - INFO - Fetching plants from database...
-2025-07-10 20:29:26,046 - app.services.plant_service - INFO - Fetched 2 plants from the database
-2025-07-10 20:29:26,050 - app.services.plant_service - INFO - Fetching plants from database...
-2025-07-10 20:29:26,051 - app.services.plant_service - ERROR - Database query failed: db is down
-2025-07-10 20:29:56,669 - app.services.supply_chain_service - ERROR - No valid JSON block found in LLM response.
-2025-07-10 20:29:56,674 - app.services.llm - INFO - Sending prompt to LLM:
-hi
-2025-07-10 20:29:56,674 - app.services.llm - INFO - Raw response from LLM:
-{"actions":[{}]}
-2025-07-10 20:29:56,716 - app.services.supply_chain_service - ERROR - JSON Parsing Error: Extra data: line 1 column 9 (char 8). Response: prefix {"a":1} middle {"b":2} suffix
-2025-07-10 20:29:56,726 - app.services.llm - INFO - Sending prompt to LLM:
-foo
-2025-07-10 20:29:56,742 - app.services.device_controller - INFO - Sensor readings from http://devip: {'ph': 7.2, 'tds': 450.0}
-2025-07-10 20:29:56,752 - app.services.dose_manager - INFO - Sent dosing commands to device dev1: [{'ok': True, 'pump': 2, 'amount': 25, 'combined': False}]
-2025-07-10 20:29:56,753 - app.services.dose_manager - INFO - Sent dosing commands to device dev1: [{'ok': True, 'pump': 2, 'amount': 25, 'combined': True}]
-2025-07-10 20:29:56,753 - app.services.dose_manager - INFO - Cancellation response for device devX: {'cancelled': True}
-2025-07-10 20:29:56,756 - app.services.llm - ERROR - No valid JSON block found in OpenAI response: no json here
-2025-07-10 20:29:56,758 - app.services.llm - INFO - Making direct Ollama call to model any-model with prompt:
-any prompt
-2025-07-10 20:29:56,778 - httpx - INFO - HTTP Request: POST http://localhost:11434/api/generate "HTTP/1.1 200 OK"
-2025-07-10 20:29:56,778 - app.services.llm - INFO - Ollama raw completion: {"z":3}
-2025-07-10 20:29:56,784 - app.services.llm - INFO - Making direct Ollama call to model model with prompt:
-prompt
-2025-07-10 20:29:56,800 - httpx - INFO - HTTP Request: POST http://localhost:11434/api/generate "HTTP/1.1 500 Internal Server Error"
-2025-07-10 20:29:56,800 - app.services.llm - ERROR - Ollama call failed: 500: LLM API HTTP error
-2025-07-10 20:29:56,801 - app.services.llm - INFO - Sending prompt to LLM:
-hello
-2025-07-10 20:29:56,802 - app.services.llm - INFO - Making direct Ollama call to model deepseek-r1:1.5b with prompt:
-hello
-2025-07-10 20:29:56,817 - httpx - INFO - HTTP Request: POST http://localhost:11434/api/generate "HTTP/1.1 200 OK"
-2025-07-10 20:29:56,817 - app.services.llm - INFO - Ollama raw completion: {"actions":[{"pump_number":2,"chemical_name":"Foo","dose_ml":20,"reasoning":"Test"}]}
-2025-07-10 20:29:56,828 - app.services.llm - INFO - Sending prompt to LLM:
-hello
-2025-07-10 20:29:56,828 - app.services.llm - INFO - Making direct Ollama call to model deepseek-r1:1.5b with prompt:
-hello
-2025-07-10 20:29:56,843 - httpx - INFO - HTTP Request: POST http://localhost:11434/api/generate "HTTP/1.1 500 Internal Server Error"
-2025-07-10 20:29:56,843 - app.services.llm - ERROR - Ollama call failed: 500: LLM API HTTP error
-2025-07-10 20:29:56,846 - app.services.llm - INFO - Making direct Ollama call to model m with prompt:
-p
-2025-07-10 20:29:56,861 - httpx - INFO - HTTP Request: POST http://localhost:11434/api/generate "HTTP/1.1 200 OK"
-2025-07-10 20:29:56,861 - app.services.llm - INFO - Ollama raw completion: not json
-2025-07-10 20:29:56,861 - app.services.llm - ERROR - Malformed JSON from Ollama: not json
-2025-07-10 20:29:56,861 - app.services.llm - ERROR - Ollama call failed: 500: Invalid JSON from LLM service
-2025-07-10 20:29:56,863 - app.services.plant_service - INFO - Fetching plants from database...
-2025-07-10 20:29:56,863 - app.services.plant_service - INFO - No plants found, returning an empty list.
-2025-07-10 20:29:56,864 - app.services.plant_service - INFO - Fetching plants from database...
-2025-07-10 20:29:56,864 - app.services.plant_service - INFO - Fetched 2 plants from the database
-2025-07-10 20:29:56,869 - app.services.plant_service - INFO - Fetching plants from database...
-2025-07-10 20:29:56,869 - app.services.plant_service - ERROR - Database query failed: db is down
-2025-07-10 20:32:05,748 - uvicorn.error - INFO - Started server process [55301]
-2025-07-10 20:32:05,749 - uvicorn.error - INFO - Waiting for application startup.
-2025-07-10 20:32:06,049 - uvicorn.error - INFO - Application startup complete.
-2025-07-10 20:32:06,051 - uvicorn.error - INFO - Uvicorn running on http://0.0.0.0:8000 (Press CTRL+C to quit)
-2025-07-10 20:32:08,682 - uvicorn.error - INFO - Shutting down
-2025-07-10 20:32:08,785 - uvicorn.error - INFO - Finished server process [55301]
-2025-07-10 20:32:08,796 - uvicorn.error - ERROR - Traceback (most recent call last):
-  File "/opt/homebrew/anaconda3/lib/python3.12/asyncio/runners.py", line 194, in run
-    return runner.run(main)
-           ^^^^^^^^^^^^^^^^
-  File "/opt/homebrew/anaconda3/lib/python3.12/asyncio/runners.py", line 118, in run
-    return self._loop.run_until_complete(task)
-           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "uvloop/loop.pyx", line 1512, in uvloop.loop.Loop.run_until_complete
-  File "uvloop/loop.pyx", line 1505, in uvloop.loop.Loop.run_until_complete
-  File "uvloop/loop.pyx", line 1379, in uvloop.loop.Loop.run_forever
-  File "uvloop/loop.pyx", line 557, in uvloop.loop.Loop._run
-  File "uvloop/loop.pyx", line 476, in uvloop.loop.Loop._on_idle
-  File "uvloop/cbhandles.pyx", line 83, in uvloop.loop.Handle._run
-  File "uvloop/cbhandles.pyx", line 63, in uvloop.loop.Handle._run
-  File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/uvicorn/server.py", line 69, in serve
-    with self.capture_signals():
-         ^^^^^^^^^^^^^^^^^^^^^^
-  File "/opt/homebrew/anaconda3/lib/python3.12/contextlib.py", line 144, in __exit__
-    next(self.gen)
-  File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/uvicorn/server.py", line 330, in capture_signals
-    signal.raise_signal(captured_signal)
-  File "/opt/homebrew/anaconda3/lib/python3.12/asyncio/runners.py", line 157, in _on_sigint
-    raise KeyboardInterrupt()
-KeyboardInterrupt
-
-During handling of the above exception, another exception occurred:
-
+2025-07-14 19:30:46,834 - app.services.dose_manager - INFO - Cancellation response for device devX: {'cancelled': True}
+2025-07-14 19:30:47,590 - httpx - INFO - HTTP Request: GET https://google.serper.dev/search?q=optimal+growth.+Best+practices+for+Veggie+in+Europe&gl=in&hl=en&apiKey=79729460be56c404bcbf96630c3bfd92ba6ecc3e5ef08d124f91aba3c8ecf580&num=5&full=true&output=detailed "HTTP/1.1 403 Forbidden"
+2025-07-14 19:30:47,593 - app.services.serper - ERROR - Serper API HTTP error (403): {"message":"Unauthorized.","statusCode":403}
+2025-07-14 19:30:47,593 - app.services.llm - WARNING - Serper enrichment skipped: Client error '403 Forbidden' for url 'https://google.serper.dev/search?q=optimal+growth.+Best+practices+for+Veggie+in+Europe&gl=in&hl=en&apiKey=79729460be56c404bcbf96630c3bfd92ba6ecc3e5ef08d124f91aba3c8ecf580&num=5&full=true&output=detailed'
+For more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/403
+2025-07-14 19:30:47,658 - app.services.plant_service - INFO - Fetching plants from database...
+2025-07-14 19:30:47,658 - app.services.plant_service - INFO - No plants found, returning an empty list.
+2025-07-14 19:30:47,659 - app.services.plant_service - INFO - Fetching plants from database...
+2025-07-14 19:30:47,659 - app.services.plant_service - INFO - Fetched 2 plants from the database
+2025-07-14 19:30:47,664 - app.services.plant_service - INFO - Fetching plants from database...
+2025-07-14 19:30:47,664 - app.services.plant_service - ERROR - Database query failed: db is down
+2025-07-14 19:30:47,727 - app.main - WARNING - HTTPException: Email already registered on /api/v1/auth/signup
+2025-07-14 19:30:47,727 - app.main - INFO - POST /api/v1/auth/signup • ip=127.0.0.1 • device_id=- • 400 • 61.8ms
+2025-07-14 19:30:47,727 - httpx - INFO - HTTP Request: POST http://testserver/api/v1/auth/signup "HTTP/1.1 400 Bad Request"
+2025-07-14 19:30:47,732 - sqlalchemy.pool.impl.AsyncAdaptedQueuePool - ERROR - Exception terminating connection <AdaptedConnection <asyncpg.connection.Connection object at 0x11dde14f0>>
 Traceback (most recent call last):
-  File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/starlette/routing.py", line 699, in lifespan
-    await receive()
-  File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/uvicorn/lifespan/on.py", line 137, in receive
-    return await self.receive_queue.get()
-           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/opt/homebrew/anaconda3/lib/python3.12/asyncio/queues.py", line 158, in get
-    await getter
-asyncio.exceptions.CancelledError
-
-2025-07-10 20:32:47,241 - app.services.supply_chain_service - ERROR - No valid JSON block found in LLM response.
-2025-07-10 20:32:47,246 - app.services.llm - INFO - Sending prompt to LLM:
-hi
-2025-07-10 20:32:47,246 - app.services.llm - INFO - Raw response from LLM:
-{"actions":[{}]}
-2025-07-10 20:32:47,289 - app.services.supply_chain_service - ERROR - JSON Parsing Error: Extra data: line 1 column 9 (char 8). Response: prefix {"a":1} middle {"b":2} suffix
-2025-07-10 20:32:47,299 - app.services.llm - INFO - Sending prompt to LLM:
-foo
-2025-07-10 20:32:47,315 - app.services.device_controller - INFO - Sensor readings from http://devip: {'ph': 7.2, 'tds': 450.0}
-2025-07-10 20:32:47,322 - app.services.dose_manager - INFO - Sent dosing commands to device dev1: [{'ok': True, 'pump': 2, 'amount': 25, 'combined': False}]
-2025-07-10 20:32:47,322 - app.services.dose_manager - INFO - Sent dosing commands to device dev1: [{'ok': True, 'pump': 2, 'amount': 25, 'combined': True}]
-2025-07-10 20:32:47,323 - app.services.dose_manager - INFO - Cancellation response for device devX: {'cancelled': True}
-2025-07-10 20:32:47,326 - app.services.llm - ERROR - No valid JSON block found in OpenAI response: no json here
-2025-07-10 20:32:47,328 - app.services.llm - INFO - Making direct Ollama call to model any-model with prompt:
-any prompt
-2025-07-10 20:32:47,347 - httpx - INFO - HTTP Request: POST http://localhost:11434/api/generate "HTTP/1.1 200 OK"
-2025-07-10 20:32:47,347 - app.services.llm - INFO - Ollama raw completion: {"z":3}
-2025-07-10 20:32:47,354 - app.services.llm - INFO - Making direct Ollama call to model model with prompt:
-prompt
-2025-07-10 20:32:47,369 - httpx - INFO - HTTP Request: POST http://localhost:11434/api/generate "HTTP/1.1 500 Internal Server Error"
-2025-07-10 20:32:47,369 - app.services.llm - ERROR - Ollama call failed: 500: LLM API HTTP error
-2025-07-10 20:32:47,371 - app.services.llm - INFO - Sending prompt to LLM:
-hello
-2025-07-10 20:32:47,371 - app.services.llm - INFO - Making direct Ollama call to model deepseek-r1:1.5b with prompt:
-hello
-2025-07-10 20:32:47,386 - httpx - INFO - HTTP Request: POST http://localhost:11434/api/generate "HTTP/1.1 200 OK"
-2025-07-10 20:32:47,387 - app.services.llm - INFO - Ollama raw completion: {"actions":[{"pump_number":2,"chemical_name":"Foo","dose_ml":20,"reasoning":"Test"}]}
-2025-07-10 20:32:47,397 - app.services.llm - INFO - Sending prompt to LLM:
-hello
-2025-07-10 20:32:47,397 - app.services.llm - INFO - Making direct Ollama call to model deepseek-r1:1.5b with prompt:
-hello
-2025-07-10 20:32:47,412 - httpx - INFO - HTTP Request: POST http://localhost:11434/api/generate "HTTP/1.1 500 Internal Server Error"
-2025-07-10 20:32:47,412 - app.services.llm - ERROR - Ollama call failed: 500: LLM API HTTP error
-2025-07-10 20:32:47,415 - app.services.llm - INFO - Making direct Ollama call to model m with prompt:
-p
-2025-07-10 20:32:47,430 - httpx - INFO - HTTP Request: POST http://localhost:11434/api/generate "HTTP/1.1 200 OK"
-2025-07-10 20:32:47,430 - app.services.llm - INFO - Ollama raw completion: not json
-2025-07-10 20:32:47,430 - app.services.llm - ERROR - Malformed JSON from Ollama: not json
-2025-07-10 20:32:47,430 - app.services.llm - ERROR - Ollama call failed: 500: Invalid JSON from LLM service
-2025-07-10 20:32:47,432 - app.services.plant_service - INFO - Fetching plants from database...
-2025-07-10 20:32:47,432 - app.services.plant_service - INFO - No plants found, returning an empty list.
-2025-07-10 20:32:47,432 - app.services.plant_service - INFO - Fetching plants from database...
-2025-07-10 20:32:47,432 - app.services.plant_service - INFO - Fetched 2 plants from the database
-2025-07-10 20:32:47,438 - app.services.plant_service - INFO - Fetching plants from database...
-2025-07-10 20:32:47,438 - app.services.plant_service - ERROR - Database query failed: db is down
-2025-07-10 20:35:54,122 - app.services.supply_chain_service - ERROR - No valid JSON block found in LLM response.
-2025-07-10 20:35:54,126 - app.services.llm - INFO - Sending prompt to LLM:
-hi
-2025-07-10 20:35:54,171 - app.services.llm - INFO - Sending prompt to LLM:
-foo
-2025-07-10 20:35:54,175 - app.services.device_controller - INFO - Sensor readings from http://devip: {'ph': 7.2, 'tds': 450.0}
-2025-07-10 20:35:54,181 - app.services.dose_manager - INFO - Sent dosing commands to device dev1: [{'ok': True, 'pump': 2, 'amount': 25, 'combined': False}]
-2025-07-10 20:35:54,181 - app.services.dose_manager - INFO - Sent dosing commands to device dev1: [{'ok': True, 'pump': 2, 'amount': 25, 'combined': True}]
-2025-07-10 20:35:54,182 - app.services.dose_manager - INFO - Cancellation response for device devX: {'cancelled': True}
-2025-07-10 20:35:54,184 - app.services.llm - ERROR - No valid JSON block found in OpenAI response: no json here
-2025-07-10 20:35:54,187 - app.services.llm - INFO - Making direct Ollama call to model any-model with prompt:
-any prompt
-2025-07-10 20:35:54,207 - httpx - INFO - HTTP Request: POST http://localhost:11434/api/generate "HTTP/1.1 200 OK"
-2025-07-10 20:35:54,207 - app.services.llm - INFO - Ollama raw completion: {"z":3}
-2025-07-10 20:35:54,213 - app.services.llm - INFO - Making direct Ollama call to model model with prompt:
-prompt
-2025-07-10 20:35:54,228 - httpx - INFO - HTTP Request: POST http://localhost:11434/api/generate "HTTP/1.1 500 Internal Server Error"
-2025-07-10 20:35:54,228 - app.services.llm - ERROR - Ollama call failed: 500: LLM API HTTP error
-2025-07-10 20:35:54,230 - app.services.llm - INFO - Sending prompt to LLM:
-hello
-2025-07-10 20:35:54,230 - app.services.llm - INFO - Making direct Ollama call to model deepseek-r1:1.5b with prompt:
-hello
-2025-07-10 20:35:54,246 - httpx - INFO - HTTP Request: POST http://localhost:11434/api/generate "HTTP/1.1 200 OK"
-2025-07-10 20:35:54,246 - app.services.llm - INFO - Ollama raw completion: {"actions":[{"pump_number":2,"chemical_name":"Foo","dose_ml":20,"reasoning":"Test"}]}
-2025-07-10 20:35:54,251 - app.services.llm - INFO - Sending prompt to LLM:
-hello
-2025-07-10 20:35:54,251 - app.services.llm - INFO - Making direct Ollama call to model deepseek-r1:1.5b with prompt:
-hello
-2025-07-10 20:35:54,266 - httpx - INFO - HTTP Request: POST http://localhost:11434/api/generate "HTTP/1.1 500 Internal Server Error"
-2025-07-10 20:35:54,266 - app.services.llm - ERROR - Ollama call failed: 500: LLM API HTTP error
-2025-07-10 20:35:54,269 - app.services.llm - INFO - Making direct Ollama call to model m with prompt:
-p
-2025-07-10 20:35:54,284 - httpx - INFO - HTTP Request: POST http://localhost:11434/api/generate "HTTP/1.1 200 OK"
-2025-07-10 20:35:54,284 - app.services.llm - INFO - Ollama raw completion: not json
-2025-07-10 20:35:54,284 - app.services.llm - ERROR - Malformed JSON from Ollama: not json
-2025-07-10 20:35:54,284 - app.services.llm - ERROR - Ollama call failed: 500: Invalid JSON from LLM service
-2025-07-10 20:35:54,286 - app.services.plant_service - INFO - Fetching plants from database...
-2025-07-10 20:35:54,286 - app.services.plant_service - INFO - No plants found, returning an empty list.
-2025-07-10 20:35:54,287 - app.services.plant_service - INFO - Fetching plants from database...
-2025-07-10 20:35:54,287 - app.services.plant_service - INFO - Fetched 2 plants from the database
-2025-07-10 20:35:54,291 - app.services.plant_service - INFO - Fetching plants from database...
-2025-07-10 20:35:54,292 - app.services.plant_service - ERROR - Database query failed: db is down
-2025-07-10 20:36:05,247 - app.services.supply_chain_service - ERROR - No valid JSON block found in LLM response.
-2025-07-10 20:36:05,251 - app.services.llm - INFO - Sending prompt to LLM:
-hi
-2025-07-10 20:36:05,297 - app.services.llm - INFO - Sending prompt to LLM:
-foo
-2025-07-10 20:36:05,301 - app.services.device_controller - INFO - Sensor readings from http://devip: {'ph': 7.2, 'tds': 450.0}
-2025-07-10 20:36:05,309 - app.services.dose_manager - INFO - Sent dosing commands to device dev1: [{'ok': True, 'pump': 2, 'amount': 25, 'combined': False}]
-2025-07-10 20:36:05,309 - app.services.dose_manager - INFO - Sent dosing commands to device dev1: [{'ok': True, 'pump': 2, 'amount': 25, 'combined': True}]
-2025-07-10 20:36:05,309 - app.services.dose_manager - INFO - Cancellation response for device devX: {'cancelled': True}
-2025-07-10 20:36:05,312 - app.services.llm - ERROR - No valid JSON block found in OpenAI response: no json here
-2025-07-10 20:36:05,314 - app.services.llm - INFO - Making direct Ollama call to model any-model with prompt:
-any prompt
-2025-07-10 20:36:05,333 - httpx - INFO - HTTP Request: POST http://localhost:11434/api/generate "HTTP/1.1 200 OK"
-2025-07-10 20:36:05,334 - app.services.llm - INFO - Ollama raw completion: {"z":3}
-2025-07-10 20:36:05,340 - app.services.llm - INFO - Making direct Ollama call to model model with prompt:
-prompt
-2025-07-10 20:36:05,355 - httpx - INFO - HTTP Request: POST http://localhost:11434/api/generate "HTTP/1.1 500 Internal Server Error"
-2025-07-10 20:36:05,355 - app.services.llm - ERROR - Ollama call failed: 500: LLM API HTTP error
-2025-07-10 20:36:05,357 - app.services.llm - INFO - Sending prompt to LLM:
-hello
-2025-07-10 20:36:05,357 - app.services.llm - INFO - Making direct Ollama call to model deepseek-r1:1.5b with prompt:
-hello
-2025-07-10 20:36:05,372 - httpx - INFO - HTTP Request: POST http://localhost:11434/api/generate "HTTP/1.1 200 OK"
-2025-07-10 20:36:05,373 - app.services.llm - INFO - Ollama raw completion: {"actions":[{"pump_number":2,"chemical_name":"Foo","dose_ml":20,"reasoning":"Test"}]}
-2025-07-10 20:36:05,377 - app.services.llm - INFO - Sending prompt to LLM:
-hello
-2025-07-10 20:36:05,377 - app.services.llm - INFO - Making direct Ollama call to model deepseek-r1:1.5b with prompt:
-hello
-2025-07-10 20:36:05,392 - httpx - INFO - HTTP Request: POST http://localhost:11434/api/generate "HTTP/1.1 500 Internal Server Error"
-2025-07-10 20:36:05,392 - app.services.llm - ERROR - Ollama call failed: 500: LLM API HTTP error
-2025-07-10 20:36:05,395 - app.services.llm - INFO - Making direct Ollama call to model m with prompt:
-p
-2025-07-10 20:36:05,410 - httpx - INFO - HTTP Request: POST http://localhost:11434/api/generate "HTTP/1.1 200 OK"
-2025-07-10 20:36:05,410 - app.services.llm - INFO - Ollama raw completion: not json
-2025-07-10 20:36:05,410 - app.services.llm - ERROR - Malformed JSON from Ollama: not json
-2025-07-10 20:36:05,410 - app.services.llm - ERROR - Ollama call failed: 500: Invalid JSON from LLM service
-2025-07-10 20:36:05,412 - app.services.plant_service - INFO - Fetching plants from database...
-2025-07-10 20:36:05,412 - app.services.plant_service - INFO - No plants found, returning an empty list.
-2025-07-10 20:36:05,413 - app.services.plant_service - INFO - Fetching plants from database...
-2025-07-10 20:36:05,413 - app.services.plant_service - INFO - Fetched 2 plants from the database
-2025-07-10 20:36:05,417 - app.services.plant_service - INFO - Fetching plants from database...
-2025-07-10 20:36:05,417 - app.services.plant_service - ERROR - Database query failed: db is down
-2025-07-10 20:39:20,482 - app.services.supply_chain_service - ERROR - No valid JSON block found in LLM response.
-2025-07-10 20:39:20,487 - app.services.llm - INFO - Sending prompt to LLM:
-hi
-2025-07-10 20:39:20,510 - app.services.llm - INFO - Sending prompt to LLM:
-foo
-2025-07-10 20:39:20,514 - app.services.device_controller - INFO - Sensor readings from http://devip: {'ph': 7.2, 'tds': 450.0}
-2025-07-10 20:39:20,522 - app.services.dose_manager - INFO - Sent dosing commands to device dev1: [{'ok': True, 'pump': 2, 'amount': 25, 'combined': False}]
-2025-07-10 20:39:20,522 - app.services.dose_manager - INFO - Sent dosing commands to device dev1: [{'ok': True, 'pump': 2, 'amount': 25, 'combined': True}]
-2025-07-10 20:39:20,522 - app.services.dose_manager - INFO - Cancellation response for device devX: {'cancelled': True}
-2025-07-10 20:39:20,525 - app.services.llm - ERROR - No valid JSON block found in OpenAI response: no json here
-2025-07-10 20:39:20,527 - app.services.llm - INFO - Making direct Ollama call to model any-model with prompt:
-any prompt
-2025-07-10 20:39:20,547 - httpx - INFO - HTTP Request: POST http://localhost:11434/api/generate "HTTP/1.1 200 OK"
-2025-07-10 20:39:20,547 - app.services.llm - INFO - Ollama raw completion: {"z":3}
-2025-07-10 20:39:20,554 - app.services.llm - INFO - Making direct Ollama call to model model with prompt:
-prompt
-2025-07-10 20:39:20,570 - httpx - INFO - HTTP Request: POST http://localhost:11434/api/generate "HTTP/1.1 500 Internal Server Error"
-2025-07-10 20:39:20,570 - app.services.llm - ERROR - Ollama call failed: 500: LLM API HTTP error
-2025-07-10 20:39:20,572 - app.services.llm - INFO - Sending prompt to LLM:
-hello
-2025-07-10 20:39:20,572 - app.services.llm - INFO - Making direct Ollama call to model deepseek-r1:1.5b with prompt:
-hello
-2025-07-10 20:39:20,587 - httpx - INFO - HTTP Request: POST http://localhost:11434/api/generate "HTTP/1.1 200 OK"
-2025-07-10 20:39:20,587 - app.services.llm - INFO - Ollama raw completion: {"actions":[{"pump_number":2,"chemical_name":"Foo","dose_ml":20,"reasoning":"Test"}]}
-2025-07-10 20:39:20,611 - app.services.llm - INFO - Sending prompt to LLM:
-hello
-2025-07-10 20:39:20,611 - app.services.llm - INFO - Making direct Ollama call to model deepseek-r1:1.5b with prompt:
-hello
-2025-07-10 20:39:20,626 - httpx - INFO - HTTP Request: POST http://localhost:11434/api/generate "HTTP/1.1 500 Internal Server Error"
-2025-07-10 20:39:20,626 - app.services.llm - ERROR - Ollama call failed: 500: LLM API HTTP error
-2025-07-10 20:39:20,629 - app.services.llm - INFO - Making direct Ollama call to model m with prompt:
-p
-2025-07-10 20:39:20,644 - httpx - INFO - HTTP Request: POST http://localhost:11434/api/generate "HTTP/1.1 200 OK"
-2025-07-10 20:39:20,644 - app.services.llm - INFO - Ollama raw completion: not json
-2025-07-10 20:39:20,644 - app.services.llm - ERROR - Malformed JSON from Ollama: not json
-2025-07-10 20:39:20,644 - app.services.llm - ERROR - Ollama call failed: 500: Invalid JSON from LLM service
-2025-07-10 20:39:20,646 - app.services.plant_service - INFO - Fetching plants from database...
-2025-07-10 20:39:20,646 - app.services.plant_service - INFO - No plants found, returning an empty list.
-2025-07-10 20:39:20,647 - app.services.plant_service - INFO - Fetching plants from database...
-2025-07-10 20:39:20,647 - app.services.plant_service - INFO - Fetched 2 plants from the database
-2025-07-10 20:39:20,652 - app.services.plant_service - INFO - Fetching plants from database...
-2025-07-10 20:39:20,652 - app.services.plant_service - ERROR - Database query failed: db is down
-2025-07-10 20:39:25,328 - app.services.supply_chain_service - ERROR - No valid JSON block found in LLM response.
-2025-07-10 20:39:25,332 - app.services.llm - INFO - Sending prompt to LLM:
-hi
-2025-07-10 20:39:25,355 - app.services.llm - INFO - Sending prompt to LLM:
-foo
-2025-07-10 20:39:25,359 - app.services.device_controller - INFO - Sensor readings from http://devip: {'ph': 7.2, 'tds': 450.0}
-2025-07-10 20:39:25,366 - app.services.dose_manager - INFO - Sent dosing commands to device dev1: [{'ok': True, 'pump': 2, 'amount': 25, 'combined': False}]
-2025-07-10 20:39:25,367 - app.services.dose_manager - INFO - Sent dosing commands to device dev1: [{'ok': True, 'pump': 2, 'amount': 25, 'combined': True}]
-2025-07-10 20:39:25,367 - app.services.dose_manager - INFO - Cancellation response for device devX: {'cancelled': True}
-2025-07-10 20:39:25,370 - app.services.llm - ERROR - No valid JSON block found in OpenAI response: no json here
-2025-07-10 20:39:25,373 - app.services.llm - INFO - Making direct Ollama call to model any-model with prompt:
-any prompt
-2025-07-10 20:39:25,392 - httpx - INFO - HTTP Request: POST http://localhost:11434/api/generate "HTTP/1.1 200 OK"
-2025-07-10 20:39:25,392 - app.services.llm - INFO - Ollama raw completion: {"z":3}
-2025-07-10 20:39:25,397 - app.services.llm - INFO - Making direct Ollama call to model model with prompt:
-prompt
-2025-07-10 20:39:25,413 - httpx - INFO - HTTP Request: POST http://localhost:11434/api/generate "HTTP/1.1 500 Internal Server Error"
-2025-07-10 20:39:25,413 - app.services.llm - ERROR - Ollama call failed: 500: LLM API HTTP error
-2025-07-10 20:39:25,415 - app.services.llm - INFO - Sending prompt to LLM:
-hello
-2025-07-10 20:39:25,415 - app.services.llm - INFO - Making direct Ollama call to model deepseek-r1:1.5b with prompt:
-hello
-2025-07-10 20:39:25,430 - httpx - INFO - HTTP Request: POST http://localhost:11434/api/generate "HTTP/1.1 200 OK"
-2025-07-10 20:39:25,430 - app.services.llm - INFO - Ollama raw completion: {"actions":[{"pump_number":2,"chemical_name":"Foo","dose_ml":20,"reasoning":"Test"}]}
-2025-07-10 20:39:25,455 - app.services.llm - INFO - Sending prompt to LLM:
-hello
-2025-07-10 20:39:25,455 - app.services.llm - INFO - Making direct Ollama call to model deepseek-r1:1.5b with prompt:
-hello
-2025-07-10 20:39:25,471 - httpx - INFO - HTTP Request: POST http://localhost:11434/api/generate "HTTP/1.1 500 Internal Server Error"
-2025-07-10 20:39:25,471 - app.services.llm - ERROR - Ollama call failed: 500: LLM API HTTP error
-2025-07-10 20:39:25,474 - app.services.llm - INFO - Making direct Ollama call to model m with prompt:
-p
-2025-07-10 20:39:25,490 - httpx - INFO - HTTP Request: POST http://localhost:11434/api/generate "HTTP/1.1 200 OK"
-2025-07-10 20:39:25,490 - app.services.llm - INFO - Ollama raw completion: not json
-2025-07-10 20:39:25,490 - app.services.llm - ERROR - Malformed JSON from Ollama: not json
-2025-07-10 20:39:25,490 - app.services.llm - ERROR - Ollama call failed: 500: Invalid JSON from LLM service
-2025-07-10 20:39:25,492 - app.services.plant_service - INFO - Fetching plants from database...
-2025-07-10 20:39:25,492 - app.services.plant_service - INFO - No plants found, returning an empty list.
-2025-07-10 20:39:25,493 - app.services.plant_service - INFO - Fetching plants from database...
-2025-07-10 20:39:25,493 - app.services.plant_service - INFO - Fetched 2 plants from the database
-2025-07-10 20:39:25,498 - app.services.plant_service - INFO - Fetching plants from database...
-2025-07-10 20:39:25,498 - app.services.plant_service - ERROR - Database query failed: db is down
-2025-07-10 20:41:21,164 - app.services.supply_chain_service - ERROR - No valid JSON block found in LLM response.
-2025-07-10 20:41:21,169 - app.services.llm - INFO - Sending prompt to LLM:
-hi
-2025-07-10 20:41:21,194 - app.services.llm - INFO - Sending prompt to LLM:
-foo
-2025-07-10 20:41:21,199 - app.services.device_controller - INFO - Sensor readings from http://devip: {'ph': 7.2, 'tds': 450.0}
-2025-07-10 20:41:21,239 - app.services.dose_manager - INFO - Sent dosing commands to device dev1: [{'ok': True, 'pump': 2, 'amount': 25, 'combined': False}]
-2025-07-10 20:41:21,239 - app.services.dose_manager - INFO - Sent dosing commands to device dev1: [{'ok': True, 'pump': 2, 'amount': 25, 'combined': True}]
-2025-07-10 20:41:21,240 - app.services.dose_manager - INFO - Cancellation response for device devX: {'cancelled': True}
-2025-07-10 20:41:21,247 - app.services.llm - ERROR - No valid JSON block found in OpenAI response: no json here
-2025-07-10 20:41:21,251 - app.services.llm - INFO - Making direct Ollama call to model any-model with prompt:
-any prompt
-2025-07-10 20:41:21,273 - httpx - INFO - HTTP Request: POST http://localhost:11434/api/generate "HTTP/1.1 200 OK"
-2025-07-10 20:41:21,273 - app.services.llm - INFO - Ollama raw completion: {"z":3}
-2025-07-10 20:41:21,279 - app.services.llm - INFO - Making direct Ollama call to model model with prompt:
-prompt
-2025-07-10 20:41:21,294 - httpx - INFO - HTTP Request: POST http://localhost:11434/api/generate "HTTP/1.1 500 Internal Server Error"
-2025-07-10 20:41:21,294 - app.services.llm - ERROR - Ollama call failed: 500: LLM API HTTP error
-2025-07-10 20:41:21,296 - app.services.llm - INFO - Sending prompt to LLM:
-hello
-2025-07-10 20:41:21,296 - app.services.llm - INFO - Making direct Ollama call to model deepseek-r1:1.5b with prompt:
-hello
-2025-07-10 20:41:21,312 - httpx - INFO - HTTP Request: POST http://localhost:11434/api/generate "HTTP/1.1 200 OK"
-2025-07-10 20:41:21,312 - app.services.llm - INFO - Ollama raw completion: {"actions":[{"pump_number":2,"chemical_name":"Foo","dose_ml":20,"reasoning":"Test"}]}
-2025-07-10 20:41:21,314 - app.services.llm - INFO - Sending prompt to LLM:
-hello
-2025-07-10 20:41:21,314 - app.services.llm - INFO - Making direct Ollama call to model deepseek-r1:1.5b with prompt:
-hello
-2025-07-10 20:41:21,329 - httpx - INFO - HTTP Request: POST http://localhost:11434/api/generate "HTTP/1.1 500 Internal Server Error"
-2025-07-10 20:41:21,329 - app.services.llm - ERROR - Ollama call failed: 500: LLM API HTTP error
-2025-07-10 20:41:21,331 - app.services.llm - INFO - Making direct Ollama call to model m with prompt:
-p
-2025-07-10 20:41:21,348 - httpx - INFO - HTTP Request: POST http://localhost:11434/api/generate "HTTP/1.1 200 OK"
-2025-07-10 20:41:21,349 - app.services.llm - INFO - Ollama raw completion: not json
-2025-07-10 20:41:21,349 - app.services.llm - ERROR - Malformed JSON from Ollama: not json
-2025-07-10 20:41:21,349 - app.services.llm - ERROR - Ollama call failed: 500: Invalid JSON from LLM service
-2025-07-10 20:41:21,351 - app.services.plant_service - INFO - Fetching plants from database...
-2025-07-10 20:41:21,351 - app.services.plant_service - INFO - No plants found, returning an empty list.
-2025-07-10 20:41:21,351 - app.services.plant_service - INFO - Fetching plants from database...
-2025-07-10 20:41:21,351 - app.services.plant_service - INFO - Fetched 2 plants from the database
-2025-07-10 20:41:21,357 - app.services.plant_service - INFO - Fetching plants from database...
-2025-07-10 20:41:21,358 - app.services.plant_service - ERROR - Database query failed: db is down
-2025-07-10 20:47:10,029 - app.services.supply_chain_service - ERROR - No valid JSON block found in LLM response.
-2025-07-10 20:47:10,034 - app.services.llm - INFO - Sending prompt to LLM:
-hi
-2025-07-10 20:47:10,075 - app.services.llm - INFO - Sending prompt to LLM:
-foo
-2025-07-10 20:47:10,103 - app.services.device_controller - INFO - Sensor readings from http://devip: {'ph': 7.2, 'tds': 450.0}
-2025-07-10 20:47:10,118 - app.services.dose_manager - INFO - Sent dosing commands to device dev1: [{'ok': True, 'pump': 2, 'amount': 25, 'combined': False}]
-2025-07-10 20:47:10,118 - app.services.dose_manager - INFO - Sent dosing commands to device dev1: [{'ok': True, 'pump': 2, 'amount': 25, 'combined': True}]
-2025-07-10 20:47:10,119 - app.services.dose_manager - INFO - Cancellation response for device devX: {'cancelled': True}
-2025-07-10 20:47:10,122 - app.services.llm - ERROR - No valid JSON block found in OpenAI response: no json here
-2025-07-10 20:47:10,126 - app.services.llm - INFO - Making direct Ollama call to model model with prompt:
-any
-2025-07-10 20:47:10,146 - httpx - INFO - HTTP Request: POST http://localhost:11434/api/generate "HTTP/1.1 200 OK"
-2025-07-10 20:47:10,146 - app.services.llm - INFO - Ollama raw completion: {"z":3}
-2025-07-10 20:47:10,153 - app.services.llm - INFO - Making direct Ollama call to model model with prompt:
-any
-2025-07-10 20:47:10,168 - httpx - INFO - HTTP Request: POST http://localhost:11434/api/generate "HTTP/1.1 500 Internal Server Error"
-2025-07-10 20:47:10,168 - app.services.llm - ERROR - Ollama call failed: 500: LLM API HTTP error
-2025-07-10 20:47:10,170 - app.services.llm - INFO - Making direct Ollama call to model model with prompt:
-any
-2025-07-10 20:47:10,185 - httpx - INFO - HTTP Request: POST http://localhost:11434/api/generate "HTTP/1.1 200 OK"
-2025-07-10 20:47:10,185 - app.services.llm - INFO - Ollama raw completion: not json
-2025-07-10 20:47:10,185 - app.services.llm - ERROR - Malformed JSON from Ollama: not json
-2025-07-10 20:47:10,185 - app.services.llm - ERROR - Ollama call failed: 500: Invalid JSON from LLM service
-2025-07-10 20:47:10,188 - app.services.llm - INFO - Sending prompt to LLM:
-hello
-2025-07-10 20:47:10,188 - app.services.llm - INFO - Making direct Ollama call to model mymodel with prompt:
-hello
-2025-07-10 20:47:10,204 - app.services.llm - ERROR - Ollama call failed: RESPX: <Request('POST', 'http://localhost:11434/api/generate')> not mocked!
-2025-07-10 20:47:10,281 - app.services.llm - INFO - Sending prompt to LLM:
-hello
-2025-07-10 20:47:10,281 - app.services.llm - INFO - Making direct Ollama call to model mymodel with prompt:
-hello
-2025-07-10 20:47:10,297 - httpx - INFO - HTTP Request: POST http://localhost:11434/api/generate "HTTP/1.1 500 Internal Server Error"
-2025-07-10 20:47:10,297 - app.services.llm - ERROR - Ollama call failed: 500: LLM API HTTP error
-2025-07-10 20:47:10,306 - app.services.llm - INFO - Sending prompt to LLM:
-hi
-2025-07-10 20:47:10,306 - app.services.llm - INFO - Making OpenAI call to model None with prompt:
-hi
-2025-07-10 20:47:10,306 - app.services.llm - ERROR - OpenAI call failed: DummyOpenAI.chat.completions.create() missing 1 required positional argument: 'temperature'
-2025-07-10 20:47:10,316 - app.services.plant_service - INFO - Fetching plants from database...
-2025-07-10 20:47:10,316 - app.services.plant_service - INFO - No plants found, returning an empty list.
-2025-07-10 20:47:10,317 - app.services.plant_service - INFO - Fetching plants from database...
-2025-07-10 20:47:10,317 - app.services.plant_service - INFO - Fetched 2 plants from the database
-2025-07-10 20:47:10,322 - app.services.plant_service - INFO - Fetching plants from database...
-2025-07-10 20:47:10,322 - app.services.plant_service - ERROR - Database query failed: db is down
-2025-07-10 20:54:38,609 - app.services.supply_chain_service - ERROR - No valid JSON block found in LLM response.
-2025-07-10 20:54:38,613 - app.services.llm - INFO - Sending prompt to LLM:
-hi
-2025-07-10 20:54:38,663 - app.services.llm - INFO - Sending prompt to LLM:
-foo
-2025-07-10 20:54:38,667 - app.services.device_controller - INFO - Sensor readings from http://devip: {'ph': 7.2, 'tds': 450.0}
-2025-07-10 20:54:38,674 - app.services.dose_manager - INFO - Sent dosing commands to device dev1: [{'ok': True, 'pump': 2, 'amount': 25, 'combined': False}]
-2025-07-10 20:54:38,674 - app.services.dose_manager - INFO - Sent dosing commands to device dev1: [{'ok': True, 'pump': 2, 'amount': 25, 'combined': True}]
-2025-07-10 20:54:38,675 - app.services.dose_manager - INFO - Cancellation response for device devX: {'cancelled': True}
-2025-07-10 20:54:38,678 - app.services.llm - ERROR - No valid JSON block found in OpenAI response: no json here
-2025-07-10 20:54:38,682 - app.services.llm - INFO - Making direct Ollama call to model model with prompt:
-any
-2025-07-10 20:54:38,701 - httpx - INFO - HTTP Request: POST http://localhost:11434/api/generate "HTTP/1.1 200 OK"
-2025-07-10 20:54:38,701 - app.services.llm - INFO - Ollama raw completion: {"z":3}
-2025-07-10 20:54:38,710 - app.services.llm - INFO - Making direct Ollama call to model model with prompt:
-any
-2025-07-10 20:54:38,726 - httpx - INFO - HTTP Request: POST http://localhost:11434/api/generate "HTTP/1.1 500 Internal Server Error"
-2025-07-10 20:54:38,728 - app.services.llm - INFO - Making direct Ollama call to model model with prompt:
-any
-2025-07-10 20:54:38,743 - httpx - INFO - HTTP Request: POST http://localhost:11434/api/generate "HTTP/1.1 200 OK"
-2025-07-10 20:54:38,743 - app.services.llm - INFO - Ollama raw completion: not json
-2025-07-10 20:54:38,748 - app.services.llm - INFO - Sending prompt to LLM:
-hello
-2025-07-10 20:54:38,748 - app.services.llm - INFO - Making direct Ollama call to model deepseek-r1:1.5b with prompt:
-hello
-2025-07-10 20:54:38,763 - httpx - INFO - HTTP Request: POST http://localhost:11434/api/generate "HTTP/1.1 200 OK"
-2025-07-10 20:54:38,763 - app.services.llm - INFO - Ollama raw completion: {"actions":[{"pump_number":2,"chemical_name":"Foo","dose_ml":20,"reasoning":"Test"}]}
-2025-07-10 20:54:38,766 - app.services.llm - INFO - Sending prompt to LLM:
-hello
-2025-07-10 20:54:38,766 - app.services.llm - INFO - Making direct Ollama call to model deepseek-r1:1.5b with prompt:
-hello
-2025-07-10 20:54:38,782 - httpx - INFO - HTTP Request: POST http://localhost:11434/api/generate "HTTP/1.1 500 Internal Server Error"
-2025-07-10 20:54:38,783 - app.services.llm - INFO - Making OpenAI call to model model with prompt:
-prompt
-2025-07-10 20:54:38,783 - app.services.llm - INFO - OpenAI response: <test_llm_service.DummyOpenAI.chat.completions.create.<locals>.Resp object at 0x145cca5d0>
-2025-07-10 20:54:38,783 - app.services.llm - INFO - OpenAI raw completion: {"actions":[{"pump_number":1,"chemical_name":"Bar","dose_ml":15,"reasoning":"OK"}]}
-2025-07-10 20:54:38,785 - app.services.llm - INFO - Sending prompt to LLM:
-hi
-2025-07-10 20:54:38,786 - app.services.llm - INFO - Making OpenAI call to model model with prompt:
-hi
-2025-07-10 20:54:38,786 - app.services.llm - INFO - OpenAI response: <test_llm_service.DummyOpenAI.chat.completions.create.<locals>.Resp object at 0x145cc9460>
-2025-07-10 20:54:38,786 - app.services.llm - INFO - OpenAI raw completion: {"actions":[{"pump_number":1,"chemical_name":"Bar","dose_ml":15,"reasoning":"OK"}]}
-2025-07-10 20:54:38,786 - app.services.plant_service - INFO - Fetching plants from database...
-2025-07-10 20:54:38,787 - app.services.plant_service - INFO - No plants found, returning an empty list.
-2025-07-10 20:54:38,787 - app.services.plant_service - INFO - Fetching plants from database...
-2025-07-10 20:54:38,787 - app.services.plant_service - INFO - Fetched 2 plants from the database
-2025-07-10 20:54:38,793 - app.services.plant_service - INFO - Fetching plants from database...
-2025-07-10 20:54:38,793 - app.services.plant_service - ERROR - Database query failed: db is down
-2025-07-10 20:55:09,092 - app.services.supply_chain_service - ERROR - No valid JSON block found in LLM response.
-2025-07-10 20:55:09,097 - app.services.llm - INFO - Sending prompt to LLM:
-hi
-2025-07-10 20:55:09,157 - app.services.llm - INFO - Sending prompt to LLM:
-foo
-2025-07-10 20:55:09,161 - app.services.device_controller - INFO - Sensor readings from http://devip: {'ph': 7.2, 'tds': 450.0}
-2025-07-10 20:55:09,168 - app.services.dose_manager - INFO - Sent dosing commands to device dev1: [{'ok': True, 'pump': 2, 'amount': 25, 'combined': False}]
-2025-07-10 20:55:09,168 - app.services.dose_manager - INFO - Sent dosing commands to device dev1: [{'ok': True, 'pump': 2, 'amount': 25, 'combined': True}]
-2025-07-10 20:55:09,169 - app.services.dose_manager - INFO - Cancellation response for device devX: {'cancelled': True}
-2025-07-10 20:55:09,172 - app.services.llm - ERROR - No valid JSON block found in OpenAI response: no json here
-2025-07-10 20:55:09,176 - app.services.llm - INFO - Making direct Ollama call to model model with prompt:
-any
-2025-07-10 20:55:09,198 - httpx - INFO - HTTP Request: POST http://localhost:11434/api/generate "HTTP/1.1 200 OK"
-2025-07-10 20:55:09,198 - app.services.llm - INFO - Ollama raw completion: {"z":3}
-2025-07-10 20:55:09,208 - app.services.llm - INFO - Making direct Ollama call to model model with prompt:
-any
-2025-07-10 20:55:09,223 - httpx - INFO - HTTP Request: POST http://localhost:11434/api/generate "HTTP/1.1 500 Internal Server Error"
-2025-07-10 20:55:09,225 - app.services.llm - INFO - Making direct Ollama call to model model with prompt:
-any
-2025-07-10 20:55:09,240 - httpx - INFO - HTTP Request: POST http://localhost:11434/api/generate "HTTP/1.1 200 OK"
-2025-07-10 20:55:09,240 - app.services.llm - INFO - Ollama raw completion: not json
-2025-07-10 20:55:09,245 - app.services.llm - INFO - Sending prompt to LLM:
-hello
-2025-07-10 20:55:09,245 - app.services.llm - INFO - Making direct Ollama call to model deepseek-r1:1.5b with prompt:
-hello
-2025-07-10 20:55:09,261 - httpx - INFO - HTTP Request: POST http://localhost:11434/api/generate "HTTP/1.1 200 OK"
-2025-07-10 20:55:09,261 - app.services.llm - INFO - Ollama raw completion: {"actions":[{"pump_number":2,"chemical_name":"Foo","dose_ml":20,"reasoning":"Test"}]}
-2025-07-10 20:55:09,264 - app.services.llm - INFO - Sending prompt to LLM:
-hello
-2025-07-10 20:55:09,264 - app.services.llm - INFO - Making direct Ollama call to model deepseek-r1:1.5b with prompt:
-hello
-2025-07-10 20:55:09,280 - httpx - INFO - HTTP Request: POST http://localhost:11434/api/generate "HTTP/1.1 500 Internal Server Error"
-2025-07-10 20:55:09,282 - app.services.llm - INFO - Making OpenAI call to model model with prompt:
-prompt
-2025-07-10 20:55:09,282 - app.services.llm - INFO - OpenAI response: <test_llm_service.DummyOpenAI.chat.completions.create.<locals>.Resp object at 0x11baaf9e0>
-2025-07-10 20:55:09,282 - app.services.llm - INFO - OpenAI raw completion: {"actions":[{"pump_number":1,"chemical_name":"Bar","dose_ml":15,"reasoning":"OK"}]}
-2025-07-10 20:55:09,284 - app.services.llm - INFO - Sending prompt to LLM:
-hi
-2025-07-10 20:55:09,284 - app.services.llm - INFO - Making OpenAI call to model model with prompt:
-hi
-2025-07-10 20:55:09,284 - app.services.llm - INFO - OpenAI response: <test_llm_service.DummyOpenAI.chat.completions.create.<locals>.Resp object at 0x11bafc920>
-2025-07-10 20:55:09,284 - app.services.llm - INFO - OpenAI raw completion: {"actions":[{"pump_number":1,"chemical_name":"Bar","dose_ml":15,"reasoning":"OK"}]}
-2025-07-10 20:55:09,285 - app.services.plant_service - INFO - Fetching plants from database...
-2025-07-10 20:55:09,285 - app.services.plant_service - INFO - No plants found, returning an empty list.
-2025-07-10 20:55:09,286 - app.services.plant_service - INFO - Fetching plants from database...
-2025-07-10 20:55:09,286 - app.services.plant_service - INFO - Fetched 2 plants from the database
-2025-07-10 20:55:09,291 - app.services.plant_service - INFO - Fetching plants from database...
-2025-07-10 20:55:09,291 - app.services.plant_service - ERROR - Database query failed: db is down
-2025-07-10 20:58:22,684 - app.services.supply_chain_service - ERROR - No valid JSON block found in LLM response.
-2025-07-10 20:58:22,689 - app.services.llm - INFO - Sending prompt to LLM:
-hi
-2025-07-10 20:58:22,739 - app.services.llm - INFO - Sending prompt to LLM:
-foo
-2025-07-10 20:58:22,743 - app.services.device_controller - INFO - Sensor readings from http://devip: {'ph': 7.2, 'tds': 450.0}
-2025-07-10 20:58:22,750 - app.services.dose_manager - INFO - Sent dosing commands to device dev1: [{'ok': True, 'pump': 2, 'amount': 25, 'combined': False}]
-2025-07-10 20:58:22,750 - app.services.dose_manager - INFO - Sent dosing commands to device dev1: [{'ok': True, 'pump': 2, 'amount': 25, 'combined': True}]
-2025-07-10 20:58:22,750 - app.services.dose_manager - INFO - Cancellation response for device devX: {'cancelled': True}
-2025-07-10 20:58:22,759 - app.services.llm - ERROR - No valid JSON block found in OpenAI response: no json here
-2025-07-10 20:58:22,763 - app.services.llm - INFO - Making direct Ollama call to model model with prompt:
-any
-2025-07-10 20:58:22,783 - httpx - INFO - HTTP Request: POST http://localhost:11434/api/generate "HTTP/1.1 200 OK"
-2025-07-10 20:58:22,783 - app.services.llm - INFO - Ollama raw completion: {"z":3}
-2025-07-10 20:58:22,792 - app.services.llm - INFO - Making direct Ollama call to model model with prompt:
-any
-2025-07-10 20:58:22,808 - httpx - INFO - HTTP Request: POST http://localhost:11434/api/generate "HTTP/1.1 500 Internal Server Error"
-2025-07-10 20:58:22,809 - app.services.llm - INFO - Making direct Ollama call to model model with prompt:
-any
-2025-07-10 20:58:22,825 - httpx - INFO - HTTP Request: POST http://localhost:11434/api/generate "HTTP/1.1 200 OK"
-2025-07-10 20:58:22,825 - app.services.llm - INFO - Ollama raw completion: not json
-2025-07-10 20:58:22,830 - app.services.llm - INFO - Sending prompt to LLM:
-hello
-2025-07-10 20:58:22,830 - app.services.llm - INFO - Making direct Ollama call to model deepseek-r1:1.5b with prompt:
-hello
-2025-07-10 20:58:22,845 - httpx - INFO - HTTP Request: POST http://localhost:11434/api/generate "HTTP/1.1 200 OK"
-2025-07-10 20:58:22,845 - app.services.llm - INFO - Ollama raw completion: {"actions":[{"pump_number":2,"chemical_name":"Foo","dose_ml":20,"reasoning":"Test"}]}
-2025-07-10 20:58:22,848 - app.services.llm - INFO - Sending prompt to LLM:
-hello
-2025-07-10 20:58:22,848 - app.services.llm - INFO - Making direct Ollama call to model deepseek-r1:1.5b with prompt:
-hello
-2025-07-10 20:58:22,863 - httpx - INFO - HTTP Request: POST http://localhost:11434/api/generate "HTTP/1.1 500 Internal Server Error"
-2025-07-10 20:58:22,864 - app.services.llm - INFO - Making OpenAI call to model model with prompt:
-prompt
-2025-07-10 20:58:22,864 - app.services.llm - INFO - OpenAI response: <test_llm_service.DummyOpenAI.chat.completions.create.<locals>.Resp object at 0x1186fb4d0>
-2025-07-10 20:58:22,864 - app.services.llm - INFO - OpenAI raw completion: {"actions":[{"pump_number":1,"chemical_name":"Bar","dose_ml":15,"reasoning":"OK"}]}
-2025-07-10 20:58:22,866 - app.services.llm - INFO - Sending prompt to LLM:
-hi
-2025-07-10 20:58:22,866 - app.services.llm - INFO - Making OpenAI call to model model with prompt:
-hi
-2025-07-10 20:58:22,867 - app.services.llm - INFO - OpenAI response: <test_llm_service.DummyOpenAI.chat.completions.create.<locals>.Resp object at 0x1186f8dd0>
-2025-07-10 20:58:22,867 - app.services.llm - INFO - OpenAI raw completion: {"actions":[{"pump_number":1,"chemical_name":"Bar","dose_ml":15,"reasoning":"OK"}]}
-2025-07-10 20:58:22,867 - app.services.plant_service - INFO - Fetching plants from database...
-2025-07-10 20:58:22,867 - app.services.plant_service - INFO - No plants found, returning an empty list.
-2025-07-10 20:58:22,868 - app.services.plant_service - INFO - Fetching plants from database...
-2025-07-10 20:58:22,868 - app.services.plant_service - INFO - Fetched 2 plants from the database
-2025-07-10 20:58:22,874 - app.services.plant_service - INFO - Fetching plants from database...
-2025-07-10 20:58:22,874 - app.services.plant_service - ERROR - Database query failed: db is down
-2025-07-10 20:59:27,169 - app.services.supply_chain_service - ERROR - No valid JSON block found in LLM response.
-2025-07-10 20:59:27,174 - app.services.llm - INFO - Sending prompt to LLM:
-hi
-2025-07-10 20:59:27,174 - app.services.llm - ERROR - Validation or parsing error in call_llm_async: Action missing required keys: {'chemical_name', 'reasoning', 'pump_number', 'dose_ml'}. Found: dict_keys([])
-2025-07-10 20:59:27,230 - app.services.llm - INFO - Sending prompt to LLM:
-foo
-2025-07-10 20:59:27,234 - app.services.device_controller - INFO - Sensor readings from http://devip: {'ph': 7.2, 'tds': 450.0}
-2025-07-10 20:59:27,243 - app.services.dose_manager - INFO - Sent dosing commands to device dev1: [{'ok': True, 'pump': 2, 'amount': 25, 'combined': False}]
-2025-07-10 20:59:27,243 - app.services.dose_manager - INFO - Sent dosing commands to device dev1: [{'ok': True, 'pump': 2, 'amount': 25, 'combined': True}]
-2025-07-10 20:59:27,243 - app.services.dose_manager - INFO - Cancellation response for device devX: {'cancelled': True}
-2025-07-10 20:59:27,245 - app.services.llm - ERROR - Failed to parse JSON from string: no json here
-2025-07-10 20:59:27,251 - app.services.llm - ERROR - No valid JSON block (object or array) found in OpenAI response: no json here
-2025-07-10 20:59:27,256 - app.services.llm - INFO - Making direct Ollama call to model model with prompt:
-any
-2025-07-10 20:59:27,279 - httpx - INFO - HTTP Request: POST http://localhost:11434/api/generate "HTTP/1.1 200 OK"
-2025-07-10 20:59:27,279 - app.services.llm - INFO - Ollama raw completion: {"z":3}
-2025-07-10 20:59:27,288 - app.services.llm - INFO - Making direct Ollama call to model model with prompt:
-any
-2025-07-10 20:59:27,303 - httpx - INFO - HTTP Request: POST http://localhost:11434/api/generate "HTTP/1.1 500 Internal Server Error"
-2025-07-10 20:59:27,305 - app.services.llm - INFO - Making direct Ollama call to model model with prompt:
-any
-2025-07-10 20:59:27,320 - httpx - INFO - HTTP Request: POST http://localhost:11434/api/generate "HTTP/1.1 200 OK"
-2025-07-10 20:59:27,320 - app.services.llm - INFO - Ollama raw completion: not json
-2025-07-10 20:59:27,326 - app.services.llm - INFO - Sending prompt to LLM:
-hello
-2025-07-10 20:59:27,326 - app.services.llm - INFO - Making direct Ollama call to model deepseek-r1:1.5b with prompt:
-hello
-2025-07-10 20:59:27,341 - httpx - INFO - HTTP Request: POST http://localhost:11434/api/generate "HTTP/1.1 200 OK"
-2025-07-10 20:59:27,342 - app.services.llm - INFO - Ollama raw completion: {"actions":[{"pump_number":2,"chemical_name":"Foo","dose_ml":20,"reasoning":"Test"}]}
-2025-07-10 20:59:27,344 - app.services.llm - INFO - Sending prompt to LLM:
-hello
-2025-07-10 20:59:27,344 - app.services.llm - INFO - Making direct Ollama call to model deepseek-r1:1.5b with prompt:
-hello
-2025-07-10 20:59:27,360 - httpx - INFO - HTTP Request: POST http://localhost:11434/api/generate "HTTP/1.1 500 Internal Server Error"
-2025-07-10 20:59:27,361 - app.services.llm - INFO - Making OpenAI call to model model with prompt:
-prompt
-2025-07-10 20:59:27,361 - app.services.llm - INFO - OpenAI response: <test_llm_service.DummyOpenAI.chat.completions.create.<locals>.Resp object at 0x1322cf380>
-2025-07-10 20:59:27,361 - app.services.llm - INFO - OpenAI raw completion: {"actions":[{"pump_number":1,"chemical_name":"Bar","dose_ml":15,"reasoning":"OK"}]}
-2025-07-10 20:59:27,364 - app.services.llm - INFO - Sending prompt to LLM:
-hi
-2025-07-10 20:59:27,364 - app.services.llm - INFO - Making OpenAI call to model model with prompt:
-hi
-2025-07-10 20:59:27,364 - app.services.llm - INFO - OpenAI response: <test_llm_service.DummyOpenAI.chat.completions.create.<locals>.Resp object at 0x1322cd7f0>
-2025-07-10 20:59:27,364 - app.services.llm - INFO - OpenAI raw completion: {"actions":[{"pump_number":1,"chemical_name":"Bar","dose_ml":15,"reasoning":"OK"}]}
-2025-07-10 20:59:27,364 - app.services.plant_service - INFO - Fetching plants from database...
-2025-07-10 20:59:27,365 - app.services.plant_service - INFO - No plants found, returning an empty list.
-2025-07-10 20:59:27,365 - app.services.plant_service - INFO - Fetching plants from database...
-2025-07-10 20:59:27,365 - app.services.plant_service - INFO - Fetched 2 plants from the database
-2025-07-10 20:59:27,372 - app.services.plant_service - INFO - Fetching plants from database...
-2025-07-10 20:59:27,372 - app.services.plant_service - ERROR - Database query failed: db is down
-2025-07-10 21:01:32,968 - app.services.supply_chain_service - ERROR - No valid JSON block found in LLM response.
-2025-07-10 21:01:32,974 - app.services.llm - INFO - Sending prompt to LLM:
-hi
-2025-07-10 21:01:32,999 - app.services.llm - INFO - Sending prompt to LLM:
-foo
-2025-07-10 21:01:33,003 - app.services.device_controller - INFO - Sensor readings from http://devip: {'ph': 7.2, 'tds': 450.0}
-2025-07-10 21:01:33,011 - app.services.dose_manager - INFO - Sent dosing commands to device dev1: [{'ok': True, 'pump': 2, 'amount': 25, 'combined': False}]
-2025-07-10 21:01:33,012 - app.services.dose_manager - INFO - Sent dosing commands to device dev1: [{'ok': True, 'pump': 2, 'amount': 25, 'combined': True}]
-2025-07-10 21:01:33,012 - app.services.dose_manager - INFO - Cancellation response for device devX: {'cancelled': True}
-2025-07-10 21:01:33,015 - app.services.llm - ERROR - No valid JSON block found in OpenAI response: no json here
-2025-07-10 21:01:33,019 - app.services.llm - INFO - Making direct Ollama call to model model with prompt:
-any
-2025-07-10 21:01:33,039 - httpx - INFO - HTTP Request: POST http://localhost:11434/api/generate "HTTP/1.1 200 OK"
-2025-07-10 21:01:33,039 - app.services.llm - INFO - Ollama raw completion: {"z":3}
-2025-07-10 21:01:33,045 - app.services.llm - INFO - Making direct Ollama call to model model with prompt:
-any
-2025-07-10 21:01:33,061 - httpx - INFO - HTTP Request: POST http://localhost:11434/api/generate "HTTP/1.1 500 Internal Server Error"
-2025-07-10 21:01:33,061 - app.services.llm - ERROR - Ollama call failed: 500: LLM API HTTP error
-2025-07-10 21:01:33,063 - app.services.llm - INFO - Making direct Ollama call to model model with prompt:
-any
-2025-07-10 21:01:33,078 - httpx - INFO - HTTP Request: POST http://localhost:11434/api/generate "HTTP/1.1 200 OK"
-2025-07-10 21:01:33,078 - app.services.llm - INFO - Ollama raw completion: not json
-2025-07-10 21:01:33,078 - app.services.llm - ERROR - Malformed JSON from Ollama: not json
-2025-07-10 21:01:33,078 - app.services.llm - ERROR - Ollama call failed: 500: Invalid JSON from LLM service
-2025-07-10 21:01:33,081 - app.services.llm - INFO - Sending prompt to LLM:
-hello
-2025-07-10 21:01:33,081 - app.services.llm - INFO - Making direct Ollama call to model mymodel with prompt:
-hello
-2025-07-10 21:01:33,096 - app.services.llm - ERROR - Ollama call failed: RESPX: <Request('POST', 'http://localhost:11434/api/generate')> not mocked!
-2025-07-10 21:01:33,244 - app.services.llm - INFO - Sending prompt to LLM:
-hello
-2025-07-10 21:01:33,244 - app.services.llm - INFO - Making direct Ollama call to model mymodel with prompt:
-hello
-2025-07-10 21:01:33,260 - httpx - INFO - HTTP Request: POST http://localhost:11434/api/generate "HTTP/1.1 500 Internal Server Error"
-2025-07-10 21:01:33,260 - app.services.llm - ERROR - Ollama call failed: 500: LLM API HTTP error
-2025-07-10 21:01:33,270 - app.services.llm - INFO - Sending prompt to LLM:
-hi
-2025-07-10 21:01:33,270 - app.services.llm - INFO - Making OpenAI call to model None with prompt:
-hi
-2025-07-10 21:01:33,270 - app.services.llm - ERROR - OpenAI call failed: DummyOpenAI.chat.completions.create() missing 1 required positional argument: 'temperature'
-2025-07-10 21:01:33,280 - app.services.plant_service - INFO - Fetching plants from database...
-2025-07-10 21:01:33,280 - app.services.plant_service - INFO - No plants found, returning an empty list.
-2025-07-10 21:01:33,281 - app.services.plant_service - INFO - Fetching plants from database...
-2025-07-10 21:01:33,281 - app.services.plant_service - INFO - Fetched 2 plants from the database
-2025-07-10 21:01:33,286 - app.services.plant_service - INFO - Fetching plants from database...
-2025-07-10 21:01:33,286 - app.services.plant_service - ERROR - Database query failed: db is down
-2025-07-10 21:09:39,977 - app.services.supply_chain_service - ERROR - No valid JSON block found in LLM response.
-2025-07-10 21:09:39,981 - app.services.llm - INFO - Sending prompt to LLM:
-hi
-2025-07-10 21:09:40,003 - app.services.llm - INFO - Sending prompt to LLM:
-foo
-2025-07-10 21:09:40,008 - app.services.device_controller - INFO - Sensor readings from http://devip: {'ph': 7.2, 'tds': 450.0}
-2025-07-10 21:09:40,015 - app.services.dose_manager - INFO - Sent dosing commands to device dev1: [{'ok': True, 'pump': 2, 'amount': 25, 'combined': False}]
-2025-07-10 21:09:40,015 - app.services.dose_manager - INFO - Sent dosing commands to device dev1: [{'ok': True, 'pump': 2, 'amount': 25, 'combined': True}]
-2025-07-10 21:09:40,016 - app.services.dose_manager - INFO - Cancellation response for device devX: {'cancelled': True}
-2025-07-10 21:09:40,018 - app.services.llm - ERROR - No valid JSON block found in OpenAI response: no braces at all
-2025-07-10 21:09:40,812 - httpx - INFO - HTTP Request: GET https://google.serper.dev/search?q=optimal+growth.+Focus+on+best+practices+in+Europe+for+Veggie+cultivation.&gl=in&hl=en&apiKey=31e32e860200a40a198e1464a2d3fc3eee6da6d0&num=5&full=true&output=detailed "HTTP/1.1 403 Forbidden"
-2025-07-10 21:09:40,814 - app.services.serper - ERROR - Serper API HTTP error (403): {"message":"Unauthorized.","statusCode":403}
-2025-07-10 21:09:40,932 - httpx - INFO - HTTP Request: GET http://localhost:11434/api/tags "HTTP/1.1 200 OK"
-2025-07-10 21:09:40,932 - app.services.llm - INFO - Making direct Ollama call to model deepseek-r1:1.5b with prompt:
-Return exactly this JSON: {"foo": 42}
-2025-07-10 21:10:12,946 - httpx - INFO - HTTP Request: POST http://localhost:11434/api/generate "HTTP/1.1 200 OK"
-2025-07-10 21:10:12,952 - app.services.llm - INFO - Ollama raw completion: <think>
-Okay, so I need to return the exact JSON string that's "{'foo': 42}". Let me think about how to do this. 
-
-First, I know that in programming languages like Python or JavaScript, when you want to output a specific JSON value, you enclose it within double quotes and put curly braces around the key-value pairs. So for a simple object like {"foo": 42}, the structure is important.
-
-Wait, but if someone just writes "{'foo': 42}", would that work? Let me test this mentally. In Python, writing '{"foo": 42}' will give me {'foo': 42} when printed or viewed. But wait, in some contexts, especially when using JSON libraries like json.dumps(), you need to wrap the entire object with quotes.
-
-But the user wants to return exactly the JSON string "{'foo': 42}". So maybe they mean that we shouldn't use any of Python's syntax but just write it directly without any quotes or double braces. 
-
-Hmm, is there a way in some other languages to get this exact output? For example, in JavaScript, if I just write "{'foo': 42}", does it return the same JSON string? Let me think about that.
-
-In JavaScript, when you use "..." syntax for strings, surrounding without quotes would result in single-quoted strings. So "{'foo': 42}" would actually be interpreted as a string literal with single quotes inside, which isn't the same as a properly formatted JSON object. So that wouldn't work.
-
-What if I try using an array or some other structure? Like ["{'foo': 42}"] or something else, but that seems unrelated to returning the exact JSON value we want.
-
-Wait, maybe in some cases like when using certain libraries or functions, they might interpret it differently. For example, if I use json.dumps({"foo": 42}), does it return "{'foo': 42}"? Let me recall. In Python's print statement, yes, it would show that string. But when you actually assign a variable in Python like x = {"foo":42}, what happens? If you just write x, it would display the same as above but without quotes.
-
-Wait, no. Wait, if I have x = [{"foo": 42}], and then print(x[0]), does that show "{'foo': 42}" or not?
-
-Let me think again. Maybe in some contexts where JSON is required, like when using json.dumps(), the exact string will be returned without quotes unless specified otherwise.
-
-But regardless of how I write it, the user wants exactly "{'foo': 42}". So if I'm writing this in a Python script, and I want to ensure that when printed or displayed, it shows as that string, perhaps I need to enclose it within double quotes. But wait, would that cause any issues with how it's evaluated?
-
-Alternatively, maybe the user just wants to write the exact JSON literal without worrying about the formatting in terms of surrounding quotes. So if they just write "{'foo': 42}", it should return exactly what they want.
-
-I'm a bit confused because different languages handle these encodings differently. In Python, strings are treated as Python strings by default when using single quotes inside double quotes. But for JSON purposes, we need to use double quotes and curly braces properly.
-
-Wait, but in the example given, the JSON is written with single quotes inside the string. So maybe the user wants to return a string that looks like a JSON object, meaning it should be enclosed in double quotes, starting and ending with them, and have proper syntax for key-value pairs.
-
-So perhaps the best way is to write "{'foo': 42}", assuming that when this code is evaluated without any context that changes it, it would return exactly what's desired. Because sometimes, especially when using certain libraries or string formatting functions, quotes can be ignored if they are not necessary.
-
-But I'm not entirely sure about the exact behavior in different environments. To be safe, maybe wrapping it with double quotes and properly formatted braces is the way to go.
-</think>
-
-The exact JSON string that should be returned is "{'foo': 42}". This ensures proper syntax and correct formatting when enclosed within appropriate quotation marks.
-
-```json
-{"foo": 42}
-```
-2025-07-10 21:10:12,952 - app.services.llm - ERROR - Malformed JSON from Ollama: <think>
-Okay, so I need to return the exact JSON string that's "{'foo': 42}". Let me think about how to do this. 
-
-First, I know that in programming languages like Python or JavaScript, when you want to output a specific JSON value, you enclose it within double quotes and put curly braces around the key-value pairs. So for a simple object like {"foo": 42}, the structure is important.
-
-Wait, but if someone just writes "{'foo': 42}", would that work? Let me test this mentally. In Python, writing '{"foo": 42}' will give me {'foo': 42} when printed or viewed. But wait, in some contexts, especially when using JSON libraries like json.dumps(), you need to wrap the entire object with quotes.
-
-But the user wants to return exactly the JSON string "{'foo': 42}". So maybe they mean that we shouldn't use any of Python's syntax but just write it directly without any quotes or double braces. 
-
-Hmm, is there a way in some other languages to get this exact output? For example, in JavaScript, if I just write "{'foo': 42}", does it return the same JSON string? Let me think about that.
-
-In JavaScript, when you use "..." syntax for strings, surrounding without quotes would result in single-quoted strings. So "{'foo': 42}" would actually be interpreted as a string literal with single quotes inside, which isn't the same as a properly formatted JSON object. So that wouldn't work.
-
-What if I try using an array or some other structure? Like ["{'foo': 42}"] or something else, but that seems unrelated to returning the exact JSON value we want.
-
-Wait, maybe in some cases like when using certain libraries or functions, they might interpret it differently. For example, if I use json.dumps({"foo": 42}), does it return "{'foo': 42}"? Let me recall. In Python's print statement, yes, it would show that string. But when you actually assign a variable in Python like x = {"foo":42}, what happens? If you just write x, it would display the same as above but without quotes.
-
-Wait, no. Wait, if I have x = [{"foo": 42}], and then print(x[0]), does that show "{'foo': 42}" or not?
-
-Let me think again. Maybe in some contexts where JSON is required, like when using json.dumps(), the exact string will be returned without quotes unless specified otherwise.
-
-But regardless of how I write it, the user wants exactly "{'foo': 42}". So if I'm writing this in a Python script, and I want to ensure that when printed or displayed, it shows as that string, perhaps I need to enclose it within double quotes. But wait, would that cause any issues with how it's evaluated?
-
-Alternatively, maybe the user just wants to write the exact JSON literal without worrying about the formatting in terms of surrounding quotes. So if they just write "{'foo': 42}", it should return exactly what they want.
-
-I'm a bit confused because different languages handle these encodings differently. In Python, strings are treated as Python strings by default when using single quotes inside double quotes. But for JSON purposes, we need to use double quotes and curly braces properly.
-
-Wait, but in the example given, the JSON is written with single quotes inside the string. So maybe the user wants to return a string that looks like a JSON object, meaning it should be enclosed in double quotes, starting and ending with them, and have proper syntax for key-value pairs.
-
-So perhaps the best way is to write "{'foo': 42}", assuming that when this code is evaluated without any context that changes it, it would return exactly what's desired. Because sometimes, especially when using certain libraries or string formatting functions, quotes can be ignored if they are not necessary.
-
-But I'm not entirely sure about the exact behavior in different environments. To be safe, maybe wrapping it with double quotes and properly formatted braces is the way to go.
-</think>
-
-The exact JSON string that should be returned is "{'foo': 42}". This ensures proper syntax and correct formatting when enclosed within appropriate quotation marks.
-
-```json
-{"foo": 42}
-```
-2025-07-10 21:10:12,953 - app.services.llm - ERROR - Ollama call failed: 500: Invalid JSON from LLM service
-2025-07-10 21:10:13,036 - httpx - INFO - HTTP Request: GET http://localhost:11434/api/tags "HTTP/1.1 200 OK"
-2025-07-10 21:10:13,036 - app.services.llm - INFO - Sending prompt to LLM:
-Return {"x":1}
-2025-07-10 21:10:13,037 - app.services.llm - INFO - Making direct Ollama call to model deepseek-r1:1.5b with prompt:
-Return {"x":1}
-2025-07-10 21:10:27,641 - httpx - INFO - HTTP Request: POST http://localhost:11434/api/generate "HTTP/1.1 200 OK"
-2025-07-10 21:10:27,649 - app.services.llm - INFO - Ollama raw completion: <think>
-Okay, so I need to figure out how to handle the input "x:1". The user provided an example where it's converted into a dictionary like {"x": 1}. But wait, maybe there are different scenarios or cases I should consider. Let me think.
-
-First, if someone just inputs a string, like "x:1", they might want to treat it as a key-value pair in a dictionary. So the output would be something like {"x": 1}, which makes sense because the value is 1. But what if there are other values or more keys? For example, if it's "a:2,b:c", maybe I should split that into an array of objects with each key-value pair.
-
-Also, perhaps sometimes users might want to convert this string directly into a number instead of an object. So in that case, converting "x:1" would give me 1 as a number, not an object. That could be useful depending on the context.
-
-I should also consider if there are other edge cases. Like what if the value is null or undefined? In JavaScript, when you convert a string like "null" or "undefined", it might become a number 0 or NaN. So I need to handle those cases as well.
-
-Another thought: Maybe users sometimes expect both objects and arrays for such inputs. For example, in some programming languages, certain data structures require specific types. But since the initial response was an object, maybe that's more common here.
-
-I should also think about how this can be applied in different scenarios. For instance, if building a database schema or creating a test input generator where different data types are expected for various fields.
-
-Wait, I might have missed some aspects. What about formatting options? Like how the output is formatted—should it be plain text, JSON-like, or something else? The user didn't specify, so maybe defaulting to JSON or object format is acceptable unless they want a specific format.
-
-Also, what if the value is more complex, like an array or another type of data structure? Would I need to handle that in a more robust way? Perhaps adding error handling for unexpected inputs or trying to convert them as much as possible into objects.
-
-I think I should outline these possibilities before finalizing the answer. That way, it's comprehensive and covers different use cases.
-</think>
-
-If you provide a string like "x:1", you can interpret this in several ways depending on the context:
-
-1. **As an Object**:
-   ```javascript
-   {"x": 1}
-   ```
-   This treats "x" as a key-value pair where the value is 1.
-
-2. **Splitting into an Array of Objects**:
-   If the string contains multiple values, it's likely intended to be split into individual objects.
-   Example input: `"a:2,b:c"`
-   Output would be:
-   ```javascript
-   ["a": 2, "b": c]
-   ```
-   
-3. **As a Number**:
-   Convert the entire string directly into a number:
-   ```javascript
-   1
-   ```
-
-4. **Handling Null/Undefined Values**:
-   If the value is null or undefined, it might be treated as 0 or NaN.
-   Example: `"x":null` becomes 0.
-
-5. **Different Data Types Handling**:
-   Some programming languages require specific data types for fields, so adjust accordingly based on context.
-
-6. **Formatting Options**:
-   Consider formatting the output as JSON-like (objects) or plain text.
-
-7. **Error Handling**:
-   If unexpected input formats are provided, handle errors appropriately, possibly converting to a number 0 if invalid.
-
-Each scenario depends on your specific needs and requirements.
-2025-07-10 21:10:27,649 - app.services.llm - ERROR - Malformed JSON from Ollama: <think>
-Okay, so I need to figure out how to handle the input "x:1". The user provided an example where it's converted into a dictionary like {"x": 1}. But wait, maybe there are different scenarios or cases I should consider. Let me think.
-
-First, if someone just inputs a string, like "x:1", they might want to treat it as a key-value pair in a dictionary. So the output would be something like {"x": 1}, which makes sense because the value is 1. But what if there are other values or more keys? For example, if it's "a:2,b:c", maybe I should split that into an array of objects with each key-value pair.
-
-Also, perhaps sometimes users might want to convert this string directly into a number instead of an object. So in that case, converting "x:1" would give me 1 as a number, not an object. That could be useful depending on the context.
-
-I should also consider if there are other edge cases. Like what if the value is null or undefined? In JavaScript, when you convert a string like "null" or "undefined", it might become a number 0 or NaN. So I need to handle those cases as well.
-
-Another thought: Maybe users sometimes expect both objects and arrays for such inputs. For example, in some programming languages, certain data structures require specific types. But since the initial response was an object, maybe that's more common here.
-
-I should also think about how this can be applied in different scenarios. For instance, if building a database schema or creating a test input generator where different data types are expected for various fields.
-
-Wait, I might have missed some aspects. What about formatting options? Like how the output is formatted—should it be plain text, JSON-like, or something else? The user didn't specify, so maybe defaulting to JSON or object format is acceptable unless they want a specific format.
-
-Also, what if the value is more complex, like an array or another type of data structure? Would I need to handle that in a more robust way? Perhaps adding error handling for unexpected inputs or trying to convert them as much as possible into objects.
-
-I think I should outline these possibilities before finalizing the answer. That way, it's comprehensive and covers different use cases.
-</think>
-
-If you provide a string like "x:1", you can interpret this in several ways depending on the context:
-
-1. **As an Object**:
-   ```javascript
-   {"x": 1}
-   ```
-   This treats "x" as a key-value pair where the value is 1.
-
-2. **Splitting into an Array of Objects**:
-   If the string contains multiple values, it's likely intended to be split into individual objects.
-   Example input: `"a:2,b:c"`
-   Output would be:
-   ```javascript
-   ["a": 2, "b": c]
-   ```
-   
-3. **As a Number**:
-   Convert the entire string directly into a number:
-   ```javascript
-   1
-   ```
-
-4. **Handling Null/Undefined Values**:
-   If the value is null or undefined, it might be treated as 0 or NaN.
-   Example: `"x":null` becomes 0.
-
-5. **Different Data Types Handling**:
-   Some programming languages require specific data types for fields, so adjust accordingly based on context.
-
-6. **Formatting Options**:
-   Consider formatting the output as JSON-like (objects) or plain text.
-
-7. **Error Handling**:
-   If unexpected input formats are provided, handle errors appropriately, possibly converting to a number 0 if invalid.
-
-Each scenario depends on your specific needs and requirements.
-2025-07-10 21:10:27,650 - app.services.llm - ERROR - Ollama call failed: 500: Invalid JSON from LLM service
-2025-07-10 21:10:27,699 - app.services.plant_service - INFO - Fetching plants from database...
-2025-07-10 21:10:27,700 - app.services.plant_service - INFO - No plants found, returning an empty list.
-2025-07-10 21:10:27,701 - app.services.plant_service - INFO - Fetching plants from database...
-2025-07-10 21:10:27,701 - app.services.plant_service - INFO - Fetched 2 plants from the database
-2025-07-10 21:10:27,713 - app.services.plant_service - INFO - Fetching plants from database...
-2025-07-10 21:10:27,713 - app.services.plant_service - ERROR - Database query failed: db is down
-2025-07-10 21:11:11,397 - app.services.supply_chain_service - ERROR - No valid JSON block found in LLM response.
-2025-07-10 21:11:11,402 - app.services.llm - INFO - Sending prompt to LLM:
-hi
-2025-07-10 21:11:11,425 - app.services.llm - INFO - Sending prompt to LLM:
-foo
-2025-07-10 21:11:11,429 - app.services.device_controller - INFO - Sensor readings from http://devip: {'ph': 7.2, 'tds': 450.0}
-2025-07-10 21:11:11,436 - app.services.dose_manager - INFO - Sent dosing commands to device dev1: [{'ok': True, 'pump': 2, 'amount': 25, 'combined': False}]
-2025-07-10 21:11:11,436 - app.services.dose_manager - INFO - Sent dosing commands to device dev1: [{'ok': True, 'pump': 2, 'amount': 25, 'combined': True}]
-2025-07-10 21:11:11,436 - app.services.dose_manager - INFO - Cancellation response for device devX: {'cancelled': True}
-2025-07-10 21:11:11,439 - app.services.llm - ERROR - No valid JSON block found in OpenAI response: no braces at all
-2025-07-10 21:11:12,344 - httpx - INFO - HTTP Request: GET https://google.serper.dev/search?q=optimal+growth.+Focus+on+best+practices+in+Europe+for+Veggie+cultivation.&gl=in&hl=en&apiKey=31e32e860200a40a198e1464a2d3fc3eee6da6d0&num=5&full=true&output=detailed "HTTP/1.1 403 Forbidden"
-2025-07-10 21:11:12,346 - app.services.serper - ERROR - Serper API HTTP error (403): {"message":"Unauthorized.","statusCode":403}
-2025-07-10 21:11:12,455 - httpx - INFO - HTTP Request: GET http://localhost:11434/api/tags "HTTP/1.1 200 OK"
-2025-07-10 21:11:12,455 - app.services.llm - INFO - Making direct Ollama call to model deepseek-r1:1.5b with prompt:
-Return exactly this JSON: {"foo": 42}
-2025-07-10 21:11:15,555 - httpx - INFO - HTTP Request: POST http://localhost:11434/api/generate "HTTP/1.1 200 OK"
-2025-07-10 21:11:15,558 - app.services.llm - INFO - Ollama raw completion: <think>
-Okay, the user asked to return exactly that JSON: {"foo": 42}. I need to make sure my response is identical.
-
-I should start by opening a JSON object with curly braces. Inside, I'll have a key "foo" and its value as the number 42.
-
-Let me check if there are any special characters or formatting issues. The syntax seems straightforward—just wrapping the value in double quotes inside the braces.
-
-No other requirements, so my response should mirror the structure exactly.
-</think>
-
-Here is exactly the JSON you requested:
-
-{"foo": 42}
-2025-07-10 21:11:15,560 - app.services.llm - ERROR - Malformed JSON from Ollama: <think>
-Okay, the user asked to return exactly that JSON: {"foo": 42}. I need to make sure my response is identical.
-
-I should start by opening a JSON object with curly braces. Inside, I'll have a key "foo" and its value as the number 42.
-
-Let me check if there are any special characters or formatting issues. The syntax seems straightforward—just wrapping the value in double quotes inside the braces.
-
-No other requirements, so my response should mirror the structure exactly.
-</think>
-
-Here is exactly the JSON you requested:
-
-{"foo": 42}
-2025-07-10 21:11:15,561 - app.services.llm - ERROR - Ollama call failed: 500: Invalid JSON from LLM service
-2025-07-10 21:11:15,605 - httpx - INFO - HTTP Request: GET http://localhost:11434/api/tags "HTTP/1.1 200 OK"
-2025-07-10 21:11:15,605 - app.services.llm - INFO - Sending prompt to LLM:
-Return {"x":1}
-2025-07-10 21:11:15,605 - app.services.llm - INFO - Making direct Ollama call to model deepseek-r1:1.5b with prompt:
-Return {"x":1}
-2025-07-10 21:11:16,409 - httpx - INFO - HTTP Request: POST http://localhost:11434/api/generate "HTTP/1.1 200 OK"
-2025-07-10 21:11:16,410 - app.services.llm - INFO - Ollama raw completion: <think>
-
-</think>
-
-Could you clarify what you're referring to? Are you asking for a value of "x" or something else? Let me know so I can assist you better!
-2025-07-10 21:11:16,410 - app.services.llm - ERROR - Malformed JSON from Ollama: <think>
-
-</think>
-
-Could you clarify what you're referring to? Are you asking for a value of "x" or something else? Let me know so I can assist you better!
-2025-07-10 21:11:16,410 - app.services.llm - ERROR - Ollama call failed: 500: Invalid JSON from LLM service
-2025-07-10 21:11:16,453 - app.services.plant_service - INFO - Fetching plants from database...
-2025-07-10 21:11:16,453 - app.services.plant_service - INFO - No plants found, returning an empty list.
-2025-07-10 21:11:16,455 - app.services.plant_service - INFO - Fetching plants from database...
-2025-07-10 21:11:16,455 - app.services.plant_service - INFO - Fetched 2 plants from the database
-2025-07-10 21:11:16,463 - app.services.plant_service - INFO - Fetching plants from database...
-2025-07-10 21:11:16,463 - app.services.plant_service - ERROR - Database query failed: db is down
-2025-07-10 21:14:22,200 - app.services.supply_chain_service - ERROR - No valid JSON block found in LLM response.
-2025-07-10 21:14:22,205 - app.services.llm - INFO - Sending prompt to LLM:
-hi
-2025-07-10 21:14:22,279 - app.services.llm - INFO - Sending prompt to LLM:
-foo
-2025-07-10 21:14:22,283 - app.services.device_controller - INFO - Sensor readings from http://devip: {'ph': 7.2, 'tds': 450.0}
-2025-07-10 21:14:22,290 - app.services.dose_manager - INFO - Sent dosing commands to device dev1: [{'ok': True, 'pump': 2, 'amount': 25, 'combined': False}]
-2025-07-10 21:14:22,290 - app.services.dose_manager - INFO - Sent dosing commands to device dev1: [{'ok': True, 'pump': 2, 'amount': 25, 'combined': True}]
-2025-07-10 21:14:22,291 - app.services.dose_manager - INFO - Cancellation response for device devX: {'cancelled': True}
-2025-07-10 21:14:22,294 - app.services.llm - ERROR - No valid JSON block found in OpenAI response: no braces at all
-2025-07-10 21:14:23,217 - httpx - INFO - HTTP Request: GET https://google.serper.dev/search?q=optimal+growth.+Focus+on+best+practices+in+Europe+for+Veggie+cultivation.&gl=in&hl=en&apiKey=79729460be56c404bcbf96630c3bfd92ba6ecc3e5ef08d124f91aba3c8ecf580&num=5&full=true&output=detailed "HTTP/1.1 403 Forbidden"
-2025-07-10 21:14:23,219 - app.services.serper - ERROR - Serper API HTTP error (403): {"message":"Unauthorized.","statusCode":403}
-2025-07-10 21:14:23,311 - httpx - INFO - HTTP Request: GET http://localhost:11434/api/tags "HTTP/1.1 200 OK"
-2025-07-10 21:14:23,312 - app.services.llm - INFO - Making direct Ollama call to model deepseek-r1:1.5b with prompt:
-Return exactly this JSON: {"foo": 42}
-2025-07-10 21:14:30,800 - httpx - INFO - HTTP Request: POST http://localhost:11434/api/generate "HTTP/1.1 200 OK"
-2025-07-10 21:14:30,804 - app.services.llm - INFO - Ollama raw completion: <think>
-Okay, so the user just said, "Return exactly this JSON: {'foo': 42}." Hmm, I need to figure out what they're asking for. They provided a JSON object right after their message. Maybe they copied that into a script or something and want me to process it.
-
-Wait, maybe they're testing my ability to return the exact same JSON as they gave. It could be part of a code challenge or validation exercise. I should make sure I copy it exactly as written. Let's see, is there any variation? The format looks precise—no typos, no extra characters. No, that seems straightforward.
-
-I wonder if they have more context. Are they dealing with a specific system where exact JSON outputs are crucial for functions or comparisons? Maybe they're writing some automated testing and want to ensure their outputs match exactly before proceeding. Or perhaps they're working on data validation where the input must be identical to avoid errors.
-
-If I'm supposed to respond by returning this JSON, then I should just write it back out. It's a simple task—copying the exact string provided. But since I can't actually execute code here, maybe the user wants me to simulate that response if they were part of a programming environment. They might be using an online tool or a testing platform where accurate JSON inputs are vital.
-
-I should make sure my answer is precise and matches what was given. It's about returning exactly the same JSON object as before. There's no need for any additional information since it's straightforward. But I guess the key here is clarity—ensuring that no typos or missing characters are included in the response.
-</think>
-
-{"foo": 42}
-2025-07-10 21:14:30,804 - app.services.llm - ERROR - Malformed JSON from Ollama: <think>
-Okay, so the user just said, "Return exactly this JSON: {'foo': 42}." Hmm, I need to figure out what they're asking for. They provided a JSON object right after their message. Maybe they copied that into a script or something and want me to process it.
-
-Wait, maybe they're testing my ability to return the exact same JSON as they gave. It could be part of a code challenge or validation exercise. I should make sure I copy it exactly as written. Let's see, is there any variation? The format looks precise—no typos, no extra characters. No, that seems straightforward.
-
-I wonder if they have more context. Are they dealing with a specific system where exact JSON outputs are crucial for functions or comparisons? Maybe they're writing some automated testing and want to ensure their outputs match exactly before proceeding. Or perhaps they're working on data validation where the input must be identical to avoid errors.
-
-If I'm supposed to respond by returning this JSON, then I should just write it back out. It's a simple task—copying the exact string provided. But since I can't actually execute code here, maybe the user wants me to simulate that response if they were part of a programming environment. They might be using an online tool or a testing platform where accurate JSON inputs are vital.
-
-I should make sure my answer is precise and matches what was given. It's about returning exactly the same JSON object as before. There's no need for any additional information since it's straightforward. But I guess the key here is clarity—ensuring that no typos or missing characters are included in the response.
-</think>
-
-{"foo": 42}
-2025-07-10 21:14:30,805 - app.services.llm - ERROR - Ollama call failed: 500: Invalid JSON from LLM service
-2025-07-10 21:14:30,853 - httpx - INFO - HTTP Request: GET http://localhost:11434/api/tags "HTTP/1.1 200 OK"
-2025-07-10 21:14:30,853 - app.services.llm - INFO - Sending prompt to LLM:
-Return {"x":1}
-2025-07-10 21:14:30,853 - app.services.llm - INFO - Making direct Ollama call to model deepseek-r1:1.5b with prompt:
-Return {"x":1}
-2025-07-10 21:14:31,660 - httpx - INFO - HTTP Request: POST http://localhost:11434/api/generate "HTTP/1.1 200 OK"
-2025-07-10 21:14:31,660 - app.services.llm - INFO - Ollama raw completion: <think>
-
-</think>
-
-Sure! Could you clarify what you'd like to know? Are you looking for a specific piece of information or something else? Let me know how I can assist!
-2025-07-10 21:14:31,660 - app.services.llm - ERROR - Malformed JSON from Ollama: <think>
-
-</think>
-
-Sure! Could you clarify what you'd like to know? Are you looking for a specific piece of information or something else? Let me know how I can assist!
-2025-07-10 21:14:31,661 - app.services.llm - ERROR - Ollama call failed: 500: Invalid JSON from LLM service
-2025-07-10 21:14:31,713 - app.services.plant_service - INFO - Fetching plants from database...
-2025-07-10 21:14:31,714 - app.services.plant_service - INFO - No plants found, returning an empty list.
-2025-07-10 21:14:31,715 - app.services.plant_service - INFO - Fetching plants from database...
-2025-07-10 21:14:31,715 - app.services.plant_service - INFO - Fetched 2 plants from the database
-2025-07-10 21:14:31,724 - app.services.plant_service - INFO - Fetching plants from database...
-2025-07-10 21:14:31,724 - app.services.plant_service - ERROR - Database query failed: db is down
-2025-07-10 21:16:42,714 - app.services.supply_chain_service - ERROR - No valid JSON block found in LLM response.
-2025-07-10 21:16:42,719 - app.services.llm - INFO - Sending prompt to LLM:
-hi
-2025-07-10 21:16:42,741 - app.services.llm - INFO - Sending prompt to LLM:
-foo
-2025-07-10 21:16:42,746 - app.services.device_controller - INFO - Sensor readings from http://devip: {'ph': 7.2, 'tds': 450.0}
-2025-07-10 21:16:42,753 - app.services.dose_manager - INFO - Sent dosing commands to device dev1: [{'ok': True, 'pump': 2, 'amount': 25, 'combined': False}]
-2025-07-10 21:16:42,753 - app.services.dose_manager - INFO - Sent dosing commands to device dev1: [{'ok': True, 'pump': 2, 'amount': 25, 'combined': True}]
-2025-07-10 21:16:42,753 - app.services.dose_manager - INFO - Cancellation response for device devX: {'cancelled': True}
-2025-07-10 21:16:42,756 - app.services.llm - ERROR - No valid JSON block found in OpenAI response: no braces at all
-2025-07-10 21:16:43,505 - httpx - INFO - HTTP Request: GET https://google.serper.dev/search?q=optimal+growth.+Focus+on+best+practices+in+Europe+for+Veggie+cultivation.&gl=in&hl=en&apiKey=79729460be56c404bcbf96630c3bfd92ba6ecc3e5ef08d124f91aba3c8ecf580&num=5&full=true&output=detailed "HTTP/1.1 403 Forbidden"
-2025-07-10 21:16:43,507 - app.services.serper - ERROR - Serper API HTTP error (403): {"message":"Unauthorized.","statusCode":403}
-2025-07-10 21:16:43,599 - httpx - INFO - HTTP Request: GET http://localhost:11434/api/tags "HTTP/1.1 200 OK"
-2025-07-10 21:16:43,599 - app.services.llm - INFO - Making direct Ollama call to model deepseek-r1:1.5b with prompt:
-Return exactly this JSON: {"foo": 42}
-2025-07-10 21:16:43,619 - httpx - INFO - HTTP Request: GET http://localhost:11434/api/tags "HTTP/1.1 200 OK"
-2025-07-10 21:16:43,620 - app.services.llm - INFO - Sending prompt to LLM:
-Return {"x":1}
-2025-07-10 21:16:43,620 - app.services.llm - INFO - Making direct Ollama call to model deepseek-r1:1.5b with prompt:
-Return {"x":1}
-2025-07-10 21:16:43,622 - app.services.plant_service - INFO - Fetching plants from database...
-2025-07-10 21:16:43,622 - app.services.plant_service - INFO - No plants found, returning an empty list.
-2025-07-10 21:16:43,624 - app.services.plant_service - INFO - Fetching plants from database...
-2025-07-10 21:16:43,624 - app.services.plant_service - INFO - Fetched 2 plants from the database
-2025-07-10 21:16:43,629 - app.services.plant_service - INFO - Fetching plants from database...
-2025-07-10 21:16:43,630 - app.services.plant_service - ERROR - Database query failed: db is down
-2025-07-10 21:22:30,827 - app.services.supply_chain_service - ERROR - No valid JSON block found in LLM response.
-2025-07-10 21:22:30,831 - app.services.llm - INFO - Sending prompt to LLM:
-hi
-2025-07-10 21:22:30,853 - app.services.llm - INFO - Sending prompt to LLM:
-foo
-2025-07-10 21:22:30,858 - app.services.device_controller - INFO - Sensor readings from http://devip: {'ph': 7.2, 'tds': 450.0}
-2025-07-10 21:22:30,865 - app.services.dose_manager - INFO - Sent dosing commands to device dev1: [{'ok': True, 'pump': 2, 'amount': 25, 'combined': False}]
-2025-07-10 21:22:30,865 - app.services.dose_manager - INFO - Sent dosing commands to device dev1: [{'ok': True, 'pump': 2, 'amount': 25, 'combined': True}]
-2025-07-10 21:22:30,866 - app.services.dose_manager - INFO - Cancellation response for device devX: {'cancelled': True}
-2025-07-10 21:22:30,869 - app.services.llm - ERROR - No valid JSON block found in OpenAI response: no braces at all
-2025-07-10 21:22:31,839 - httpx - INFO - HTTP Request: GET https://google.serper.dev/search?q=optimal+growth.+Focus+on+best+practices+in+Europe+for+Veggie+cultivation.&gl=in&hl=en&apiKey=79729460be56c404bcbf96630c3bfd92ba6ecc3e5ef08d124f91aba3c8ecf580&num=5&full=true&output=detailed "HTTP/1.1 403 Forbidden"
-2025-07-10 21:22:31,841 - app.services.serper - ERROR - Serper API HTTP error (403): {"message":"Unauthorized.","statusCode":403}
-2025-07-10 21:22:31,842 - app.services.llm - WARNING - Serper enrichment skipped (Client error '403 Forbidden' for url 'https://google.serper.dev/search?q=optimal+growth.+Focus+on+best+practices+in+Europe+for+Veggie+cultivation.&gl=in&hl=en&apiKey=79729460be56c404bcbf96630c3bfd92ba6ecc3e5ef08d124f91aba3c8ecf580&num=5&full=true&output=detailed'
-For more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/403)
-2025-07-10 21:22:31,882 - httpx - INFO - HTTP Request: GET http://localhost:11434/api/tags "HTTP/1.1 200 OK"
-2025-07-10 21:22:31,882 - app.services.llm - INFO - Making direct Ollama call to model deepseek-r1:1.5b with prompt:
-Return exactly this JSON: {"foo": 42}
-2025-07-10 21:22:31,907 - httpx - INFO - HTTP Request: GET http://localhost:11434/api/tags "HTTP/1.1 200 OK"
-2025-07-10 21:22:31,907 - app.services.llm - INFO - Sending prompt to LLM:
-Return {"x":1}
-2025-07-10 21:22:31,907 - app.services.llm - INFO - Making direct Ollama call to model deepseek-r1:1.5b with prompt:
-Return {"x":1}
-2025-07-10 21:22:31,913 - app.services.plant_service - INFO - Fetching plants from database...
-2025-07-10 21:22:31,913 - app.services.plant_service - INFO - No plants found, returning an empty list.
-2025-07-10 21:22:31,914 - app.services.plant_service - INFO - Fetching plants from database...
-2025-07-10 21:22:31,914 - app.services.plant_service - INFO - Fetched 2 plants from the database
-2025-07-10 21:22:31,919 - app.services.plant_service - INFO - Fetching plants from database...
-2025-07-10 21:22:31,919 - app.services.plant_service - ERROR - Database query failed: db is down
-2025-07-10 21:24:03,710 - uvicorn.error - INFO - Started server process [59847]
-2025-07-10 21:24:03,710 - uvicorn.error - INFO - Waiting for application startup.
-2025-07-10 21:24:03,780 - uvicorn.error - INFO - Application startup complete.
-2025-07-10 21:24:03,780 - uvicorn.error - INFO - Uvicorn running on http://0.0.0.0:8000 (Press CTRL+C to quit)
-2025-07-10 21:24:06,378 - app.main - INFO - GET /api/v1/docs • ip=127.0.0.1 • device_id=- • 200 • 0.7ms
-2025-07-10 21:24:06,536 - app.main - INFO - GET /api/v1/openapi.json • ip=127.0.0.1 • device_id=- • 200 • 35.5ms
-2025-07-10 21:24:12,588 - app.main - INFO - GET /api/v1/health • ip=127.0.0.1 • device_id=- • 200 • 0.5ms
-2025-07-10 21:24:32,930 - app.main - ERROR - Unhandled error handling request POST /api/v1/auth/signup: module 'jwt' has no attribute 'encode'
+  File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/sqlalchemy/pool/base.py", line 374, in _close_connection
+    self._dialect.do_terminate(connection)
+  File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/sqlalchemy/dialects/postgresql/asyncpg.py", line 1130, in do_terminate
+    dbapi_connection.terminate()
+  File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/sqlalchemy/dialects/postgresql/asyncpg.py", line 907, in terminate
+    self.await_(asyncio.shield(self._connection.close(timeout=2)))
+  File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/sqlalchemy/util/_concurrency_py3k.py", line 132, in await_only
+    return current.parent.switch(awaitable)  # type: ignore[no-any-return,attr-defined] # noqa: E501
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/sqlalchemy/util/_concurrency_py3k.py", line 196, in greenlet_spawn
+    value = await result
+            ^^^^^^^^^^^^
+  File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/asyncpg/connection.py", line 1504, in close
+    await self._protocol.close(timeout)
+  File "asyncpg/protocol/protocol.pyx", line 627, in close
+  File "asyncpg/protocol/protocol.pyx", line 660, in asyncpg.protocol.protocol.BaseProtocol._request_cancel
+  File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/asyncpg/connection.py", line 1673, in _cancel_current_command
+    self._cancellations.add(self._loop.create_task(self._cancel(waiter)))
+                            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/homebrew/anaconda3/lib/python3.12/asyncio/base_events.py", line 456, in create_task
+    self._check_closed()
+  File "/opt/homebrew/anaconda3/lib/python3.12/asyncio/base_events.py", line 541, in _check_closed
+    raise RuntimeError('Event loop is closed')
+RuntimeError: Event loop is closed
+2025-07-14 19:30:47,737 - app.main - ERROR - Unhandled error handling request POST /api/v1/auth/signup: Task <Task pending name='starlette.middleware.base.BaseHTTPMiddleware.__call__.<locals>.call_next.<locals>.coro' coro=<BaseHTTPMiddleware.__call__.<locals>.call_next.<locals>.coro() running at /opt/homebrew/anaconda3/lib/python3.12/site-packages/starlette/middleware/base.py:140> cb=[TaskGroup._spawn.<locals>.task_done() at /opt/homebrew/anaconda3/lib/python3.12/site-packages/anyio/_backends/_asyncio.py:794]> got Future <Future pending cb=[BaseProtocol._on_waiter_completed()]> attached to a different loop
 Traceback (most recent call last):
   File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/starlette/middleware/base.py", line 147, in call_next
     message = await recv_stream.receive()
@@ -1342,9 +57,7 @@ Traceback (most recent call last):
     raise app_exc
   File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/starlette/middleware/base.py", line 140, in coro
     await self.app(scope, receive_or_disconnect, send_no_error)
-  File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/starlette/middleware/cors.py", line 93, in __call__
-    await self.simple_response(scope, receive, send, request_headers=headers)
-  File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/starlette/middleware/cors.py", line 144, in simple_response
+  File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/starlette/middleware/cors.py", line 85, in __call__
     await self.app(scope, receive, send)
   File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/starlette/middleware/sessions.py", line 85, in __call__
     await self.app(scope, receive, send_wrapper)
@@ -1375,11 +88,79 @@ Traceback (most recent call last):
   File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/fastapi/routing.py", line 212, in run_endpoint_function
     return await dependant.call(**values)
            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/Users/saswatpandey/hydroleaf/app/routers/auth.py", line 63, in signup
-    token = jwt.encode(token_data, SECRET_KEY, algorithm=ALGORITHM)
-            ^^^^^^^^^^
-AttributeError: module 'jwt' has no attribute 'encode'
-2025-07-10 21:24:32,936 - app.main - ERROR - Unhandled exception on /api/v1/auth/signup: module 'jwt' has no attribute 'encode'
+  File "/Users/saswatpandey/hydroleaf/app/routers/auth.py", line 49, in signup
+    result = await db.execute(select(User).where(User.email == user_create.email))
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/sqlalchemy/ext/asyncio/session.py", line 463, in execute
+    result = await greenlet_spawn(
+             ^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/sqlalchemy/util/_concurrency_py3k.py", line 201, in greenlet_spawn
+    result = context.throw(*sys.exc_info())
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/sqlalchemy/orm/session.py", line 2365, in execute
+    return self._execute_internal(
+           ^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/sqlalchemy/orm/session.py", line 2241, in _execute_internal
+    conn = self._connection_for_bind(bind)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/sqlalchemy/orm/session.py", line 2110, in _connection_for_bind
+    return trans._connection_for_bind(engine, execution_options)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "<string>", line 2, in _connection_for_bind
+  File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/sqlalchemy/orm/state_changes.py", line 139, in _go
+    ret_value = fn(self, *arg, **kw)
+                ^^^^^^^^^^^^^^^^^^^^
+  File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/sqlalchemy/orm/session.py", line 1189, in _connection_for_bind
+    conn = bind.connect()
+           ^^^^^^^^^^^^^^
+  File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/sqlalchemy/engine/base.py", line 3274, in connect
+    return self._connection_cls(self)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/sqlalchemy/engine/base.py", line 146, in __init__
+    self._dbapi_connection = engine.raw_connection()
+                             ^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/sqlalchemy/engine/base.py", line 3298, in raw_connection
+    return self.pool.connect()
+           ^^^^^^^^^^^^^^^^^^^
+  File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/sqlalchemy/pool/base.py", line 449, in connect
+    return _ConnectionFairy._checkout(self)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/sqlalchemy/pool/base.py", line 1363, in _checkout
+    with util.safe_reraise():
+         ^^^^^^^^^^^^^^^^^^^
+  File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/sqlalchemy/util/langhelpers.py", line 146, in __exit__
+    raise exc_value.with_traceback(exc_tb)
+  File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/sqlalchemy/pool/base.py", line 1301, in _checkout
+    result = pool._dialect._do_ping_w_event(
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/sqlalchemy/engine/default.py", line 717, in _do_ping_w_event
+    return self.do_ping(dbapi_connection)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/sqlalchemy/dialects/postgresql/asyncpg.py", line 1163, in do_ping
+    dbapi_connection.ping()
+  File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/sqlalchemy/dialects/postgresql/asyncpg.py", line 813, in ping
+    self._handle_exception(error)
+  File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/sqlalchemy/dialects/postgresql/asyncpg.py", line 794, in _handle_exception
+    raise error
+  File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/sqlalchemy/dialects/postgresql/asyncpg.py", line 811, in ping
+    _ = self.await_(self._async_ping())
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/sqlalchemy/util/_concurrency_py3k.py", line 132, in await_only
+    return current.parent.switch(awaitable)  # type: ignore[no-any-return,attr-defined] # noqa: E501
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/sqlalchemy/util/_concurrency_py3k.py", line 196, in greenlet_spawn
+    value = await result
+            ^^^^^^^^^^^^
+  File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/sqlalchemy/dialects/postgresql/asyncpg.py", line 820, in _async_ping
+    await tr.start()
+  File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/asyncpg/transaction.py", line 146, in start
+    await self._connection.execute(query)
+  File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/asyncpg/connection.py", line 349, in execute
+    result = await self._protocol.query(query, timeout)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "asyncpg/protocol/protocol.pyx", line 375, in query
+RuntimeError: Task <Task pending name='starlette.middleware.base.BaseHTTPMiddleware.__call__.<locals>.call_next.<locals>.coro' coro=<BaseHTTPMiddleware.__call__.<locals>.call_next.<locals>.coro() running at /opt/homebrew/anaconda3/lib/python3.12/site-packages/starlette/middleware/base.py:140> cb=[TaskGroup._spawn.<locals>.task_done() at /opt/homebrew/anaconda3/lib/python3.12/site-packages/anyio/_backends/_asyncio.py:794]> got Future <Future pending cb=[BaseProtocol._on_waiter_completed()]> attached to a different loop
+2025-07-14 19:30:47,747 - app.main - ERROR - Unhandled exception on /api/v1/auth/signup: Task <Task pending name='starlette.middleware.base.BaseHTTPMiddleware.__call__.<locals>.call_next.<locals>.coro' coro=<BaseHTTPMiddleware.__call__.<locals>.call_next.<locals>.coro() running at /opt/homebrew/anaconda3/lib/python3.12/site-packages/starlette/middleware/base.py:140> cb=[TaskGroup._spawn.<locals>.task_done() at /opt/homebrew/anaconda3/lib/python3.12/site-packages/anyio/_backends/_asyncio.py:794]> got Future <Future pending cb=[BaseProtocol._on_waiter_completed()]> attached to a different loop
   + Exception Group Traceback (most recent call last):
   |   File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/starlette/_utils.py", line 76, in collapse_excgroups
   |     yield
@@ -1410,9 +191,7 @@ AttributeError: module 'jwt' has no attribute 'encode'
     |     raise app_exc
     |   File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/starlette/middleware/base.py", line 140, in coro
     |     await self.app(scope, receive_or_disconnect, send_no_error)
-    |   File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/starlette/middleware/cors.py", line 93, in __call__
-    |     await self.simple_response(scope, receive, send, request_headers=headers)
-    |   File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/starlette/middleware/cors.py", line 144, in simple_response
+    |   File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/starlette/middleware/cors.py", line 85, in __call__
     |     await self.app(scope, receive, send)
     |   File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/starlette/middleware/sessions.py", line 85, in __call__
     |     await self.app(scope, receive, send_wrapper)
@@ -1443,395 +222,78 @@ AttributeError: module 'jwt' has no attribute 'encode'
     |   File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/fastapi/routing.py", line 212, in run_endpoint_function
     |     return await dependant.call(**values)
     |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-    |   File "/Users/saswatpandey/hydroleaf/app/routers/auth.py", line 63, in signup
-    |     token = jwt.encode(token_data, SECRET_KEY, algorithm=ALGORITHM)
-    |             ^^^^^^^^^^
-    | AttributeError: module 'jwt' has no attribute 'encode'
-    +------------------------------------
-
-During handling of the above exception, another exception occurred:
-
-Traceback (most recent call last):
-  File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/starlette/middleware/errors.py", line 165, in __call__
-    await self.app(scope, receive, _send)
-  File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/starlette/middleware/base.py", line 173, in __call__
-    with recv_stream, send_stream, collapse_excgroups():
-                                   ^^^^^^^^^^^^^^^^^^^^
-  File "/opt/homebrew/anaconda3/lib/python3.12/contextlib.py", line 158, in __exit__
-    self.gen.throw(value)
-  File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/starlette/_utils.py", line 82, in collapse_excgroups
-    raise exc
-  File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/starlette/middleware/base.py", line 175, in __call__
-    response = await self.dispatch_func(request, call_next)
-               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/Users/saswatpandey/hydroleaf/app/main.py", line 114, in log_requests
-    response = await call_next(request)
-               ^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/starlette/middleware/base.py", line 153, in call_next
-    raise app_exc
-  File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/starlette/middleware/base.py", line 140, in coro
-    await self.app(scope, receive_or_disconnect, send_no_error)
-  File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/starlette/middleware/cors.py", line 93, in __call__
-    await self.simple_response(scope, receive, send, request_headers=headers)
-  File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/starlette/middleware/cors.py", line 144, in simple_response
-    await self.app(scope, receive, send)
-  File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/starlette/middleware/sessions.py", line 85, in __call__
-    await self.app(scope, receive, send_wrapper)
-  File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/starlette/middleware/exceptions.py", line 62, in __call__
-    await wrap_app_handling_exceptions(self.app, conn)(scope, receive, send)
-  File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/starlette/_exception_handler.py", line 53, in wrapped_app
-    raise exc
-  File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/starlette/_exception_handler.py", line 42, in wrapped_app
-    await app(scope, receive, sender)
-  File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/starlette/routing.py", line 714, in __call__
-    await self.middleware_stack(scope, receive, send)
-  File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/starlette/routing.py", line 734, in app
-    await route.handle(scope, receive, send)
-  File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/starlette/routing.py", line 288, in handle
-    await self.app(scope, receive, send)
-  File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/starlette/routing.py", line 76, in app
-    await wrap_app_handling_exceptions(app, request)(scope, receive, send)
-  File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/starlette/_exception_handler.py", line 53, in wrapped_app
-    raise exc
-  File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/starlette/_exception_handler.py", line 42, in wrapped_app
-    await app(scope, receive, sender)
-  File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/starlette/routing.py", line 73, in app
-    response = await f(request)
-               ^^^^^^^^^^^^^^^^
-  File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/fastapi/routing.py", line 301, in app
-    raw_response = await run_endpoint_function(
-                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/fastapi/routing.py", line 212, in run_endpoint_function
-    return await dependant.call(**values)
-           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/Users/saswatpandey/hydroleaf/app/routers/auth.py", line 63, in signup
-    token = jwt.encode(token_data, SECRET_KEY, algorithm=ALGORITHM)
-            ^^^^^^^^^^
-AttributeError: module 'jwt' has no attribute 'encode'
-2025-07-10 21:24:32,939 - uvicorn.error - ERROR - Exception in ASGI application
-  + Exception Group Traceback (most recent call last):
-  |   File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/starlette/_utils.py", line 76, in collapse_excgroups
-  |     yield
-  |   File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/starlette/middleware/base.py", line 174, in __call__
-  |     async with anyio.create_task_group() as task_group:
-  |                ^^^^^^^^^^^^^^^^^^^^^^^^^
-  |   File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/anyio/_backends/_asyncio.py", line 772, in __aexit__
-  |     raise BaseExceptionGroup(
-  | ExceptionGroup: unhandled errors in a TaskGroup (1 sub-exception)
-  +-+---------------- 1 ----------------
-    | Traceback (most recent call last):
-    |   File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/uvicorn/protocols/http/httptools_impl.py", line 409, in run_asgi
-    |     result = await app(  # type: ignore[func-returns-value]
-    |              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-    |   File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/uvicorn/middleware/proxy_headers.py", line 60, in __call__
-    |     return await self.app(scope, receive, send)
-    |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-    |   File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/fastapi/applications.py", line 1054, in __call__
-    |     await super().__call__(scope, receive, send)
-    |   File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/starlette/applications.py", line 112, in __call__
-    |     await self.middleware_stack(scope, receive, send)
-    |   File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/starlette/middleware/errors.py", line 187, in __call__
-    |     raise exc
-    |   File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/starlette/middleware/errors.py", line 165, in __call__
-    |     await self.app(scope, receive, _send)
-    |   File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/starlette/middleware/base.py", line 173, in __call__
-    |     with recv_stream, send_stream, collapse_excgroups():
-    |                                    ^^^^^^^^^^^^^^^^^^^^
-    |   File "/opt/homebrew/anaconda3/lib/python3.12/contextlib.py", line 158, in __exit__
-    |     self.gen.throw(value)
-    |   File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/starlette/_utils.py", line 82, in collapse_excgroups
-    |     raise exc
-    |   File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/starlette/middleware/base.py", line 175, in __call__
-    |     response = await self.dispatch_func(request, call_next)
-    |                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-    |   File "/Users/saswatpandey/hydroleaf/app/main.py", line 114, in log_requests
-    |     response = await call_next(request)
-    |                ^^^^^^^^^^^^^^^^^^^^^^^^
-    |   File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/starlette/middleware/base.py", line 153, in call_next
-    |     raise app_exc
-    |   File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/starlette/middleware/base.py", line 140, in coro
-    |     await self.app(scope, receive_or_disconnect, send_no_error)
-    |   File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/starlette/middleware/cors.py", line 93, in __call__
-    |     await self.simple_response(scope, receive, send, request_headers=headers)
-    |   File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/starlette/middleware/cors.py", line 144, in simple_response
-    |     await self.app(scope, receive, send)
-    |   File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/starlette/middleware/sessions.py", line 85, in __call__
-    |     await self.app(scope, receive, send_wrapper)
-    |   File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/starlette/middleware/exceptions.py", line 62, in __call__
-    |     await wrap_app_handling_exceptions(self.app, conn)(scope, receive, send)
-    |   File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/starlette/_exception_handler.py", line 53, in wrapped_app
-    |     raise exc
-    |   File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/starlette/_exception_handler.py", line 42, in wrapped_app
-    |     await app(scope, receive, sender)
-    |   File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/starlette/routing.py", line 714, in __call__
-    |     await self.middleware_stack(scope, receive, send)
-    |   File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/starlette/routing.py", line 734, in app
-    |     await route.handle(scope, receive, send)
-    |   File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/starlette/routing.py", line 288, in handle
-    |     await self.app(scope, receive, send)
-    |   File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/starlette/routing.py", line 76, in app
-    |     await wrap_app_handling_exceptions(app, request)(scope, receive, send)
-    |   File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/starlette/_exception_handler.py", line 53, in wrapped_app
-    |     raise exc
-    |   File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/starlette/_exception_handler.py", line 42, in wrapped_app
-    |     await app(scope, receive, sender)
-    |   File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/starlette/routing.py", line 73, in app
-    |     response = await f(request)
-    |                ^^^^^^^^^^^^^^^^
-    |   File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/fastapi/routing.py", line 301, in app
-    |     raw_response = await run_endpoint_function(
-    |                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-    |   File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/fastapi/routing.py", line 212, in run_endpoint_function
-    |     return await dependant.call(**values)
+    |   File "/Users/saswatpandey/hydroleaf/app/routers/auth.py", line 49, in signup
+    |     result = await db.execute(select(User).where(User.email == user_create.email))
+    |              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/sqlalchemy/ext/asyncio/session.py", line 463, in execute
+    |     result = await greenlet_spawn(
+    |              ^^^^^^^^^^^^^^^^^^^^^
+    |   File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/sqlalchemy/util/_concurrency_py3k.py", line 201, in greenlet_spawn
+    |     result = context.throw(*sys.exc_info())
+    |              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/sqlalchemy/orm/session.py", line 2365, in execute
+    |     return self._execute_internal(
+    |            ^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/sqlalchemy/orm/session.py", line 2241, in _execute_internal
+    |     conn = self._connection_for_bind(bind)
+    |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/sqlalchemy/orm/session.py", line 2110, in _connection_for_bind
+    |     return trans._connection_for_bind(engine, execution_options)
+    |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "<string>", line 2, in _connection_for_bind
+    |   File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/sqlalchemy/orm/state_changes.py", line 139, in _go
+    |     ret_value = fn(self, *arg, **kw)
+    |                 ^^^^^^^^^^^^^^^^^^^^
+    |   File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/sqlalchemy/orm/session.py", line 1189, in _connection_for_bind
+    |     conn = bind.connect()
+    |            ^^^^^^^^^^^^^^
+    |   File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/sqlalchemy/engine/base.py", line 3274, in connect
+    |     return self._connection_cls(self)
+    |            ^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/sqlalchemy/engine/base.py", line 146, in __init__
+    |     self._dbapi_connection = engine.raw_connection()
+    |                              ^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/sqlalchemy/engine/base.py", line 3298, in raw_connection
+    |     return self.pool.connect()
+    |            ^^^^^^^^^^^^^^^^^^^
+    |   File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/sqlalchemy/pool/base.py", line 449, in connect
+    |     return _ConnectionFairy._checkout(self)
+    |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/sqlalchemy/pool/base.py", line 1363, in _checkout
+    |     with util.safe_reraise():
+    |          ^^^^^^^^^^^^^^^^^^^
+    |   File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/sqlalchemy/util/langhelpers.py", line 146, in __exit__
+    |     raise exc_value.with_traceback(exc_tb)
+    |   File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/sqlalchemy/pool/base.py", line 1301, in _checkout
+    |     result = pool._dialect._do_ping_w_event(
+    |              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/sqlalchemy/engine/default.py", line 717, in _do_ping_w_event
+    |     return self.do_ping(dbapi_connection)
     |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-    |   File "/Users/saswatpandey/hydroleaf/app/routers/auth.py", line 63, in signup
-    |     token = jwt.encode(token_data, SECRET_KEY, algorithm=ALGORITHM)
-    |             ^^^^^^^^^^
-    | AttributeError: module 'jwt' has no attribute 'encode'
-    +------------------------------------
-
-During handling of the above exception, another exception occurred:
-
-Traceback (most recent call last):
-  File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/uvicorn/protocols/http/httptools_impl.py", line 409, in run_asgi
-    result = await app(  # type: ignore[func-returns-value]
-             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/uvicorn/middleware/proxy_headers.py", line 60, in __call__
-    return await self.app(scope, receive, send)
-           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/fastapi/applications.py", line 1054, in __call__
-    await super().__call__(scope, receive, send)
-  File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/starlette/applications.py", line 112, in __call__
-    await self.middleware_stack(scope, receive, send)
-  File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/starlette/middleware/errors.py", line 187, in __call__
-    raise exc
-  File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/starlette/middleware/errors.py", line 165, in __call__
-    await self.app(scope, receive, _send)
-  File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/starlette/middleware/base.py", line 173, in __call__
-    with recv_stream, send_stream, collapse_excgroups():
-                                   ^^^^^^^^^^^^^^^^^^^^
-  File "/opt/homebrew/anaconda3/lib/python3.12/contextlib.py", line 158, in __exit__
-    self.gen.throw(value)
-  File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/starlette/_utils.py", line 82, in collapse_excgroups
-    raise exc
-  File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/starlette/middleware/base.py", line 175, in __call__
-    response = await self.dispatch_func(request, call_next)
-               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/Users/saswatpandey/hydroleaf/app/main.py", line 114, in log_requests
-    response = await call_next(request)
-               ^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/starlette/middleware/base.py", line 153, in call_next
-    raise app_exc
-  File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/starlette/middleware/base.py", line 140, in coro
-    await self.app(scope, receive_or_disconnect, send_no_error)
-  File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/starlette/middleware/cors.py", line 93, in __call__
-    await self.simple_response(scope, receive, send, request_headers=headers)
-  File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/starlette/middleware/cors.py", line 144, in simple_response
-    await self.app(scope, receive, send)
-  File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/starlette/middleware/sessions.py", line 85, in __call__
-    await self.app(scope, receive, send_wrapper)
-  File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/starlette/middleware/exceptions.py", line 62, in __call__
-    await wrap_app_handling_exceptions(self.app, conn)(scope, receive, send)
-  File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/starlette/_exception_handler.py", line 53, in wrapped_app
-    raise exc
-  File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/starlette/_exception_handler.py", line 42, in wrapped_app
-    await app(scope, receive, sender)
-  File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/starlette/routing.py", line 714, in __call__
-    await self.middleware_stack(scope, receive, send)
-  File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/starlette/routing.py", line 734, in app
-    await route.handle(scope, receive, send)
-  File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/starlette/routing.py", line 288, in handle
-    await self.app(scope, receive, send)
-  File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/starlette/routing.py", line 76, in app
-    await wrap_app_handling_exceptions(app, request)(scope, receive, send)
-  File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/starlette/_exception_handler.py", line 53, in wrapped_app
-    raise exc
-  File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/starlette/_exception_handler.py", line 42, in wrapped_app
-    await app(scope, receive, sender)
-  File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/starlette/routing.py", line 73, in app
-    response = await f(request)
-               ^^^^^^^^^^^^^^^^
-  File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/fastapi/routing.py", line 301, in app
-    raw_response = await run_endpoint_function(
-                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/fastapi/routing.py", line 212, in run_endpoint_function
-    return await dependant.call(**values)
-           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/Users/saswatpandey/hydroleaf/app/routers/auth.py", line 63, in signup
-    token = jwt.encode(token_data, SECRET_KEY, algorithm=ALGORITHM)
-            ^^^^^^^^^^
-AttributeError: module 'jwt' has no attribute 'encode'
-2025-07-10 21:25:00,419 - uvicorn.error - INFO - Shutting down
-2025-07-10 21:25:00,525 - uvicorn.error - INFO - Finished server process [59847]
-2025-07-10 21:25:00,532 - uvicorn.error - ERROR - Traceback (most recent call last):
-  File "/opt/homebrew/anaconda3/lib/python3.12/asyncio/runners.py", line 194, in run
-    return runner.run(main)
-           ^^^^^^^^^^^^^^^^
-  File "/opt/homebrew/anaconda3/lib/python3.12/asyncio/runners.py", line 118, in run
-    return self._loop.run_until_complete(task)
-           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "uvloop/loop.pyx", line 1512, in uvloop.loop.Loop.run_until_complete
-  File "uvloop/loop.pyx", line 1505, in uvloop.loop.Loop.run_until_complete
-  File "uvloop/loop.pyx", line 1379, in uvloop.loop.Loop.run_forever
-  File "uvloop/loop.pyx", line 557, in uvloop.loop.Loop._run
-  File "uvloop/loop.pyx", line 476, in uvloop.loop.Loop._on_idle
-  File "uvloop/cbhandles.pyx", line 83, in uvloop.loop.Handle._run
-  File "uvloop/cbhandles.pyx", line 63, in uvloop.loop.Handle._run
-  File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/uvicorn/server.py", line 69, in serve
-    with self.capture_signals():
-         ^^^^^^^^^^^^^^^^^^^^^^
-  File "/opt/homebrew/anaconda3/lib/python3.12/contextlib.py", line 144, in __exit__
-    next(self.gen)
-  File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/uvicorn/server.py", line 330, in capture_signals
-    signal.raise_signal(captured_signal)
-  File "/opt/homebrew/anaconda3/lib/python3.12/asyncio/runners.py", line 157, in _on_sigint
-    raise KeyboardInterrupt()
-KeyboardInterrupt
-
-During handling of the above exception, another exception occurred:
-
-Traceback (most recent call last):
-  File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/starlette/routing.py", line 699, in lifespan
-    await receive()
-  File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/uvicorn/lifespan/on.py", line 137, in receive
-    return await self.receive_queue.get()
-           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/opt/homebrew/anaconda3/lib/python3.12/asyncio/queues.py", line 158, in get
-    await getter
-asyncio.exceptions.CancelledError
-
-2025-07-10 21:25:13,761 - uvicorn.error - INFO - Started server process [60090]
-2025-07-10 21:25:13,761 - uvicorn.error - INFO - Waiting for application startup.
-2025-07-10 21:25:13,789 - uvicorn.error - INFO - Application startup complete.
-2025-07-10 21:25:13,790 - uvicorn.error - INFO - Uvicorn running on http://0.0.0.0:8000 (Press CTRL+C to quit)
-2025-07-10 21:25:17,523 - app.main - WARNING - HTTPException: Email already registered on /api/v1/auth/signup
-2025-07-10 21:25:17,523 - app.main - INFO - POST /api/v1/auth/signup • ip=127.0.0.1 • device_id=- • 400 • 52.2ms
-2025-07-10 21:25:41,180 - app.main - WARNING - HTTPException: Invalid credentials on /api/v1/auth/login
-2025-07-10 21:25:41,180 - app.main - INFO - POST /api/v1/auth/login • ip=127.0.0.1 • device_id=- • 400 • 9.7ms
-2025-07-10 21:26:11,976 - app.main - ERROR - Unhandled error handling request POST /api/v1/auth/signup: module 'jwt' has no attribute 'encode'
-Traceback (most recent call last):
-  File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/starlette/middleware/base.py", line 147, in call_next
-    message = await recv_stream.receive()
-              ^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/anyio/streams/memory.py", line 126, in receive
-    raise EndOfStream from None
-anyio.EndOfStream
-
-During handling of the above exception, another exception occurred:
-
-Traceback (most recent call last):
-  File "/Users/saswatpandey/hydroleaf/app/main.py", line 114, in log_requests
-    response = await call_next(request)
-               ^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/starlette/middleware/base.py", line 153, in call_next
-    raise app_exc
-  File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/starlette/middleware/base.py", line 140, in coro
-    await self.app(scope, receive_or_disconnect, send_no_error)
-  File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/starlette/middleware/cors.py", line 93, in __call__
-    await self.simple_response(scope, receive, send, request_headers=headers)
-  File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/starlette/middleware/cors.py", line 144, in simple_response
-    await self.app(scope, receive, send)
-  File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/starlette/middleware/sessions.py", line 85, in __call__
-    await self.app(scope, receive, send_wrapper)
-  File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/starlette/middleware/exceptions.py", line 62, in __call__
-    await wrap_app_handling_exceptions(self.app, conn)(scope, receive, send)
-  File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/starlette/_exception_handler.py", line 53, in wrapped_app
-    raise exc
-  File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/starlette/_exception_handler.py", line 42, in wrapped_app
-    await app(scope, receive, sender)
-  File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/starlette/routing.py", line 714, in __call__
-    await self.middleware_stack(scope, receive, send)
-  File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/starlette/routing.py", line 734, in app
-    await route.handle(scope, receive, send)
-  File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/starlette/routing.py", line 288, in handle
-    await self.app(scope, receive, send)
-  File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/starlette/routing.py", line 76, in app
-    await wrap_app_handling_exceptions(app, request)(scope, receive, send)
-  File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/starlette/_exception_handler.py", line 53, in wrapped_app
-    raise exc
-  File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/starlette/_exception_handler.py", line 42, in wrapped_app
-    await app(scope, receive, sender)
-  File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/starlette/routing.py", line 73, in app
-    response = await f(request)
-               ^^^^^^^^^^^^^^^^
-  File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/fastapi/routing.py", line 301, in app
-    raw_response = await run_endpoint_function(
-                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/fastapi/routing.py", line 212, in run_endpoint_function
-    return await dependant.call(**values)
-           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/Users/saswatpandey/hydroleaf/app/routers/auth.py", line 63, in signup
-    token = jwt.encode(token_data, SECRET_KEY, algorithm=ALGORITHM)
-            ^^^^^^^^^^
-AttributeError: module 'jwt' has no attribute 'encode'
-2025-07-10 21:26:11,982 - app.main - ERROR - Unhandled exception on /api/v1/auth/signup: module 'jwt' has no attribute 'encode'
-  + Exception Group Traceback (most recent call last):
-  |   File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/starlette/_utils.py", line 76, in collapse_excgroups
-  |     yield
-  |   File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/starlette/middleware/base.py", line 174, in __call__
-  |     async with anyio.create_task_group() as task_group:
-  |                ^^^^^^^^^^^^^^^^^^^^^^^^^
-  |   File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/anyio/_backends/_asyncio.py", line 772, in __aexit__
-  |     raise BaseExceptionGroup(
-  | ExceptionGroup: unhandled errors in a TaskGroup (1 sub-exception)
-  +-+---------------- 1 ----------------
-    | Traceback (most recent call last):
-    |   File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/starlette/middleware/errors.py", line 165, in __call__
-    |     await self.app(scope, receive, _send)
-    |   File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/starlette/middleware/base.py", line 173, in __call__
-    |     with recv_stream, send_stream, collapse_excgroups():
-    |                                    ^^^^^^^^^^^^^^^^^^^^
-    |   File "/opt/homebrew/anaconda3/lib/python3.12/contextlib.py", line 158, in __exit__
-    |     self.gen.throw(value)
-    |   File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/starlette/_utils.py", line 82, in collapse_excgroups
-    |     raise exc
-    |   File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/starlette/middleware/base.py", line 175, in __call__
-    |     response = await self.dispatch_func(request, call_next)
-    |                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-    |   File "/Users/saswatpandey/hydroleaf/app/main.py", line 114, in log_requests
-    |     response = await call_next(request)
-    |                ^^^^^^^^^^^^^^^^^^^^^^^^
-    |   File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/starlette/middleware/base.py", line 153, in call_next
-    |     raise app_exc
-    |   File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/starlette/middleware/base.py", line 140, in coro
-    |     await self.app(scope, receive_or_disconnect, send_no_error)
-    |   File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/starlette/middleware/cors.py", line 93, in __call__
-    |     await self.simple_response(scope, receive, send, request_headers=headers)
-    |   File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/starlette/middleware/cors.py", line 144, in simple_response
-    |     await self.app(scope, receive, send)
-    |   File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/starlette/middleware/sessions.py", line 85, in __call__
-    |     await self.app(scope, receive, send_wrapper)
-    |   File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/starlette/middleware/exceptions.py", line 62, in __call__
-    |     await wrap_app_handling_exceptions(self.app, conn)(scope, receive, send)
-    |   File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/starlette/_exception_handler.py", line 53, in wrapped_app
-    |     raise exc
-    |   File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/starlette/_exception_handler.py", line 42, in wrapped_app
-    |     await app(scope, receive, sender)
-    |   File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/starlette/routing.py", line 714, in __call__
-    |     await self.middleware_stack(scope, receive, send)
-    |   File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/starlette/routing.py", line 734, in app
-    |     await route.handle(scope, receive, send)
-    |   File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/starlette/routing.py", line 288, in handle
-    |     await self.app(scope, receive, send)
-    |   File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/starlette/routing.py", line 76, in app
-    |     await wrap_app_handling_exceptions(app, request)(scope, receive, send)
-    |   File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/starlette/_exception_handler.py", line 53, in wrapped_app
-    |     raise exc
-    |   File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/starlette/_exception_handler.py", line 42, in wrapped_app
-    |     await app(scope, receive, sender)
-    |   File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/starlette/routing.py", line 73, in app
-    |     response = await f(request)
-    |                ^^^^^^^^^^^^^^^^
-    |   File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/fastapi/routing.py", line 301, in app
-    |     raw_response = await run_endpoint_function(
-    |                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-    |   File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/fastapi/routing.py", line 212, in run_endpoint_function
-    |     return await dependant.call(**values)
-    |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-    |   File "/Users/saswatpandey/hydroleaf/app/routers/auth.py", line 63, in signup
-    |     token = jwt.encode(token_data, SECRET_KEY, algorithm=ALGORITHM)
-    |             ^^^^^^^^^^
-    | AttributeError: module 'jwt' has no attribute 'encode'
+    |   File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/sqlalchemy/dialects/postgresql/asyncpg.py", line 1163, in do_ping
+    |     dbapi_connection.ping()
+    |   File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/sqlalchemy/dialects/postgresql/asyncpg.py", line 813, in ping
+    |     self._handle_exception(error)
+    |   File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/sqlalchemy/dialects/postgresql/asyncpg.py", line 794, in _handle_exception
+    |     raise error
+    |   File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/sqlalchemy/dialects/postgresql/asyncpg.py", line 811, in ping
+    |     _ = self.await_(self._async_ping())
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/sqlalchemy/util/_concurrency_py3k.py", line 132, in await_only
+    |     return current.parent.switch(awaitable)  # type: ignore[no-any-return,attr-defined] # noqa: E501
+    |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/sqlalchemy/util/_concurrency_py3k.py", line 196, in greenlet_spawn
+    |     value = await result
+    |             ^^^^^^^^^^^^
+    |   File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/sqlalchemy/dialects/postgresql/asyncpg.py", line 820, in _async_ping
+    |     await tr.start()
+    |   File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/asyncpg/transaction.py", line 146, in start
+    |     await self._connection.execute(query)
+    |   File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/asyncpg/connection.py", line 349, in execute
+    |     result = await self._protocol.query(query, timeout)
+    |              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "asyncpg/protocol/protocol.pyx", line 375, in query
+    | RuntimeError: Task <Task pending name='starlette.middleware.base.BaseHTTPMiddleware.__call__.<locals>.call_next.<locals>.coro' coro=<BaseHTTPMiddleware.__call__.<locals>.call_next.<locals>.coro() running at /opt/homebrew/anaconda3/lib/python3.12/site-packages/starlette/middleware/base.py:140> cb=[TaskGroup._spawn.<locals>.task_done() at /opt/homebrew/anaconda3/lib/python3.12/site-packages/anyio/_backends/_asyncio.py:794]> got Future <Future pending cb=[BaseProtocol._on_waiter_completed()]> attached to a different loop
     +------------------------------------
 
 During handling of the above exception, another exception occurred:
@@ -1856,9 +318,7 @@ Traceback (most recent call last):
     raise app_exc
   File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/starlette/middleware/base.py", line 140, in coro
     await self.app(scope, receive_or_disconnect, send_no_error)
-  File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/starlette/middleware/cors.py", line 93, in __call__
-    await self.simple_response(scope, receive, send, request_headers=headers)
-  File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/starlette/middleware/cors.py", line 144, in simple_response
+  File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/starlette/middleware/cors.py", line 85, in __call__
     await self.app(scope, receive, send)
   File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/starlette/middleware/sessions.py", line 85, in __call__
     await self.app(scope, receive, send_wrapper)
@@ -1889,175 +349,101 @@ Traceback (most recent call last):
   File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/fastapi/routing.py", line 212, in run_endpoint_function
     return await dependant.call(**values)
            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/Users/saswatpandey/hydroleaf/app/routers/auth.py", line 63, in signup
-    token = jwt.encode(token_data, SECRET_KEY, algorithm=ALGORITHM)
-            ^^^^^^^^^^
-AttributeError: module 'jwt' has no attribute 'encode'
-2025-07-10 21:26:11,985 - uvicorn.error - ERROR - Exception in ASGI application
-  + Exception Group Traceback (most recent call last):
-  |   File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/starlette/_utils.py", line 76, in collapse_excgroups
-  |     yield
-  |   File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/starlette/middleware/base.py", line 174, in __call__
-  |     async with anyio.create_task_group() as task_group:
-  |                ^^^^^^^^^^^^^^^^^^^^^^^^^
-  |   File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/anyio/_backends/_asyncio.py", line 772, in __aexit__
-  |     raise BaseExceptionGroup(
-  | ExceptionGroup: unhandled errors in a TaskGroup (1 sub-exception)
-  +-+---------------- 1 ----------------
-    | Traceback (most recent call last):
-    |   File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/uvicorn/protocols/http/httptools_impl.py", line 409, in run_asgi
-    |     result = await app(  # type: ignore[func-returns-value]
-    |              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-    |   File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/uvicorn/middleware/proxy_headers.py", line 60, in __call__
-    |     return await self.app(scope, receive, send)
-    |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-    |   File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/fastapi/applications.py", line 1054, in __call__
-    |     await super().__call__(scope, receive, send)
-    |   File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/starlette/applications.py", line 112, in __call__
-    |     await self.middleware_stack(scope, receive, send)
-    |   File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/starlette/middleware/errors.py", line 187, in __call__
-    |     raise exc
-    |   File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/starlette/middleware/errors.py", line 165, in __call__
-    |     await self.app(scope, receive, _send)
-    |   File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/starlette/middleware/base.py", line 173, in __call__
-    |     with recv_stream, send_stream, collapse_excgroups():
-    |                                    ^^^^^^^^^^^^^^^^^^^^
-    |   File "/opt/homebrew/anaconda3/lib/python3.12/contextlib.py", line 158, in __exit__
-    |     self.gen.throw(value)
-    |   File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/starlette/_utils.py", line 82, in collapse_excgroups
-    |     raise exc
-    |   File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/starlette/middleware/base.py", line 175, in __call__
-    |     response = await self.dispatch_func(request, call_next)
-    |                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-    |   File "/Users/saswatpandey/hydroleaf/app/main.py", line 114, in log_requests
-    |     response = await call_next(request)
-    |                ^^^^^^^^^^^^^^^^^^^^^^^^
-    |   File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/starlette/middleware/base.py", line 153, in call_next
-    |     raise app_exc
-    |   File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/starlette/middleware/base.py", line 140, in coro
-    |     await self.app(scope, receive_or_disconnect, send_no_error)
-    |   File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/starlette/middleware/cors.py", line 93, in __call__
-    |     await self.simple_response(scope, receive, send, request_headers=headers)
-    |   File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/starlette/middleware/cors.py", line 144, in simple_response
-    |     await self.app(scope, receive, send)
-    |   File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/starlette/middleware/sessions.py", line 85, in __call__
-    |     await self.app(scope, receive, send_wrapper)
-    |   File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/starlette/middleware/exceptions.py", line 62, in __call__
-    |     await wrap_app_handling_exceptions(self.app, conn)(scope, receive, send)
-    |   File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/starlette/_exception_handler.py", line 53, in wrapped_app
-    |     raise exc
-    |   File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/starlette/_exception_handler.py", line 42, in wrapped_app
-    |     await app(scope, receive, sender)
-    |   File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/starlette/routing.py", line 714, in __call__
-    |     await self.middleware_stack(scope, receive, send)
-    |   File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/starlette/routing.py", line 734, in app
-    |     await route.handle(scope, receive, send)
-    |   File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/starlette/routing.py", line 288, in handle
-    |     await self.app(scope, receive, send)
-    |   File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/starlette/routing.py", line 76, in app
-    |     await wrap_app_handling_exceptions(app, request)(scope, receive, send)
-    |   File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/starlette/_exception_handler.py", line 53, in wrapped_app
-    |     raise exc
-    |   File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/starlette/_exception_handler.py", line 42, in wrapped_app
-    |     await app(scope, receive, sender)
-    |   File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/starlette/routing.py", line 73, in app
-    |     response = await f(request)
-    |                ^^^^^^^^^^^^^^^^
-    |   File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/fastapi/routing.py", line 301, in app
-    |     raw_response = await run_endpoint_function(
-    |                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-    |   File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/fastapi/routing.py", line 212, in run_endpoint_function
-    |     return await dependant.call(**values)
-    |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-    |   File "/Users/saswatpandey/hydroleaf/app/routers/auth.py", line 63, in signup
-    |     token = jwt.encode(token_data, SECRET_KEY, algorithm=ALGORITHM)
-    |             ^^^^^^^^^^
-    | AttributeError: module 'jwt' has no attribute 'encode'
-    +------------------------------------
-
-During handling of the above exception, another exception occurred:
-
+  File "/Users/saswatpandey/hydroleaf/app/routers/auth.py", line 49, in signup
+    result = await db.execute(select(User).where(User.email == user_create.email))
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/sqlalchemy/ext/asyncio/session.py", line 463, in execute
+    result = await greenlet_spawn(
+             ^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/sqlalchemy/util/_concurrency_py3k.py", line 201, in greenlet_spawn
+    result = context.throw(*sys.exc_info())
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/sqlalchemy/orm/session.py", line 2365, in execute
+    return self._execute_internal(
+           ^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/sqlalchemy/orm/session.py", line 2241, in _execute_internal
+    conn = self._connection_for_bind(bind)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/sqlalchemy/orm/session.py", line 2110, in _connection_for_bind
+    return trans._connection_for_bind(engine, execution_options)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "<string>", line 2, in _connection_for_bind
+  File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/sqlalchemy/orm/state_changes.py", line 139, in _go
+    ret_value = fn(self, *arg, **kw)
+                ^^^^^^^^^^^^^^^^^^^^
+  File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/sqlalchemy/orm/session.py", line 1189, in _connection_for_bind
+    conn = bind.connect()
+           ^^^^^^^^^^^^^^
+  File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/sqlalchemy/engine/base.py", line 3274, in connect
+    return self._connection_cls(self)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/sqlalchemy/engine/base.py", line 146, in __init__
+    self._dbapi_connection = engine.raw_connection()
+                             ^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/sqlalchemy/engine/base.py", line 3298, in raw_connection
+    return self.pool.connect()
+           ^^^^^^^^^^^^^^^^^^^
+  File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/sqlalchemy/pool/base.py", line 449, in connect
+    return _ConnectionFairy._checkout(self)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/sqlalchemy/pool/base.py", line 1363, in _checkout
+    with util.safe_reraise():
+         ^^^^^^^^^^^^^^^^^^^
+  File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/sqlalchemy/util/langhelpers.py", line 146, in __exit__
+    raise exc_value.with_traceback(exc_tb)
+  File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/sqlalchemy/pool/base.py", line 1301, in _checkout
+    result = pool._dialect._do_ping_w_event(
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/sqlalchemy/engine/default.py", line 717, in _do_ping_w_event
+    return self.do_ping(dbapi_connection)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/sqlalchemy/dialects/postgresql/asyncpg.py", line 1163, in do_ping
+    dbapi_connection.ping()
+  File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/sqlalchemy/dialects/postgresql/asyncpg.py", line 813, in ping
+    self._handle_exception(error)
+  File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/sqlalchemy/dialects/postgresql/asyncpg.py", line 794, in _handle_exception
+    raise error
+  File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/sqlalchemy/dialects/postgresql/asyncpg.py", line 811, in ping
+    _ = self.await_(self._async_ping())
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/sqlalchemy/util/_concurrency_py3k.py", line 132, in await_only
+    return current.parent.switch(awaitable)  # type: ignore[no-any-return,attr-defined] # noqa: E501
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/sqlalchemy/util/_concurrency_py3k.py", line 196, in greenlet_spawn
+    value = await result
+            ^^^^^^^^^^^^
+  File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/sqlalchemy/dialects/postgresql/asyncpg.py", line 820, in _async_ping
+    await tr.start()
+  File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/asyncpg/transaction.py", line 146, in start
+    await self._connection.execute(query)
+  File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/asyncpg/connection.py", line 349, in execute
+    result = await self._protocol.query(query, timeout)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "asyncpg/protocol/protocol.pyx", line 375, in query
+RuntimeError: Task <Task pending name='starlette.middleware.base.BaseHTTPMiddleware.__call__.<locals>.call_next.<locals>.coro' coro=<BaseHTTPMiddleware.__call__.<locals>.call_next.<locals>.coro() running at /opt/homebrew/anaconda3/lib/python3.12/site-packages/starlette/middleware/base.py:140> cb=[TaskGroup._spawn.<locals>.task_done() at /opt/homebrew/anaconda3/lib/python3.12/site-packages/anyio/_backends/_asyncio.py:794]> got Future <Future pending cb=[BaseProtocol._on_waiter_completed()]> attached to a different loop
+2025-07-14 19:30:48,292 - sqlalchemy.pool.impl.AsyncAdaptedQueuePool - ERROR - Exception terminating connection <AdaptedConnection <asyncpg.connection.Connection object at 0x11ddffe30>>
 Traceback (most recent call last):
-  File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/uvicorn/protocols/http/httptools_impl.py", line 409, in run_asgi
-    result = await app(  # type: ignore[func-returns-value]
-             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/uvicorn/middleware/proxy_headers.py", line 60, in __call__
-    return await self.app(scope, receive, send)
-           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/fastapi/applications.py", line 1054, in __call__
-    await super().__call__(scope, receive, send)
-  File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/starlette/applications.py", line 112, in __call__
-    await self.middleware_stack(scope, receive, send)
-  File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/starlette/middleware/errors.py", line 187, in __call__
-    raise exc
-  File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/starlette/middleware/errors.py", line 165, in __call__
-    await self.app(scope, receive, _send)
-  File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/starlette/middleware/base.py", line 173, in __call__
-    with recv_stream, send_stream, collapse_excgroups():
-                                   ^^^^^^^^^^^^^^^^^^^^
-  File "/opt/homebrew/anaconda3/lib/python3.12/contextlib.py", line 158, in __exit__
-    self.gen.throw(value)
-  File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/starlette/_utils.py", line 82, in collapse_excgroups
-    raise exc
-  File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/starlette/middleware/base.py", line 175, in __call__
-    response = await self.dispatch_func(request, call_next)
-               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/Users/saswatpandey/hydroleaf/app/main.py", line 114, in log_requests
-    response = await call_next(request)
-               ^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/starlette/middleware/base.py", line 153, in call_next
-    raise app_exc
-  File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/starlette/middleware/base.py", line 140, in coro
-    await self.app(scope, receive_or_disconnect, send_no_error)
-  File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/starlette/middleware/cors.py", line 93, in __call__
-    await self.simple_response(scope, receive, send, request_headers=headers)
-  File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/starlette/middleware/cors.py", line 144, in simple_response
-    await self.app(scope, receive, send)
-  File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/starlette/middleware/sessions.py", line 85, in __call__
-    await self.app(scope, receive, send_wrapper)
-  File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/starlette/middleware/exceptions.py", line 62, in __call__
-    await wrap_app_handling_exceptions(self.app, conn)(scope, receive, send)
-  File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/starlette/_exception_handler.py", line 53, in wrapped_app
-    raise exc
-  File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/starlette/_exception_handler.py", line 42, in wrapped_app
-    await app(scope, receive, sender)
-  File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/starlette/routing.py", line 714, in __call__
-    await self.middleware_stack(scope, receive, send)
-  File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/starlette/routing.py", line 734, in app
-    await route.handle(scope, receive, send)
-  File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/starlette/routing.py", line 288, in handle
-    await self.app(scope, receive, send)
-  File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/starlette/routing.py", line 76, in app
-    await wrap_app_handling_exceptions(app, request)(scope, receive, send)
-  File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/starlette/_exception_handler.py", line 53, in wrapped_app
-    raise exc
-  File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/starlette/_exception_handler.py", line 42, in wrapped_app
-    await app(scope, receive, sender)
-  File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/starlette/routing.py", line 73, in app
-    response = await f(request)
-               ^^^^^^^^^^^^^^^^
-  File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/fastapi/routing.py", line 301, in app
-    raw_response = await run_endpoint_function(
-                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/fastapi/routing.py", line 212, in run_endpoint_function
-    return await dependant.call(**values)
-           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/Users/saswatpandey/hydroleaf/app/routers/auth.py", line 63, in signup
-    token = jwt.encode(token_data, SECRET_KEY, algorithm=ALGORITHM)
-            ^^^^^^^^^^
-AttributeError: module 'jwt' has no attribute 'encode'
-2025-07-10 21:27:31,052 - uvicorn.error - INFO - Shutting down
-2025-07-10 21:27:31,157 - uvicorn.error - INFO - Waiting for application shutdown.
-2025-07-10 21:27:31,160 - uvicorn.error - INFO - Application shutdown complete.
-2025-07-10 21:27:31,161 - uvicorn.error - INFO - Finished server process [60090]
-2025-07-10 21:29:18,112 - uvicorn.error - INFO - Started server process [60365]
-2025-07-10 21:29:18,113 - uvicorn.error - INFO - Waiting for application startup.
-2025-07-10 21:29:18,143 - uvicorn.error - INFO - Application startup complete.
-2025-07-10 21:29:18,143 - uvicorn.error - INFO - Uvicorn running on http://0.0.0.0:8000 (Press CTRL+C to quit)
-2025-07-10 21:29:23,620 - app.main - WARNING - HTTPException: Email already registered on /api/v1/auth/signup
-2025-07-10 21:29:23,620 - app.main - INFO - POST /api/v1/auth/signup • ip=127.0.0.1 • device_id=- • 400 • 52.9ms
-2025-07-10 21:29:38,754 - app.main - INFO - POST /api/v1/auth/signup • ip=127.0.0.1 • device_id=- • 200 • 296.8ms
-2025-07-10 21:29:46,614 - uvicorn.error - INFO - Shutting down
-2025-07-10 21:29:46,717 - uvicorn.error - INFO - Waiting for application shutdown.
-2025-07-10 21:29:46,720 - uvicorn.error - INFO - Application shutdown complete.
-2025-07-10 21:29:46,721 - uvicorn.error - INFO - Finished server process [60365]
+  File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/sqlalchemy/pool/base.py", line 374, in _close_connection
+    self._dialect.do_terminate(connection)
+  File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/sqlalchemy/dialects/postgresql/asyncpg.py", line 1130, in do_terminate
+    dbapi_connection.terminate()
+  File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/sqlalchemy/dialects/postgresql/asyncpg.py", line 907, in terminate
+    self.await_(asyncio.shield(self._connection.close(timeout=2)))
+  File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/sqlalchemy/util/_concurrency_py3k.py", line 132, in await_only
+    return current.parent.switch(awaitable)  # type: ignore[no-any-return,attr-defined] # noqa: E501
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/sqlalchemy/util/_concurrency_py3k.py", line 196, in greenlet_spawn
+    value = await result
+            ^^^^^^^^^^^^
+  File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/asyncpg/connection.py", line 1504, in close
+    await self._protocol.close(timeout)
+  File "asyncpg/protocol/protocol.pyx", line 627, in close
+  File "asyncpg/protocol/protocol.pyx", line 660, in asyncpg.protocol.protocol.BaseProtocol._request_cancel
+  File "/opt/homebrew/anaconda3/lib/python3.12/site-packages/asyncpg/connection.py", line 1673, in _cancel_current_command
+    self._cancellations.add(self._loop.create_task(self._cancel(waiter)))
+                            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/homebrew/anaconda3/lib/python3.12/asyncio/base_events.py", line 456, in create_task
+    self._check_closed()
+  File "/opt/homebrew/anaconda3/lib/python3.12/asyncio/base_events.py", line 541, in _check_closed
+    raise RuntimeError('Event loop is closed')
+RuntimeError: Event loop is closed
