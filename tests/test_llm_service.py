@@ -242,7 +242,8 @@ async def test_direct_ollama_call_roundtrip() -> None:
         pytest.skip(f"Ollama call failed: {exc.detail}")
 
     assert isinstance(result, dict)
-    assert result or True  # at least ensure we got a dict back
+    # make sure JSON was actually parsed
+    assert result.get("foo", None) == 42
 
 
 @pytest.mark.asyncio
@@ -254,7 +255,10 @@ async def test_call_llm_async_ollama_path() -> None:
 
     parsed, raw = await call_llm_async("Return {\"x\":1}", llm.MODEL_1_5B)
     assert isinstance(parsed, dict)
-    assert raw.strip().startswith("{")  # raw JSON string
+    # verify the actual values round‑trip
+    assert parsed.get("x", None) == 1
+    # raw must be the exact JSON serialization of parsed
+    assert raw.strip() == json.dumps(parsed, separators=(',',':'))
 
 
 # --------------------------------------------------------------------------- #

@@ -185,6 +185,8 @@ app.include_router(users_router)                                  # already pref
 app.include_router(admin_users_router)                            # already prefixed
 app.include_router(subscriptions_router)                          # already prefixed
 app.include_router(admin_subscriptions_router)                    # already prefixed
+from app.routers.admin_subscription_plans import router as admin_subscription_plans_router
+app.include_router(admin_subscription_plans_router)
 
 app.include_router(devices_router,       prefix=f"{API_V1_STR}/devices",       tags=["devices"])
 app.include_router(dosing_router,        prefix=f"{API_V1_STR}/dosing",        tags=["dosing"])

@@ -3,7 +3,7 @@ from fastapi.logger import logger
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from typing import List
-from datetime import datetime, UTC
+from datetime import datetime, timezone
 from pydantic import BaseModel
 from app.schemas import DeviceType 
 from app.core.database import get_db
@@ -32,15 +32,20 @@ async def execute_dosing(
     if device.type != DeviceType.DOSING_UNIT:
         raise HTTPException(status_code=400, detail="Device is not a dosing unit")
     
+    if not device.pump_configurations:
+        raise HTTPException(status_code=400, detail="No pump configuration supplied")
     try:
-        # Use the device's HTTP endpoint and pump configurations to execute the dosing operation
-        result = await execute_dosing_operation(device_id, device.http_endpoint, device.pump_configurations)
-        return result
+        return await execute_dosing_operation(
+            device_id,
+            device.http_endpoint,
+            device.pump_configurations,
+        )
     except Exception as exc:
         raise HTTPException(
             status_code=500,
-            detail=f"Error executing dosing operation: {exc}"
+            detail=f"Error executing dosing operation: {exc}",
         )
+
 
 @router.post("/cancel/{device_id}")
 async def cancel_dosing(
@@ -114,7 +119,7 @@ async def create_dosing_profile(
             detail="Dosing profiles can only be created for dosing units"
         )
 
-    now = datetime.now(UTC)
+    now = datetime.now(timezone.utc)
     new_profile = DosingProfile(
         **profile.model_dump(),
         created_at=now,

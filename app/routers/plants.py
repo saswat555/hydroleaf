@@ -15,13 +15,13 @@ from app.models import Plant
 
 router = APIRouter()
 
-@router.get("/plants", response_model=List[PlantResponse])
+@router.get("/", response_model=List[PlantResponse])
 async def fetch_all_plants(db: AsyncSession = Depends(get_db)):
     """Retrieve all plant profiles"""
     plants = await get_all_plants(db)
     return plants 
 
-@router.get("/plants/{plant_id}", response_model=PlantResponse)
+@router.get("/{plant_id}", response_model=PlantResponse)
 async def fetch_plant(plant_id: int, db: AsyncSession = Depends(get_db)):
     """Retrieve a plant by ID."""
     return await get_plant_by_id(plant_id, db)
@@ -31,7 +31,7 @@ async def add_plant(plant: PlantCreate, db: AsyncSession = Depends(get_db)):
     """Create a new plant."""
     return await create_plant(plant, db)
 
-@router.delete("/plants/{plant_id}")
+@router.delete("/{plant_id}")
 async def remove_plant(plant_id: int, db: AsyncSession = Depends(get_db)):
     """Delete a plant by ID."""
     return await delete_plant(plant_id, db)

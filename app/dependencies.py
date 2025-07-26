@@ -57,7 +57,7 @@ async def get_current_admin(
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin privileges required")
 
         return admin
-    except jwt.PyJWTError:
+    except JWTError:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Could not validate credentials")
 
 

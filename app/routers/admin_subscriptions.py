@@ -8,6 +8,7 @@ import secrets
 
 from app.models import (
     ActivationKey,
+    DeviceToken,
     SubscriptionPlan,
     Device,
     User,

@@ -163,9 +163,9 @@ async def create_dosing_device(
     current_user: User = Depends(get_current_user)
 ):
     try:
-        endpoint = device.http_endpoint
-        if not endpoint.startswith("http"):
-            endpoint = f"http://localhost/{endpoint}"
+        endpoint = device.http_endpoint.strip()
+        if not endpoint.startswith(("http://", "https://")):
+            endpoint = f"http://{endpoint}"
         controller = DeviceController(device_ip=endpoint)
         discovered_device = await controller.discover()
         if not discovered_device:

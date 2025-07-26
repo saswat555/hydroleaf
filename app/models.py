@@ -1,6 +1,6 @@
 # app/models.py
 
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from enum import Enum as PyEnum
 import uuid
 
@@ -107,7 +107,7 @@ class Farm(Base):
 
 class Device(Base):
     __tablename__ = "devices"
-    id = Column(String(64), primary_key=True, index=True) 
+    id = Column(String(64), primary_key=True, index=True, default=_uuid)
     user_id             = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
     farm_id             = Column(Integer, ForeignKey("farms.id", ondelete="SET NULL"), nullable=True)
     mac_id              = Column(String(64), unique=True, nullable=False, index=True)
@@ -472,7 +472,9 @@ class DeviceToken(Base):
     device_type = Column(Enum(DeviceType, name="token_device_type"), nullable=False)
     issued_at   = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     # 👇 NEW: tokens are valid 30 days by default
-    expires_at  = Column(DateTime(timezone=True), nullable=False,
-                         server_default=text("(now() at time zone 'utc') + interval '30 days'"))
-
+    expires_at = Column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=lambda: datetime.now(timezone.utc) + timedelta(days=30),
+    )
     device = relationship("Device", lazy="joined")

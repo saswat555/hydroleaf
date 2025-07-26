@@ -7,7 +7,6 @@ from app.dependencies import get_current_admin
 from app.core.database import get_db
 from app.models import SubscriptionPlan, User
 from app.schemas import SubscriptionPlanCreate, SubscriptionPlanResponse
-
 router = APIRouter(prefix="/admin/plans", tags=["admin-plans"], dependencies=[Depends(get_current_admin)])
 
 @router.post("/", response_model=SubscriptionPlanResponse, status_code=status.HTTP_201_CREATED)

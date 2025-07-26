@@ -1,117 +1,90 @@
-# dosing_profile_service.py
-import json
+# app/services/dosing_profile_service.py
+
 import logging
-from datetime import datetime
-from typing import Dict
+from typing import Any, Dict
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from fastapi import HTTPException
 from app.models import Device, DosingProfile
-from app.services.device_controller import DeviceController
-from app.services.ph_tds import get_ph_tds_readings  # Ensure this returns averaged values
+from app.services.ph_tds import get_ph_tds_readings
 from app.services.llm import call_llm_async, build_dosing_prompt
+from app.schemas import DosingProfileResponse
 
 logger = logging.getLogger(__name__)
 
-
-async def set_dosing_profile_service(profile_data: dict, db: AsyncSession) -> dict:
+async def set_dosing_profile_service(
+    profile_data: Dict[str, Any],
+    db: AsyncSession
+) -> Dict[str, Any]:
     """
-    Set the dosing profile for a unified dosing/monitoring device.
-    This function uses the unified device for both sensor reading and dosing.
+    Create a dosing profile for an existing dosing device by:
+      1. Fetching real-time pH/TDS readings from the device
+      2. Building & sending an LLM prompt to generate dosing actions
+      3. Saving the new profile and returning it with the recommended actions
     """
+    # 1) Validate input
     device_id = profile_data.get("device_id")
     if not device_id:
-        raise HTTPException(status_code=400, detail="Device ID is required in profile data")
-    
-    # Retrieve the unified device from the database.
+        raise HTTPException(status_code=400, detail="`device_id` is required")
+
+    # 2) Load the device
     result = await db.execute(select(Device).where(Device.id == device_id))
-    dosing_device = result.scalars().first()
-    
-    if not dosing_device:
-        # If the device is not found, attempt discovery via the unified controller.
-        device_ip = profile_data.get("device_ip")
-        if not device_ip:
-            raise HTTPException(status_code=404, detail="Unified device not found and device_ip not provided")
-        controller = DeviceController(device_ip=device_ip)
-        discovered_device = await controller.discover()
-        if discovered_device:
-            new_device = Device(
-                name=discovered_device.get("name", "Discovered Unified Device"),
-                type="dosing_unit",  # Using the same type for unified devices
-                http_endpoint=discovered_device.get("http_endpoint"),
-                location_description=discovered_device.get("location_description", ""),
-                pump_configurations=[],  # Can be updated later if needed
-                is_active=True
-            )
-            db.add(new_device)
-            try:
-                await db.commit()
-                await db.refresh(new_device)
-                dosing_device = new_device
-            except Exception as exc:
-                await db.rollback()
-                raise HTTPException(status_code=500, detail=f"Error adding discovered device: {exc}") from exc
-        else:
-            raise HTTPException(status_code=404, detail="Unified dosing device not found and could not be discovered")
-    
-    # For the unified device, use its HTTP endpoint to get sensor readings.
-    sensor_ip = dosing_device.http_endpoint
-    logger.info(f"Fetching pH/TDS readings from device at {sensor_ip}")
+    device = result.scalars().first()
+    if not device:
+        raise HTTPException(status_code=404, detail=f"Device `{device_id}` not found")
+
+    # 3) Retrieve averaged pH/TDS readings
     try:
-        readings = await get_ph_tds_readings(sensor_ip)
+        readings = await get_ph_tds_readings(device.http_endpoint)
     except Exception as exc:
-        raise HTTPException(
-            status_code=500,
-            detail=f"Error fetching PH/TDS readings: {exc}"
-        ) from exc
+        logger.error("Failed to fetch PH/TDS readings: %s", exc)
+        raise HTTPException(status_code=502, detail="Error fetching pH/TDS readings") from exc
 
     ph = readings.get("ph")
     tds = readings.get("tds")
+    if ph is None or tds is None:
+        raise HTTPException(status_code=502, detail="Incomplete pH/TDS readings from device")
 
-    # Build a comprehensive dosing prompt using the unified device details.
-    # (Now using the unified device instance, averaged sensor values, and profile_data.)
-    prompt = await build_dosing_prompt(dosing_device, {"ph": ph, "tds": tds}, profile_data)
+    # 4) Build & send LLM prompt
     try:
-        llm_response, raw_llm = await call_llm_async(prompt)
-        logger.info(f"LLM response: {llm_response}")
-        if isinstance(llm_response, str):
-            result_json = json.loads(llm_response)
-        elif isinstance(llm_response, list):
-            result_json = {"actions": llm_response}
-        elif isinstance(llm_response, dict):
-            result_json = llm_response
-        else:
-            raise ValueError("Unexpected response format from LLM.")
-        
-        recommended_dose = result_json.get("actions", [])
+        prompt = await build_dosing_prompt(device, {"ph": ph, "tds": tds}, profile_data)
+        parsed, raw = await call_llm_async(prompt)
+        logger.info("LLM raw response: %s", raw)
+        if not isinstance(parsed, dict):
+            raise ValueError("LLM response not a JSON object")
+        actions = parsed.get("actions")
+        if not isinstance(actions, list):
+            raise ValueError("`actions` key missing or not a list")
+    except HTTPException:
+        raise
     except Exception as exc:
-        raise HTTPException(
-            status_code=500,
-            detail=f"Error calling LLM: {exc}"
-        ) from exc
+        logger.exception("LLM dosing plan generation failed")
+        raise HTTPException(status_code=502, detail="Error generating dosing plan") from exc
 
-    # Create a new dosing profile using the unified device.
-    new_profile = DosingProfile(
-        device_id=dosing_device.id,
-        plant_name=profile_data.get("plant_name"),
-        plant_type=profile_data.get("plant_type"),
-        growth_stage=profile_data.get("growth_stage"),
-        seeding_date=profile_data.get("seeding_date"),
-        target_ph_min=profile_data.get("target_ph_min"),
-        target_ph_max=profile_data.get("target_ph_max"),
-        target_tds_min=profile_data.get("target_tds_min"),
-        target_tds_max=profile_data.get("target_tds_max"),
-        dosing_schedule=profile_data.get("dosing_schedule")
-    )
-    db.add(new_profile)
+    # 5) Persist the new DosingProfile
     try:
+        new_profile = DosingProfile(
+            device_id       = device.id,
+            plant_name      = profile_data["plant_name"],
+            plant_type      = profile_data["plant_type"],
+            growth_stage    = profile_data["growth_stage"],
+            seeding_date    = profile_data["seeding_date"],
+            target_ph_min   = profile_data["target_ph_min"],
+            target_ph_max   = profile_data["target_ph_max"],
+            target_tds_min  = profile_data["target_tds_min"],
+            target_tds_max  = profile_data["target_tds_max"],
+            dosing_schedule = profile_data["dosing_schedule"],
+        )
+        db.add(new_profile)
         await db.commit()
         await db.refresh(new_profile)
+    except KeyError as ke:
+        raise HTTPException(status_code=400, detail=f"Missing profile field: {ke}") from ke
     except Exception as exc:
+        logger.exception("Saving dosing profile failed")
         await db.rollback()
-        raise HTTPException(
-            status_code=500,
-            detail=f"Error saving dosing profile: {exc}"
-        ) from exc
+        raise HTTPException(status_code=500, detail="Error saving dosing profile") from exc
 
-    return {"recommended_dose": recommended_dose, "profile": new_profile}
+    # 6) Return both the actions and the freshly created profile
+    profile_out = DosingProfileResponse.from_orm(new_profile)
+    return {"recommended_dose": actions, "profile": profile_out}

@@ -24,12 +24,10 @@ data/
 dist/
 build/
 .env
-.env
-.env
-.env
-code.txt
 
 models/
 logs.txt
 code.txt
 code_1.py
+requirements.txt
+test_logs.txt
