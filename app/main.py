@@ -17,67 +17,50 @@ from fastapi.responses import JSONResponse
 from fastapi.templating import Jinja2Templates
 import uvicorn
 
-from app.routers.admin_clips import router as admin_clips_router
 from app.core.config import ENVIRONMENT, ALLOWED_ORIGINS, SESSION_KEY, API_V1_STR, RESET_DB
-from app.core.database import engine, Base, get_db, check_db_connection
+from app.core.database import engine, Base, get_db, init_db, check_db_connection
 
-from app.routers import (
-    auth_router,
-    users_router,
-    admin_users_router,
-    subscriptions_router,
-    admin_subscriptions_router,
-    devices_router,
-    dosing_router,
-    config_router,
-    farms_router,
-    plants_router,
-    supply_chain_router,
-    cloud_router,
-    admin_router,
-    device_comm_router,
-    cameras_router,
-)
-from app.routers.cameras import upload_day_frame, upload_night_frame
+# routers
+from app.routers.auth import router as auth_router
+from app.routers.users import router as users_router
+from app.routers.admin_users import router as admin_users_router
+from app.routers.subscriptions import router as subscriptions_router
+from app.routers.admin_subscriptions import router as admin_subscriptions_router
+from app.routers.admin_subscription_plans import router as admin_subscription_plans_router
+from app.routers.devices import router as devices_router
+from app.routers.dosing import router as dosing_router
+from app.routers.config import router as config_router
+from app.routers.farms import router as farms_router
+from app.routers.plants import router as plants_router
+from app.routers.supply_chain import router as supply_chain_router
+from app.routers.cloud import router as cloud_router
+from app.routers.admin import router as admin_router
+from app.routers.device_comm import router as device_comm_router
+from app.routers.cameras import router as cameras_router
+from app.routers.admin_clips import router as admin_clips_router
+
 from app.utils.camera_tasks import offline_watcher
 from app.utils.camera_queue import camera_queue
 
 # ─── Logging Setup ─────────────────────────────────────────────────────────────
 
-# Ensure logs directory exists
 log_path = Path("logs.txt")
 log_path.parent.mkdir(parents=True, exist_ok=True)
 
-# Console formatter
 formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
-
-# Console handler
 console_handler = logging.StreamHandler()
 console_handler.setFormatter(formatter)
-
-# Rotating file handler
-file_handler = RotatingFileHandler(
-    filename=str(log_path),
-    maxBytes=5 * 1024 * 1024,
-    backupCount=3,
-)
+file_handler = RotatingFileHandler(str(log_path), maxBytes=5 * 1024 * 1024, backupCount=3)
 file_handler.setFormatter(formatter)
-
-# Root logger configuration
 logging.basicConfig(level=logging.INFO, handlers=[console_handler, file_handler])
 logger = logging.getLogger(__name__)
 
 # ─── Application Lifespan ──────────────────────────────────────────────────────
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # record startup time for /health
     app.state.start_time = time.time()
-
-    async with engine.begin() as conn:
-        if RESET_DB:
-            await conn.run_sync(Base.metadata.drop_all)
-        await conn.run_sync(Base.metadata.create_all)
-
+    # (re)create tables
+    await init_db()
     yield
 
 # ─── Instantiate FastAPI ──────────────────────────────────────────────────────
@@ -103,46 +86,36 @@ app.mount("/static", StaticFiles(directory="app/static"), name="static")
 app.mount("/hls", StaticFiles(directory=os.getenv("CAM_DATA_ROOT", "./data")), name="hls")
 templates = Jinja2Templates(directory="app/templates")
 
-# ─── Request Logging Middleware ───────────────────────────────────────────────
+# ─── Request Logging ──────────────────────────────────────────────────────────
 @app.middleware("http")
 async def log_requests(request: Request, call_next):
-    start_time = time.time()
-    client_ip = request.headers.get("x-forwarded-for", request.client.host)
+    start = time.time()
+    ip = request.headers.get("x-forwarded-for", request.client.host)
     device_id = request.query_params.get("device_id", "-")
-
     try:
-        response = await call_next(request)
-    except Exception as exc:
-        logger.error(f"Unhandled error handling request {request.method} {request.url.path}: {exc}", exc_info=True)
+        resp = await call_next(request)
+    except Exception as e:
+        logger.error(f"Error on {request.method} {request.url.path}: {e}", exc_info=True)
         raise
-
-    latency = (time.time() - start_time) * 1000
+    latency = (time.time() - start) * 1000
     logger.info(
         "%s %s • ip=%s • device_id=%s • %d • %.1fms",
-        request.method,
-        request.url.path,
-        client_ip,
-        device_id,
-        response.status_code,
-        latency,
+        request.method, request.url.path, ip, device_id, resp.status_code, latency,
     )
-
-    response.headers["X-Process-Time"] = f"{latency/1000:.3f}"
-    response.headers["X-API-Version"] = app.version
-    return response
+    resp.headers["X-Process-Time"] = f"{latency/1000:.3f}"
+    resp.headers["X-API-Version"] = app.version
+    return resp
 
 # ─── Health Endpoints ─────────────────────────────────────────────────────────
 @app.get(f"{API_V1_STR}/health")
 async def health_check():
-    uptime = time.time() - app.state.start_time
     return {
         "status": "healthy",
         "version": app.version,
-        "timestamp": datetime.now(timezone.utc),
+        "timestamp": datetime.now(timezone.utc).isoformat(),
         "environment": ENVIRONMENT,
-        "uptime": uptime,
+        "uptime": time.time() - app.state.start_time,
     }
-from fastapi import Depends
 
 @app.get(f"{API_V1_STR}/health/database")
 async def database_health():
@@ -150,14 +123,16 @@ async def database_health():
 
 @app.get(f"{API_V1_STR}/health/system")
 async def system_health():
-    sys = await health_check()
-    db = await database_health()
-    return {"system": sys, "database": db, "timestamp": datetime.now(timezone.utc)}
+    return {
+        "system": await health_check(),
+        "database": await database_health(),
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+    }
 
 # ─── Exception Handlers ───────────────────────────────────────────────────────
 @app.exception_handler(HTTPException)
 async def http_exc_handler(request: Request, exc: HTTPException):
-    logger.warning(f"HTTPException: {exc.detail} on {request.url.path}")
+    logger.warning(f"HTTPException {exc.detail} on {request.url.path}")
     return JSONResponse(
         status_code=exc.status_code,
         content={
@@ -180,42 +155,40 @@ async def exc_handler(request: Request, exc: Exception):
     )
 
 # ─── Include Routers ──────────────────────────────────────────────────────────
-app.include_router(auth_router,            prefix=f"{API_V1_STR}/auth")
-app.include_router(users_router)                                  # already prefixed
-app.include_router(admin_users_router)                            # already prefixed
-app.include_router(subscriptions_router)                          # already prefixed
-app.include_router(admin_subscriptions_router)                    # already prefixed
-from app.routers.admin_subscription_plans import router as admin_subscription_plans_router
+app.include_router(auth_router, prefix=f"{API_V1_STR}/auth", tags=["auth"])
+app.include_router(users_router)                # already carries its own prefix
+app.include_router(admin_users_router)
+app.include_router(subscriptions_router)
+app.include_router(admin_subscriptions_router)
 app.include_router(admin_subscription_plans_router)
 
-app.include_router(devices_router,       prefix=f"{API_V1_STR}/devices",       tags=["devices"])
-app.include_router(dosing_router,        prefix=f"{API_V1_STR}/dosing",        tags=["dosing"])
-app.include_router(config_router,        prefix=f"{API_V1_STR}/config",        tags=["config"])
-app.include_router(plants_router,        prefix=f"{API_V1_STR}/plants",        tags=["plants"])
-app.include_router(farms_router,         prefix=f"{API_V1_STR}/farms",         tags=["farms"])
-app.include_router(supply_chain_router,  prefix=f"{API_V1_STR}/supply_chain",  tags=["supply_chain"])
-app.include_router(cloud_router,         prefix=f"{API_V1_STR}/cloud",         tags=["cloud"])
-app.include_router(device_comm_router,   prefix=f"{API_V1_STR}/device_comm",   tags=["device_comm"])
-app.include_router(cameras_router,       prefix=f"{API_V1_STR}/cameras",       tags=["cameras"])
+app.include_router(devices_router,      prefix=f"{API_V1_STR}/devices",      tags=["devices"])
+app.include_router(dosing_router,       prefix=f"{API_V1_STR}/dosing",       tags=["dosing"])
+app.include_router(config_router,       prefix=f"{API_V1_STR}/config",       tags=["config"])
+app.include_router(plants_router,       prefix=f"{API_V1_STR}/plants",       tags=["plants"])
+app.include_router(farms_router,        prefix=f"{API_V1_STR}/farms",        tags=["farms"])
+app.include_router(supply_chain_router, prefix=f"{API_V1_STR}/supply_chain", tags=["supply_chain"])
+app.include_router(cloud_router,        prefix=f"{API_V1_STR}/cloud",        tags=["cloud"])
+app.include_router(device_comm_router,  prefix=f"{API_V1_STR}/device_comm",  tags=["device_comm"])
+app.include_router(cameras_router,      prefix=f"{API_V1_STR}/cameras",      tags=["cameras"])
 app.include_router(admin_clips_router)
-# mount the /admin/* endpoints (device-listing, toggle, etc.)
 app.include_router(admin_router)
 
-# ─── Startup Tasks ───────────────────────────────────────────────────────────
+# ─── Startup / Shutdown Tasks ─────────────────────────────────────────────────
 @app.on_event("startup")
 async def startup_tasks():
     asyncio.create_task(offline_watcher(db_factory=get_db, interval_seconds=30))
     camera_queue.start_workers()
+
 @app.on_event("shutdown")
 async def shutdown_cleanup():
-    # ensure no writer stays open (avoids corrupted final clips)
     from app.routers.cameras import _clip_writers
     for info in _clip_writers.values():
         try:
-            info['writer'].release()
-        except Exception:
+            info["writer"].release()
+        except:
             pass
-# ─── Main Entrypoint ──────────────────────────────────────────────────────────
+
 if __name__ == "__main__":
     uvicorn.run(
         "app.main:app",

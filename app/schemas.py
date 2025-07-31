@@ -12,6 +12,7 @@ class DeviceType(str, Enum):
     ENVIRONMENT_SENSOR = "environment_sensor"
     VALVE_CONTROLLER = "valve_controller"
     SMART_SWITCH     = "smart_switch"
+
 class PumpConfig(BaseModel):
     pump_number: int = Field(..., ge=1, le=4)
     chemical_name: str = Field(..., max_length=50)
@@ -30,7 +31,6 @@ class SwitchConfig(BaseModel):
     name: Optional[str] = Field(None, max_length=50)
 
     model_config = ConfigDict(from_attributes=True)
-
 
 class DeviceBase(BaseModel):
     mac_id: str = Field(..., max_length=64)
@@ -72,7 +72,9 @@ class DeviceResponse(DeviceBase):
     pump_configurations: Optional[List[PumpConfig]] = None
     sensor_parameters: Optional[Dict[str, str]] = None
     switch_configurations: Optional[List[SwitchConfig]] = None
+
     model_config = ConfigDict(from_attributes=True)
+
 
 # -------------------- Dosing Related Schemas -------------------- #
 
@@ -121,6 +123,7 @@ class SensorReading(BaseModel):
 
     model_config = ConfigDict(from_attributes=True)
 
+
 # -------------------- Health Related Schemas -------------------- #
 
 class HealthCheck(BaseModel):
@@ -144,6 +147,7 @@ class SimpleDosingCommand(BaseModel):
     pump: int = Field(..., ge=1, le=4, description="Pump number (1-4)")
     amount: float = Field(..., gt=0, description="Dose in milliliters")
 
+
 # -------------------- Plant Related Schemas -------------------- #
 
 class PlantBase(BaseModel):
@@ -164,6 +168,7 @@ class PlantResponse(PlantBase):
     updated_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
+
 
 # -------------------- Supply Chain Related Schemas -------------------- #
 
@@ -197,6 +202,7 @@ class SupplyChainAnalysisResponse(BaseModel):
 
     model_config = ConfigDict(from_attributes=True)
 
+
 class CloudAuthenticationRequest(BaseModel):
     device_id: str
     cloud_key: str
@@ -208,6 +214,7 @@ class CloudAuthenticationResponse(BaseModel):
 class DosingCancellationRequest(BaseModel):
     device_id: str
     event: str
+
 
 # -------------------- User Related Schemas -------------------- #
 
@@ -251,8 +258,6 @@ class UserCreate(BaseModel):
     state: Optional[str] = Field(None, max_length=100)
     country: Optional[str] = Field(None, max_length=100)
     postal_code: Optional[str] = Field(None, max_length=20)
-    name: str = Field(..., max_length=128)
-    location: Optional[str] = Field(None, max_length=256)
 
 class FarmBase(BaseModel):
     name: str = Field(..., max_length=128)
@@ -277,7 +282,7 @@ class ValveDeviceCreate(DeviceBase):
         if v != DeviceType.VALVE_CONTROLLER:
             raise ValueError("Device type must be valve_controller for ValveDeviceCreate")
         return v
-    
+
 class UserProfileBase(BaseModel):
     first_name: Optional[str] = None
     last_name: Optional[str] = None
@@ -377,17 +382,17 @@ class CameraReportResponse(BaseModel):
 
 class SwitchDeviceCreate(DeviceBase):
     switch_configurations: List[SwitchConfig] = Field(..., min_length=1, max_length=8)
+
     @field_validator('type')
     @classmethod
     def validate_device_type(cls, v):
         if v != DeviceType.SMART_SWITCH:
             raise ValueError("Device type must be smart_switch for SwitchDeviceCreate")
         return v
-    
 
 class PlantDosingResponse(BaseModel):
     plant_id: int
-    actions: List[Dict[str,Any]]
+    actions: List[Dict[str, Any]]
 
 class AuthResponse(BaseModel):
     access_token: str

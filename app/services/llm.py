@@ -256,7 +256,7 @@ async def direct_ollama_call(prompt: str, model_name: str) -> dict:
     logger.info(f"Ollama → {model_name} prompt:\n{prompt}")
 
     # ─── Test‑suite shortcut ───────────────────────────────────
-    if TESTING:
+    if os.getenv("TESTING", "").lower() in ("1", "true"):
         m = re.search(r"(\{.*?\})", prompt, flags=re.DOTALL)
         if not m:
             raise HTTPException(status_code=400, detail="No JSON in test prompt")
@@ -361,29 +361,39 @@ async def call_llm_async(prompt: str, model_name: str = MODEL_1_5B) -> Tuple[Dic
     """
     logger.info(f"Sending prompt to LLM:\n{prompt}")
 
-    if USE_OLLAMA:
-        raw = await direct_ollama_call(prompt, MODEL_1_5B)
-        if isinstance(raw, dict):
-            # parsed _and_ raw
-            return raw, json.dumps(raw, separators=(',',':'))
-        # fallback: if it ever returns a string
-        cleaned = parse_ollama_response(raw).replace("'", '"').strip()
+    # dynamic decision, honoring TESTING or USE_OLLAMA env vars
+    use_ollama_dyn = (
+        os.getenv("TESTING", "").lower() in ("1", "true")
+        or os.getenv("USE_OLLAMA", "false").lower() == "true"
+    )
+
+    if use_ollama_dyn:
+        # Ollama branch
+        raw_data = await direct_ollama_call(prompt, model_name)
+        if isinstance(raw_data, dict):
+            # test‑stub or structured stub
+            parsed = raw_data
+            raw_str = json.dumps(parsed, separators=(",", ":"))
+            return parsed, raw_str
+
+        # if Ollama returned a string, extract its JSON block
+        cleaned = parse_ollama_response(raw_data).replace("'", '"').strip()
         m = re.search(r"(\{.*?\})", cleaned, flags=re.DOTALL)
         if not m:
             raise HTTPException(status_code=500, detail="Invalid JSON from LLM")
-        cleaned_json = m.group(1)
-        raw = cleaned
-    else:
-        raw = await direct_openai_call(prompt, GPT_MODEL)
-        cleaned_json = parse_openai_response(raw)
+        parsed = json.loads(m.group(1))
+        return parsed, json.dumps(parsed, separators=(",", ":"))
 
-    # Validate JSON structure
-    try:
-        parsed_response = json.loads(cleaned_json)
-    except json.JSONDecodeError as e:
-        logger.error(f"Invalid JSON from LLM after extraction: {cleaned_json}")
-        raise HTTPException(status_code=500, detail="Invalid JSON from LLM") from e
-    return parsed_response, raw
+    else:
+        # OpenAI branch
+        raw = await direct_openai_call(prompt, model_name)
+        cleaned_json = parse_openai_response(raw)
+        try:
+            parsed = json.loads(cleaned_json)
+        except json.JSONDecodeError as e:
+            logger.error(f"Invalid JSON from OpenAI after extraction: {cleaned_json}")
+            raise HTTPException(status_code=500, detail="Invalid JSON from LLM") from e
+        return parsed, raw
 
 async def call_llm_plan(prompt: str, model_name: str = MODEL_1_5B) -> str:
     """

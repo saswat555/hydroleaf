@@ -10,13 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.dependencies import get_current_user
-from app.models import (
-    ActivationKey,
-    DeviceToken,
-    Subscription,
-    SubscriptionPlan,
-    Device,
-)
+from app.models import ActivationKey, DeviceToken, Subscription, SubscriptionPlan, Device
 from app.schemas import SubscriptionPlanResponse, SubscriptionResponse
 
 router = APIRouter(prefix="/api/v1/subscriptions", tags=["subscriptions"])
@@ -61,36 +55,38 @@ async def redeem_key(
         )
 
     # 3) Mark key redeemed
-    ak.redeemed           = True
-    ak.redeemed_at        = datetime.utcnow()
-    ak.redeemed_user_id   = current_user.id
+    ak.redeemed = True
+    ak.redeemed_at = datetime.utcnow()
+    ak.redeemed_user_id = current_user.id
     ak.redeemed_device_id = device_id
 
     # 4) Create the subscription
-    plan  = await db.get(SubscriptionPlan, ak.plan_id)
+    plan = await db.get(SubscriptionPlan, ak.plan_id)
     start = datetime.utcnow()
-    end   = start + timedelta(days=plan.duration_days)
+    end = start + timedelta(days=plan.duration_days)
 
     # Attach device to user
-    device.user_id   = current_user.id
+    device.user_id = current_user.id
     device.is_active = True
 
     sub = Subscription(
-        user_id    = current_user.id,
-        device_id  = device_id,
-        plan_id    = plan.id,
-        start_date = start,
-        end_date   = end,
-        active     = True,
+        user_id=current_user.id,
+        device_id=device_id,
+        plan_id=plan.id,
+        start_date=start,
+        end_date=end,
+        active=True,
     )
 
     # 5) Issue the appropriate device token
     token = secrets.token_urlsafe(32)
-    db.add(DeviceToken(
-        device_id   = device_id,
-        token       = token,
-        device_type = device.type,
-    ))
+    db.add(
+        DeviceToken(
+            device_id=device_id,
+            token=token,
+            device_type=device.type,
+        )
+    )
 
     # 6) Persist everything
     db.add_all([ak, device, sub])
@@ -107,7 +103,7 @@ async def redeem_key(
 )
 async def list_plans(
     db: AsyncSession = Depends(get_db),
-    _ = Depends(get_current_user),
+    _=Depends(get_current_user),
 ):
     result = await db.execute(select(SubscriptionPlan))
     return result.scalars().all()
