@@ -24,18 +24,21 @@ from app.core.config import (
 logger = logging.getLogger(__name__)
 
 # ─── Build the correct URL ────────────────────────────────────────────────────
+# allow sqlite+aiosqlite in tests, otherwise require asyncpg
 DB_URL = TEST_DATABASE_URL if TESTING and TEST_DATABASE_URL else DATABASE_URL
-if not DB_URL.startswith("postgresql+asyncpg://"):
-    raise RuntimeError(f"DB_URL must start with postgresql+asyncpg://, got {DB_URL}")
+if not (
+    DB_URL.startswith("postgresql+asyncpg://") or
+    (TESTING and DB_URL.startswith("sqlite"))
+):
+    raise RuntimeError(f"DB_URL must start with postgresql+asyncpg:// (or sqlite+aiosqlite:// in tests), got {DB_URL}")
 
 # ─── Engine ───────────────────────────────────────────────────────────────────
 engine = create_async_engine(
     DB_URL,
     pool_pre_ping=True,
-    pool_size=DB_POOL_SIZE,
-    max_overflow=DB_MAX_OVERFLOW,
     future=True,
 )
+
 
 # ─── Base declarative class ──────────────────────────────────────────────────
 Base = declarative_base()

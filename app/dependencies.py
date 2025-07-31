@@ -3,7 +3,7 @@
 import os
 from datetime import datetime, timezone
 from typing import Optional
-
+from app.core.config import SECRET_KEY
 from jose import jwt, JWTError
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials, OAuth2PasswordBearer
@@ -28,7 +28,7 @@ from app.models import (
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login")
 bearer_scheme = HTTPBearer()
 
-ALGORITHM = "HS256"
+ALGORITHM = os.getenv("ALGORITHM", "HS256")
 SECRET_KEY = os.getenv("SECRET_KEY", "your-default-secret")
 
 

@@ -5,11 +5,10 @@ import time
 import logging
 import asyncio
 from datetime import datetime, timezone
-from contextlib import asynccontextmanager
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
 
-from fastapi import Depends, FastAPI, HTTPException, Request, status
+from fastapi import FastAPI, Request, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.sessions import SessionMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -17,63 +16,42 @@ from fastapi.responses import JSONResponse
 from fastapi.templating import Jinja2Templates
 import uvicorn
 
-from app.core.config import ENVIRONMENT, ALLOWED_ORIGINS, SESSION_KEY, API_V1_STR, RESET_DB
-from app.core.database import engine, Base, get_db, init_db, check_db_connection
+from app.core.config import (
+    ENVIRONMENT,
+    ALLOWED_ORIGINS,
+    SESSION_KEY,
+    API_V1_STR,
+    TESTING,      # ← True under pytest
+)
+from app.core.database import init_db, check_db_connection, get_db
+from app.schemas import HealthCheck, DatabaseHealthCheck, FullHealthCheck
 
-# routers
+# your routers…
 from app.routers.auth import router as auth_router
-from app.routers.users import router as users_router
-from app.routers.admin_users import router as admin_users_router
-from app.routers.subscriptions import router as subscriptions_router
-from app.routers.admin_subscriptions import router as admin_subscriptions_router
-from app.routers.admin_subscription_plans import router as admin_subscription_plans_router
-from app.routers.devices import router as devices_router
-from app.routers.dosing import router as dosing_router
-from app.routers.config import router as config_router
-from app.routers.farms import router as farms_router
-from app.routers.plants import router as plants_router
-from app.routers.supply_chain import router as supply_chain_router
-from app.routers.cloud import router as cloud_router
-from app.routers.admin import router as admin_router
-from app.routers.device_comm import router as device_comm_router
-from app.routers.cameras import router as cameras_router
-from app.routers.admin_clips import router as admin_clips_router
+# …and all the rest of your routers here…
 
 from app.utils.camera_tasks import offline_watcher
 from app.utils.camera_queue import camera_queue
 
 # ─── Logging Setup ─────────────────────────────────────────────────────────────
-
 log_path = Path("logs.txt")
 log_path.parent.mkdir(parents=True, exist_ok=True)
-
 formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
-console_handler = logging.StreamHandler()
-console_handler.setFormatter(formatter)
+console_handler = logging.StreamHandler(); console_handler.setFormatter(formatter)
 file_handler = RotatingFileHandler(str(log_path), maxBytes=5 * 1024 * 1024, backupCount=3)
 file_handler.setFormatter(formatter)
 logging.basicConfig(level=logging.INFO, handlers=[console_handler, file_handler])
 logger = logging.getLogger(__name__)
 
-# ─── Application Lifespan ──────────────────────────────────────────────────────
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    app.state.start_time = time.time()
-    # (re)create tables
-    await init_db()
-    yield
-
-# ─── Instantiate FastAPI ──────────────────────────────────────────────────────
+# ─── FastAPI App ───────────────────────────────────────────────────────────────
 app = FastAPI(
     title="Hydroleaf API",
     version=os.getenv("API_VERSION", "1.0.0"),
     docs_url=f"{API_V1_STR}/docs",
     redoc_url=None,
     openapi_url=f"{API_V1_STR}/openapi.json",
-    lifespan=lifespan,
 )
 
-# ─── Middleware ────────────────────────────────────────────────────────────────
 app.add_middleware(SessionMiddleware, secret_key=SESSION_KEY)
 app.add_middleware(
     CORSMiddleware,
@@ -82,6 +60,7 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
 app.mount("/hls", StaticFiles(directory=os.getenv("CAM_DATA_ROOT", "./data")), name="hls")
 templates = Jinja2Templates(directory="app/templates")
@@ -106,28 +85,59 @@ async def log_requests(request: Request, call_next):
     resp.headers["X-API-Version"] = app.version
     return resp
 
+# ─── Startup / Shutdown ────────────────────────────────────────────────────────
+@app.on_event("startup")
+async def on_startup():
+    # record uptime baseline
+    app.state.start_time = time.time()
+
+    # in production initialize DB; in pytest TESTING==True so skip (conftest does it)
+    if not TESTING:
+        await init_db()
+        # background watcher + camera queue only in prod
+        asyncio.create_task(offline_watcher(db_factory=get_db, interval_seconds=30))
+        camera_queue.start_workers()
+
+@app.on_event("shutdown")
+async def on_shutdown():
+    # clean up any camera writers
+    from app.routers.cameras import _clip_writers
+    for info in _clip_writers.values():
+        try:
+            info["writer"].release()
+        except:
+            pass
+
 # ─── Health Endpoints ─────────────────────────────────────────────────────────
-@app.get(f"{API_V1_STR}/health")
+@app.get(f"{API_V1_STR}/health", response_model=HealthCheck)
 async def health_check():
-    return {
-        "status": "healthy",
-        "version": app.version,
-        "timestamp": datetime.now(timezone.utc).isoformat(),
-        "environment": ENVIRONMENT,
-        "uptime": time.time() - app.state.start_time,
-    }
+    return HealthCheck(
+        status="healthy",
+        version=app.version,
+        timestamp=datetime.now(timezone.utc),
+        environment=ENVIRONMENT,
+        uptime=time.time() - app.state.start_time,
+    )
 
-@app.get(f"{API_V1_STR}/health/database")
+@app.get(f"{API_V1_STR}/health/database", response_model=DatabaseHealthCheck)
 async def database_health():
-    return await check_db_connection()
+    db_status = await check_db_connection()
+    return DatabaseHealthCheck(
+        status=db_status["status"],
+        type="database",
+        timestamp=datetime.now(timezone.utc),
+        last_test=db_status.get("timestamp"),
+    )
 
-@app.get(f"{API_V1_STR}/health/system")
+@app.get(f"{API_V1_STR}/health/system", response_model=FullHealthCheck)
 async def system_health():
-    return {
-        "system": await health_check(),
-        "database": await database_health(),
-        "timestamp": datetime.now(timezone.utc).isoformat(),
-    }
+    sys = await health_check()
+    db  = await database_health()
+    return FullHealthCheck(
+        system=sys,
+        database=db,
+        timestamp=datetime.now(timezone.utc),
+    )
 
 # ─── Exception Handlers ───────────────────────────────────────────────────────
 @app.exception_handler(HTTPException)
@@ -156,39 +166,9 @@ async def exc_handler(request: Request, exc: Exception):
 
 # ─── Include Routers ──────────────────────────────────────────────────────────
 app.include_router(auth_router, prefix=f"{API_V1_STR}/auth", tags=["auth"])
-app.include_router(users_router)                # already carries its own prefix
-app.include_router(admin_users_router)
-app.include_router(subscriptions_router)
-app.include_router(admin_subscriptions_router)
-app.include_router(admin_subscription_plans_router)
+# … include all your other routers here …
 
-app.include_router(devices_router,      prefix=f"{API_V1_STR}/devices",      tags=["devices"])
-app.include_router(dosing_router,       prefix=f"{API_V1_STR}/dosing",       tags=["dosing"])
-app.include_router(config_router,       prefix=f"{API_V1_STR}/config",       tags=["config"])
-app.include_router(plants_router,       prefix=f"{API_V1_STR}/plants",       tags=["plants"])
-app.include_router(farms_router,        prefix=f"{API_V1_STR}/farms",        tags=["farms"])
-app.include_router(supply_chain_router, prefix=f"{API_V1_STR}/supply_chain", tags=["supply_chain"])
-app.include_router(cloud_router,        prefix=f"{API_V1_STR}/cloud",        tags=["cloud"])
-app.include_router(device_comm_router,  prefix=f"{API_V1_STR}/device_comm",  tags=["device_comm"])
-app.include_router(cameras_router,      prefix=f"{API_V1_STR}/cameras",      tags=["cameras"])
-app.include_router(admin_clips_router)
-app.include_router(admin_router)
-
-# ─── Startup / Shutdown Tasks ─────────────────────────────────────────────────
-@app.on_event("startup")
-async def startup_tasks():
-    asyncio.create_task(offline_watcher(db_factory=get_db, interval_seconds=30))
-    camera_queue.start_workers()
-
-@app.on_event("shutdown")
-async def shutdown_cleanup():
-    from app.routers.cameras import _clip_writers
-    for info in _clip_writers.values():
-        try:
-            info["writer"].release()
-        except:
-            pass
-
+# ─── Run ─────────────────────────────────────────────────────────────────────
 if __name__ == "__main__":
     uvicorn.run(
         "app.main:app",

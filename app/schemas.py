@@ -251,13 +251,18 @@ class UserCreate(BaseModel):
     email: EmailStr
     password: str
     first_name: Optional[str] = Field(None, max_length=50)
-    last_name: Optional[str] = Field(None, max_length=50)
-    phone: Optional[str] = Field(None, max_length=20)
-    address: Optional[str] = Field(None, max_length=256)
-    city: Optional[str] = Field(None, max_length=100)
-    state: Optional[str] = Field(None, max_length=100)
-    country: Optional[str] = Field(None, max_length=100)
+    last_name:  Optional[str] = Field(None, max_length=50)
+    phone:      Optional[str] = Field(None, max_length=20)
+    address:    Optional[str] = Field(None, max_length=256)
+    city:       Optional[str] = Field(None, max_length=100)
+    state:      Optional[str] = Field(None, max_length=100)
+    country:    Optional[str] = Field(None, max_length=100)
     postal_code: Optional[str] = Field(None, max_length=20)
+
+    # ➜ NEW: accept the nested profile object the tests send
+    profile: Optional["UserProfileCreate"] = None
+
+    model_config = ConfigDict(from_attributes=True, extra="forbid")
 
 class FarmBase(BaseModel):
     name: str = Field(..., max_length=128)
@@ -295,6 +300,7 @@ class UserProfileBase(BaseModel):
 
 class UserProfileCreate(UserProfileBase):
     pass
+UserCreate.model_rebuild()
 
 class UserProfileResponse(UserProfileBase):
     id: int
@@ -366,6 +372,7 @@ class PaymentOrderResponse(BaseModel):
     status: PaymentStatus
     upi_transaction_id: Optional[str]
     qr_code_url: Optional[str]
+    screenshot_path: Optional[str] = None
     created_at: datetime
     updated_at: datetime
 
