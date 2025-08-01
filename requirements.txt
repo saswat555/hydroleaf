@@ -104,3 +104,4 @@ uvloop
 watchfiles
 websockets
 zstandard
+segno

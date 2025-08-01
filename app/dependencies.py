@@ -2,14 +2,14 @@
 
 import os
 from datetime import datetime, timezone
-from typing import Optional
-from app.core.config import SECRET_KEY
+from typing import Optional, Any
 from jose import jwt, JWTError
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials, OAuth2PasswordBearer
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config import SECRET_KEY as CONFIG_SECRET
 from app.core.database import get_db
 from app.models import (
     User,
@@ -29,7 +29,7 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login")
 bearer_scheme = HTTPBearer()
 
 ALGORITHM = os.getenv("ALGORITHM", "HS256")
-SECRET_KEY = os.getenv("SECRET_KEY", "your-default-secret")
+SECRET_KEY = os.getenv("SECRET_KEY", CONFIG_SECRET)
 
 
 # --- user & admin JWT -----------------------------------------------
@@ -82,14 +82,14 @@ async def get_current_device(
     result = await db.execute(select(ActivationKey).where(ActivationKey.key == creds.credentials))
     ak: ActivationKey = result.scalar_one_or_none()
     if not ak or not ak.redeemed:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid or un‑redeemed device key")
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid or un-redeemed device key")
 
     # 2) load the device
     device = await db.get(Device, ak.redeemed_device_id)
     if not device:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Device not found")
 
-    # 3) ensure there’s a currently‑active subscription
+    # 3) ensure there’s a currently-active subscription
     now = datetime.now(timezone.utc)
     sub_q = (
         select(Subscription)
@@ -132,23 +132,22 @@ async def verify_device_token(
     *,
     expected_type: Optional[DeviceType] = None,
 ) -> str:
-    # 1) find the token row
-    tok_row: DeviceToken = (
-        await db.execute(
-            select(DeviceToken).where(DeviceToken.token == creds.credentials)
-        )
-    ).scalar_one_or_none()
+    # 1) find the token row (no JOIN)
+    result = await db.execute(
+        select(DeviceToken).where(DeviceToken.token == creds.credentials)
+    )
+    tok_row: DeviceToken = result.scalar_one_or_none()
 
     if not tok_row:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid device token")
 
-    # 2) optional type‐check
+    # 2) optional type-check
     if expected_type and tok_row.device_type != expected_type:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Token/device type mismatch")
 
-    # 3) optional expiration‐check
-    if getattr(tok_row, "expires_at", None):
-        if tok_row.expires_at < datetime.now(timezone.utc):
-            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Device token expired")
+    # 3) optional expiration-check
+    if getattr(tok_row, "expires_at", None) and tok_row.expires_at < datetime.now(timezone.utc):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Device token expired")
 
+    # 4) success!
     return tok_row.device_id

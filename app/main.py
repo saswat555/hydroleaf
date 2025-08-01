@@ -8,48 +8,39 @@ from datetime import datetime, timezone
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
 
+import uvicorn
 from fastapi import FastAPI, Request, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.sessions import SessionMiddleware
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
-import uvicorn
 
-from app.core.config import (
-    ENVIRONMENT,
-    ALLOWED_ORIGINS,
-    SESSION_KEY,
-    API_V1_STR,
-    TESTING,
-)
+from app.core.config import ENVIRONMENT, ALLOWED_ORIGINS, SESSION_KEY, API_V1_STR, TESTING
 from app.core.database import init_db, check_db_connection, get_db
 from app.schemas import HealthCheck, DatabaseHealthCheck, FullHealthCheck
 
 # ─── Routers ──────────────────────────────────────────────────────────────────
 from app.routers.auth import router as auth_router
-# … import your other routers here …
+from app.routers.devices import router as devices_router
+from app.routers.payments import router as payments_router
+from app.routers.subscriptions import router as subscriptions_router
+from app.routers.cameras import router as cameras_router
 
-# ─── Utility tasks ────────────────────────────────────────────────────────────
+# Admin-only
+from app.routers.admin_subscriptions import router as admin_subscriptions_router
+
+# ─── Background tasks ─────────────────────────────────────────────────────────
 from app.utils.camera_tasks import offline_watcher
 from app.utils.camera_queue import camera_queue
 
 # ─── Logging Setup ─────────────────────────────────────────────────────────────
 log_path = Path("logs.txt")
-log_path.parent.mkdir(parents=True, exist_ok=True)
-
+log_path.parent.mkdir(exist_ok=True)
 formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
-
-console_handler = logging.StreamHandler()
-console_handler.setFormatter(formatter)
-
-file_handler = RotatingFileHandler(
-    filename=str(log_path),
-    maxBytes=5 * 1024 * 1024,
-    backupCount=3,
-)
+console_handler = logging.StreamHandler();  console_handler.setFormatter(formatter)
+file_handler    = RotatingFileHandler(str(log_path), maxBytes=5_000_000, backupCount=3)
 file_handler.setFormatter(formatter)
-
 logging.basicConfig(level=logging.INFO, handlers=[console_handler, file_handler])
 logger = logging.getLogger(__name__)
 
@@ -61,6 +52,15 @@ app = FastAPI(
     redoc_url=None,
     openapi_url=f"{API_V1_STR}/openapi.json",
 )
+
+# ─── Redirect banner paths to the real docs ───────────────────────────────────
+@app.get("/docs", include_in_schema=False)
+def _redirect_docs():
+    return RedirectResponse(url=f"{API_V1_STR}/docs")
+
+@app.get("/openapi.json", include_in_schema=False)
+def _redirect_openapi():
+    return RedirectResponse(url=f"{API_V1_STR}/openapi.json")
 
 # ─── Middlewares ───────────────────────────────────────────────────────────────
 app.add_middleware(SessionMiddleware, secret_key=SESSION_KEY)
@@ -74,14 +74,10 @@ app.add_middleware(
 
 # ─── Static Files & Templates ─────────────────────────────────────────────────
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
-app.mount(
-    "/hls",
-    StaticFiles(directory=os.getenv("CAM_DATA_ROOT", "./data")),
-    name="hls",
-)
+app.mount("/hls",    StaticFiles(directory=os.getenv("CAM_DATA_ROOT","./data")), name="hls")
 templates = Jinja2Templates(directory="app/templates")
 
-# ─── Request Logging Middleware ────────────────────────────────────────────────
+# ─── Request-logging Middleware ───────────────────────────────────────────────
 @app.middleware("http")
 async def log_requests(request: Request, call_next):
     start = time.time()
@@ -92,50 +88,36 @@ async def log_requests(request: Request, call_next):
     except Exception as e:
         logger.error(f"Error on {request.method} {request.url.path}: {e}", exc_info=True)
         raise
-    latency_ms = (time.time() - start) * 1000
-    logger.info(
-        "%s %s • ip=%s • device_id=%s • %d • %.1fms",
-        request.method,
-        request.url.path,
-        ip,
-        device_id,
-        response.status_code,
-        latency_ms,
-    )
-    response.headers["X-Process-Time"] = f"{latency_ms/1000:.3f}"
+    ms = (time.time() - start) * 1000
+    logger.info("%s %s • ip=%s • device_id=%s • %d • %.1fms",
+                request.method, request.url.path, ip, device_id, response.status_code, ms)
+    response.headers["X-Process-Time"] = f"{ms/1000:.3f}"
     response.headers["X-API-Version"] = app.version
     return response
 
 # ─── Startup / Shutdown ────────────────────────────────────────────────────────
 @app.on_event("startup")
 async def on_startup():
-    # record uptime baseline
     app.state.start_time = time.time()
-
-    # in production initialize DB; in pytest (TESTING==True) skip this
     if not TESTING:
         await init_db()
-        # kick off background camera watcher + queue workers only in prod
         asyncio.create_task(offline_watcher(db_factory=get_db, interval_seconds=30))
         camera_queue.start_workers()
 
 @app.on_event("shutdown")
 async def on_shutdown():
-    # clean up any camera writers
     from app.routers.cameras import _clip_writers
-
     for info in _clip_writers.values():
         try:
             info["writer"].release()
-        except Exception:
+        except:
             pass
 
 # ─── Health Endpoints ─────────────────────────────────────────────────────────
 @app.get(f"{API_V1_STR}/health", response_model=HealthCheck)
 async def health_check():
     return HealthCheck(
-        status="healthy",
-        version=app.version,
+        status="healthy", version=app.version,
         timestamp=datetime.now(timezone.utc),
         environment=ENVIRONMENT,
         uptime=time.time() - app.state.start_time,
@@ -143,23 +125,19 @@ async def health_check():
 
 @app.get(f"{API_V1_STR}/health/database", response_model=DatabaseHealthCheck)
 async def database_health():
-    db_status = await check_db_connection()
+    s = await check_db_connection()
     return DatabaseHealthCheck(
-        status=db_status["status"],
-        type="database",
+        status=s["status"], type="database",
         timestamp=datetime.now(timezone.utc),
-        last_test=db_status.get("timestamp"),
+        last_test=s.get("timestamp"),
     )
 
 @app.get(f"{API_V1_STR}/health/system", response_model=FullHealthCheck)
 async def system_health():
     sys = await health_check()
-    db = await database_health()
-    return FullHealthCheck(
-        system=sys,
-        database=db,
-        timestamp=datetime.now(timezone.utc),
-    )
+    db  = await database_health()
+    return FullHealthCheck(system=sys, database=db,
+                           timestamp=datetime.now(timezone.utc))
 
 # ─── Exception Handlers ───────────────────────────────────────────────────────
 @app.exception_handler(HTTPException)
@@ -167,11 +145,9 @@ async def http_exc_handler(request: Request, exc: HTTPException):
     logger.warning(f"HTTPException {exc.detail} on {request.url.path}")
     return JSONResponse(
         status_code=exc.status_code,
-        content={
-            "detail": exc.detail,
-            "timestamp": datetime.now(timezone.utc).isoformat(),
-            "path": request.url.path,
-        },
+        content={"detail": exc.detail,
+                 "timestamp": datetime.now(timezone.utc).isoformat(),
+                 "path": request.url.path},
     )
 
 @app.exception_handler(Exception)
@@ -179,23 +155,27 @@ async def exc_handler(request: Request, exc: Exception):
     logger.error(f"Unhandled exception on {request.url.path}: {exc}", exc_info=True)
     return JSONResponse(
         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-        content={
-            "detail": "Internal server error",
-            "timestamp": datetime.now(timezone.utc).isoformat(),
-            "path": request.url.path,
-        },
+        content={"detail": "Internal server error",
+                 "timestamp": datetime.now(timezone.utc).isoformat(),
+                 "path": request.url.path},
     )
 
 # ─── Include Routers ──────────────────────────────────────────────────────────
-app.include_router(auth_router, prefix=f"{API_V1_STR}/auth", tags=["auth"])
-# … include your other routers here …
+app.include_router(auth_router,          prefix=f"{API_V1_STR}/auth",          tags=["Auth"])
+app.include_router(devices_router,       prefix=f"{API_V1_STR}/devices",       tags=["Devices"])
+app.include_router(payments_router,      prefix=f"{API_V1_STR}/payments",      tags=["Payments"])
+app.include_router(subscriptions_router, prefix=f"{API_V1_STR}/subscriptions", tags=["Subscriptions"])
+app.include_router(cameras_router,       prefix=f"{API_V1_STR}/cameras",       tags=["Cameras"])
+# Admin routes
+app.include_router(admin_subscriptions_router,
+                   prefix=f"{API_V1_STR}/admin/subscriptions", tags=["Admin Subscriptions"])
 
 # ─── Run the App ──────────────────────────────────────────────────────────────
 if __name__ == "__main__":
     uvicorn.run(
         "app.main:app",
-        host="0.0.0.0",
-        port=int(os.getenv("PORT", 3000)),
+        host="localhost",
+        port=int(os.getenv("PORT", 8000)),
         log_level=os.getenv("LOG_LEVEL", "info"),
         reload=os.getenv("DEBUG", "false").lower() == "true",
     )
