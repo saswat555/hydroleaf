@@ -16221,3 +16221,78 @@ AttributeError: module 'bcrypt' has no attribute '__about__'
 2025-08-01 16:07:35,961 - httpx - INFO - HTTP Request: POST http://testserver/api/v1/auth/login "HTTP/1.1 422 Unprocessable Entity"
 2025-08-01 16:07:36,304 - app.main - INFO - POST /api/v1/auth/signup • ip=127.0.0.1 • device_id=- • 201 • 271.9ms
 2025-08-01 16:07:36,304 - httpx - INFO - HTTP Request: POST http://testserver/api/v1/auth/signup "HTTP/1.1 201 Created"
+2025-08-01 16:08:05,476 - passlib.handlers.bcrypt - WARNING - (trapped) error reading bcrypt version
+Traceback (most recent call last):
+  File "/Users/saswatpandey/hydroleaf/env/lib/python3.12/site-packages/passlib/handlers/bcrypt.py", line 620, in _load_backend_mixin
+    version = _bcrypt.__about__.__version__
+              ^^^^^^^^^^^^^^^^^
+AttributeError: module 'bcrypt' has no attribute '__about__'
+2025-08-01 16:08:05,736 - app.main - INFO - POST /api/v1/auth/signup • ip=127.0.0.1 • device_id=- • 201 • 299.9ms
+2025-08-01 16:08:05,736 - httpx - INFO - HTTP Request: POST http://testserver/api/v1/auth/signup "HTTP/1.1 201 Created"
+2025-08-01 16:08:06,118 - app.main - INFO - POST /api/v1/auth/signup • ip=127.0.0.1 • device_id=- • 201 • 259.1ms
+2025-08-01 16:08:06,119 - httpx - INFO - HTTP Request: POST http://testserver/api/v1/auth/signup "HTTP/1.1 201 Created"
+2025-08-01 16:08:06,467 - app.main - INFO - POST /api/v1/auth/signup • ip=127.0.0.1 • device_id=- • 201 • 258.9ms
+2025-08-01 16:08:06,468 - httpx - INFO - HTTP Request: POST http://testserver/api/v1/auth/signup "HTTP/1.1 201 Created"
+2025-08-01 16:08:06,483 - app.main - WARNING - HTTPException Email already registered on /api/v1/auth/signup
+2025-08-01 16:08:06,484 - app.main - INFO - POST /api/v1/auth/signup • ip=127.0.0.1 • device_id=- • 400 • 15.4ms
+2025-08-01 16:08:06,484 - httpx - INFO - HTTP Request: POST http://testserver/api/v1/auth/signup "HTTP/1.1 400 Bad Request"
+2025-08-01 16:08:06,586 - app.main - INFO - POST /api/v1/auth/signup • ip=127.0.0.1 • device_id=- • 422 • 1.0ms
+2025-08-01 16:08:06,586 - httpx - INFO - HTTP Request: POST http://testserver/api/v1/auth/signup "HTTP/1.1 422 Unprocessable Entity"
+2025-08-01 16:08:06,665 - app.main - INFO - POST /api/v1/auth/signup • ip=127.0.0.1 • device_id=- • 422 • 1.2ms
+2025-08-01 16:08:06,665 - httpx - INFO - HTTP Request: POST http://testserver/api/v1/auth/signup "HTTP/1.1 422 Unprocessable Entity"
+2025-08-01 16:08:06,737 - app.main - INFO - POST /api/v1/auth/signup • ip=127.0.0.1 • device_id=- • 422 • 1.2ms
+2025-08-01 16:08:06,737 - httpx - INFO - HTTP Request: POST http://testserver/api/v1/auth/signup "HTTP/1.1 422 Unprocessable Entity"
+2025-08-01 16:08:07,095 - app.main - INFO - POST /api/v1/auth/signup • ip=127.0.0.1 • device_id=- • 201 • 251.1ms
+2025-08-01 16:08:07,095 - httpx - INFO - HTTP Request: POST http://testserver/api/v1/auth/signup "HTTP/1.1 201 Created"
+2025-08-01 16:08:07,330 - app.main - INFO - POST /api/v1/auth/login • ip=127.0.0.1 • device_id=- • 200 • 234.5ms
+2025-08-01 16:08:07,330 - httpx - INFO - HTTP Request: POST http://testserver/api/v1/auth/login "HTTP/1.1 200 OK"
+2025-08-01 16:08:07,701 - app.main - INFO - POST /api/v1/auth/signup • ip=127.0.0.1 • device_id=- • 201 • 259.0ms
+2025-08-01 16:08:07,701 - httpx - INFO - HTTP Request: POST http://testserver/api/v1/auth/signup "HTTP/1.1 201 Created"
+2025-08-01 16:08:07,934 - app.main - WARNING - HTTPException Invalid credentials on /api/v1/auth/login
+2025-08-01 16:08:07,934 - app.main - INFO - POST /api/v1/auth/login • ip=127.0.0.1 • device_id=- • 401 • 232.1ms
+2025-08-01 16:08:07,934 - httpx - INFO - HTTP Request: POST http://testserver/api/v1/auth/login "HTTP/1.1 401 Unauthorized"
+2025-08-01 16:08:08,053 - app.main - WARNING - HTTPException Invalid credentials on /api/v1/auth/login
+2025-08-01 16:08:08,054 - app.main - INFO - POST /api/v1/auth/login • ip=127.0.0.1 • device_id=- • 401 • 10.8ms
+2025-08-01 16:08:08,054 - httpx - INFO - HTTP Request: POST http://testserver/api/v1/auth/login "HTTP/1.1 401 Unauthorized"
+2025-08-01 16:08:08,121 - app.main - INFO - POST /api/v1/auth/login • ip=127.0.0.1 • device_id=- • 422 • 2.6ms
+2025-08-01 16:08:08,121 - httpx - INFO - HTTP Request: POST http://testserver/api/v1/auth/login "HTTP/1.1 422 Unprocessable Entity"
+2025-08-01 16:08:08,469 - app.main - INFO - POST /api/v1/auth/signup • ip=127.0.0.1 • device_id=- • 201 • 268.4ms
+2025-08-01 16:08:08,469 - httpx - INFO - HTTP Request: POST http://testserver/api/v1/auth/signup "HTTP/1.1 201 Created"
+2025-08-01 16:08:09,261 - app.services.supply_chain_service - ERROR - No valid JSON block found in LLM response.
+2025-08-01 16:08:09,840 - app.services.llm - INFO - Sending prompt to LLM:
+
+2025-08-01 16:08:09,840 - app.services.llm - INFO - Ollama → deepseek-r1:1.5b prompt:
+
+2025-08-01 16:08:11,042 - app.services.dose_manager - INFO - Cancellation response for device devX: {'cancelled': True}
+2025-08-01 16:08:11,514 - app.services.llm - ERROR - No valid JSON block found in OpenAI response: no braces at all
+2025-08-01 16:08:14,025 - httpx - INFO - HTTP Request: GET https://google.serper.dev/search?q=optimal+growth.+Focus+on+best+practices+in+Europe+for+Veggie+cultivation.&gl=in&hl=en&apiKey=eeaeee2729768c737ca5a6004968a9840677e523&num=5&full=true&output=detailed "HTTP/1.1 200 OK"
+2025-08-01 16:08:14,450 - httpx - INFO - HTTP Request: GET https://www.researchgate.net/publication/323363546_Strategies_for_optimal_fertiliser_management_of_vegetable_crops_in_Europe "HTTP/1.1 403 Forbidden"
+2025-08-01 16:08:14,462 - httpx - INFO - HTTP Request: GET https://www.researchgate.net/publication/260984593_Good_Agricultural_Practices_for_greenhouse_vegetable_crops_Principles_for_Mediterranean_climate_areas "HTTP/1.1 403 Forbidden"
+2025-08-01 16:08:14,463 - app.services.serper - WARNING - Scrape forbidden (403) for https://www.researchgate.net/publication/323363546_Strategies_for_optimal_fertiliser_management_of_vegetable_crops_in_Europe
+2025-08-01 16:08:14,468 - app.services.serper - WARNING - Scrape forbidden (403) for https://www.researchgate.net/publication/260984593_Good_Agricultural_Practices_for_greenhouse_vegetable_crops_Principles_for_Mediterranean_climate_areas
+2025-08-01 16:08:14,780 - httpx - INFO - HTTP Request: GET https://www.fao.org/4/i3284e/i3284e.pdf "HTTP/1.1 200 OK"
+2025-08-01 16:08:15,396 - httpx - INFO - HTTP Request: GET https://agriculture.ec.europa.eu/system/files/2019-03/final-report-etop-greenhouse-production_0.pdf "HTTP/1.1 200 OK"
+2025-08-01 16:08:15,621 - httpx - INFO - HTTP Request: GET https://www.agronomyjournals.com/article/view/2394/8-1-44 "HTTP/1.1 302 Moved Temporarily"
+2025-08-01 16:08:15,623 - app.services.serper - WARNING - HTTP error scraping https://www.agronomyjournals.com/article/view/2394/8-1-44: Redirect response '302 Moved Temporarily' for url 'https://www.agronomyjournals.com/article/view/2394/8-1-44'
+Redirect location: 'https://www.agronomyjournals.com/archives/2025/vol8issue1/PartD/8-1-44-621.pdf'
+For more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/302
+2025-08-01 16:08:17,062 - app.services.plant_service - INFO - Fetching plants from database...
+2025-08-01 16:08:17,062 - app.services.plant_service - INFO - No plants found, returning an empty list.
+2025-08-01 16:08:17,118 - app.services.plant_service - INFO - Fetching plants from database...
+2025-08-01 16:08:17,118 - app.services.plant_service - INFO - Fetched 2 plants from the database
+2025-08-01 16:08:17,412 - app.services.plant_service - INFO - Fetching plants from database...
+2025-08-01 16:08:17,412 - app.services.plant_service - ERROR - Database query failed: db is down
+2025-08-01 16:08:17,503 - app.main - INFO - POST /api/v1/auth/signup • ip=127.0.0.1 • device_id=- • 422 • 1.9ms
+2025-08-01 16:08:17,504 - httpx - INFO - HTTP Request: POST http://testserver/api/v1/auth/signup "HTTP/1.1 422 Unprocessable Entity"
+2025-08-01 16:08:17,582 - app.main - INFO - POST /api/v1/auth/signup • ip=127.0.0.1 • device_id=- • 422 • 1.1ms
+2025-08-01 16:08:17,582 - httpx - INFO - HTTP Request: POST http://testserver/api/v1/auth/signup "HTTP/1.1 422 Unprocessable Entity"
+2025-08-01 16:08:17,646 - app.main - INFO - POST /api/v1/auth/signup • ip=127.0.0.1 • device_id=- • 422 • 1.4ms
+2025-08-01 16:08:17,646 - httpx - INFO - HTTP Request: POST http://testserver/api/v1/auth/signup "HTTP/1.1 422 Unprocessable Entity"
+2025-08-01 16:08:17,711 - app.main - INFO - POST /api/v1/auth/signup • ip=127.0.0.1 • device_id=- • 422 • 1.2ms
+2025-08-01 16:08:17,712 - httpx - INFO - HTTP Request: POST http://testserver/api/v1/auth/signup "HTTP/1.1 422 Unprocessable Entity"
+2025-08-01 16:08:17,771 - app.main - INFO - POST /api/v1/auth/signup • ip=127.0.0.1 • device_id=- • 422 • 1.2ms
+2025-08-01 16:08:17,771 - httpx - INFO - HTTP Request: POST http://testserver/api/v1/auth/signup "HTTP/1.1 422 Unprocessable Entity"
+2025-08-01 16:08:17,894 - app.main - INFO - POST /api/v1/auth/signup • ip=127.0.0.1 • device_id=- • 422 • 1.7ms
+2025-08-01 16:08:17,894 - httpx - INFO - HTTP Request: POST http://testserver/api/v1/auth/signup "HTTP/1.1 422 Unprocessable Entity"
+2025-08-01 16:08:18,326 - app.main - INFO - POST /admin/device/dev-2/issue-token • ip=127.0.0.1 • device_id=- • 404 • 0.2ms
+2025-08-01 16:08:18,326 - httpx - INFO - HTTP Request: POST http://test/admin/device/dev-2/issue-token "HTTP/1.1 404 Not Found"
