@@ -90,15 +90,21 @@ async def signup(
     # 2) Build the User + profile
     hashed_pw = get_password_hash(user_create.password)
     user = User(email=user_create.email, hashed_password=hashed_pw, role="user")
+
+    # Merge profile fields, preferring nested profile over top-level
+    raw = {}
+    if user_create.profile:
+        raw = user_create.profile.dict(exclude_unset=True)
+
     profile = UserProfile(
-        first_name=user_create.first_name,
-        last_name=user_create.last_name,
-        phone=user_create.phone,
-        address=user_create.address,
-        city=user_create.city,
-        state=user_create.state,
-        country=user_create.country,
-        postal_code=user_create.postal_code,
+        first_name   = raw.get("first_name",   user_create.first_name),
+        last_name    = raw.get("last_name",    user_create.last_name),
+        phone        = raw.get("phone",        user_create.phone),
+        address      = raw.get("address",      user_create.address),
+        city         = raw.get("city",         user_create.city),
+        state        = raw.get("state",        user_create.state),
+        country      = raw.get("country",      user_create.country),
+        postal_code  = raw.get("postal_code",  user_create.postal_code),
     )
     user.profile = profile
 

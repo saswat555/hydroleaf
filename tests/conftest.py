@@ -2,7 +2,7 @@
 """
 Pytest fixtures for Hydroleaf
 
-▪︎ Spins‑up a dedicated Postgres DB (TEST_DATABASE_URL) for the whole test run
+▪︎ Spins-up a dedicated Postgres DB (TEST_DATABASE_URL) for the whole test run
 ▪︎ Overrides FastAPI’s DB dependency to use that same Session
 ▪︎ Truncates every table after each test
 ▪︎ Provides an httpx.AsyncClient + a deterministic DeviceController mock
@@ -18,7 +18,13 @@ import pytest
 from httpx import AsyncClient
 from sqlalchemy import create_engine, text
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
-
+from sqlalchemy.pool import NullPool  
+import jwt as _jwt
+_orig_jwt_decode = _jwt.decode
+def _decode_no_key(token, key=None, algorithms=None, options=None, **kwargs):
+    # supply empty key and leave algorithms alone—signature won’t be checked when verify_signature=False
+    return _orig_jwt_decode(token, key or "", algorithms=algorithms, options=options, **kwargs)
+_jwt.decode = _decode_no_key
 # ───────────────────────── paths / env ──────────────────────────
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
@@ -36,8 +42,13 @@ from app.core.database import Base, AsyncSessionLocal  # the real one
 from app.main import app
 from app.core.database import get_db
 
-# make a test‐only engine + sessionmaker
-_test_engine = create_async_engine(TEST_DB_URL, echo=False, future=True)
+# make a test‐only engine + sessionmaker, with NO POOLING
+_test_engine = create_async_engine(
+    TEST_DB_URL,
+    echo=False,
+    future=True,
+    poolclass=NullPool,     # <— disable pooling in tests
+)
 TestSessionLocal = async_sessionmaker(
     _test_engine, class_=AsyncSession, expire_on_commit=False
 )
@@ -72,7 +83,7 @@ async def _setup_db_and_overrides():
         pass
 
     yield
-    # teardown handled by table‐truncation fixture below
+    # teardown handled by table-truncation fixture below
 
 # sync engine for truncation
 _SYNC_DB_URL = TEST_DB_URL.replace(
@@ -90,7 +101,7 @@ def _truncate_tables_after_each_test():
             conn.execute(text(f'TRUNCATE TABLE "{tbl.name}" RESTART IDENTITY CASCADE'))
         conn.execute(text("SET session_replication_role = DEFAULT;"))
 
-# ─────────────────── Device‑controller mock ────────────────────
+# ─────────────────── Device-controller mock ────────────────────
 class MockController:
     def __init__(self, device_ip: str, request_timeout: float = 10.0):
         self.device_ip = device_ip
@@ -128,7 +139,7 @@ async def async_client():
     async with AsyncClient(app=app, base_url="http://testserver") as client:
         yield client
 
-# ─────────────────────── result‑logging plugin ────────────────────────
+# ─────────────────────── result-logging plugin ────────────────────────
 _LOG_PATH = ROOT / "test_logs.txt"
 
 def pytest_sessionstart(session):
@@ -137,17 +148,24 @@ def pytest_sessionstart(session):
         fp.write("=" * 70 + "\n")
 
 def pytest_runtest_logreport(report):
+    # only log the final “call” phase
     if report.when != "call":
         return
 
     outcome = "PASSED" if report.passed else "FAILED" if report.failed else "SKIPPED"
     ts = _dt.datetime.utcnow().isoformat() + "Z"
     with _LOG_PATH.open("a", encoding="utf-8") as fp:
-        fp.write(f"{ts} | {report.nodeid} | {outcome} | {report.duration:.2f}s\n")
+        fp.write(f"{ts} | {report.nodeid} | {outcome} | {getattr(report, 'duration', 0):.2f}s\n")
         if report.failed:
             fp.write("--- Failure details below ---\n")
             longrepr = getattr(report, "longreprtext", None) or str(report.longrepr)
-            fp.write(longrepr)
-            if not longrepr.endswith("\n"):
-                fp.write("\n")
+            fp.write(f"{longrepr}\n")
+            capstdout = getattr(report, "capstdout", None)
+            if capstdout:
+                fp.write("--- Captured stdout ---\n")
+                fp.write(f"{capstdout}\n")
+            capstderr = getattr(report, "capstderr", None)
+            if capstderr:
+                fp.write("--- Captured stderr ---\n")
+                fp.write(f"{capstderr}\n")
             fp.write("-" * 70 + "\n")

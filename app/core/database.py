@@ -11,6 +11,7 @@ from sqlalchemy.ext.asyncio import (
     async_sessionmaker,
 )
 from sqlalchemy.orm import declarative_base
+from sqlalchemy.pool import NullPool
 
 from app.core.config import (
     DATABASE_URL,
@@ -23,27 +24,37 @@ from app.core.config import (
 
 logger = logging.getLogger(__name__)
 
-# ─── Build the correct URL ────────────────────────────────────────────────────
-# allow sqlite+aiosqlite in tests, otherwise require asyncpg
+# ─── Pick the right URL ───────────────────────────────────────────────────────
 DB_URL = TEST_DATABASE_URL if TESTING and TEST_DATABASE_URL else DATABASE_URL
+
 if not (
-    DB_URL.startswith("postgresql+asyncpg://") or
-    (TESTING and DB_URL.startswith("sqlite"))
+    DB_URL.startswith("postgresql+asyncpg://")
+    or (TESTING and DB_URL.startswith("sqlite"))
 ):
-    raise RuntimeError(f"DB_URL must start with postgresql+asyncpg:// (or sqlite+aiosqlite:// in tests), got {DB_URL}")
+    raise RuntimeError(
+        f"DB_URL must start with postgresql+asyncpg:// (or sqlite in tests), got {DB_URL}"
+    )
 
-# ─── Engine ───────────────────────────────────────────────────────────────────
-engine = create_async_engine(
-    DB_URL,
-    pool_pre_ping=True,
-    future=True,
-)
+# ─── Engine configuration ─────────────────────────────────────────────────────
+_engine_kwargs: dict[str, object] = {
+    "pool_pre_ping": True,
+    "future": True,
+}
 
+if TESTING:
+    # Disable pooling in tests to avoid “attached to a different loop” errors
+    _engine_kwargs["poolclass"] = NullPool
+else:
+    # Production pool sizing
+    _engine_kwargs["pool_size"] = DB_POOL_SIZE
+    _engine_kwargs["max_overflow"] = DB_MAX_OVERFLOW
+
+engine = create_async_engine(DB_URL, **_engine_kwargs)
 
 # ─── Base declarative class ──────────────────────────────────────────────────
 Base = declarative_base()
 
-# ─── Sessionmaker exposed for direct import in tests ─────────────────────────
+# ─── Sessionmaker ────────────────────────────────────────────────────────────
 AsyncSessionLocal: async_sessionmaker[AsyncSession] = async_sessionmaker(
     bind=engine,
     class_=AsyncSession,
@@ -71,7 +82,7 @@ async def init_db() -> None:
             await conn.run_sync(Base.metadata.drop_all)
         await conn.run_sync(Base.metadata.create_all)
 
-# ─── Health‑check for /health/database ───────────────────────────────────────
+# ─── Health-check for /health/database ───────────────────────────────────────
 async def check_db_connection() -> dict[str, str]:
     """
     Simple check: run SELECT 1.

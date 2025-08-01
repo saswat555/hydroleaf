@@ -21,25 +21,35 @@ from app.core.config import (
     ALLOWED_ORIGINS,
     SESSION_KEY,
     API_V1_STR,
-    TESTING,      # ← True under pytest
+    TESTING,
 )
 from app.core.database import init_db, check_db_connection, get_db
 from app.schemas import HealthCheck, DatabaseHealthCheck, FullHealthCheck
 
-# your routers…
+# ─── Routers ──────────────────────────────────────────────────────────────────
 from app.routers.auth import router as auth_router
-# …and all the rest of your routers here…
+# … import your other routers here …
 
+# ─── Utility tasks ────────────────────────────────────────────────────────────
 from app.utils.camera_tasks import offline_watcher
 from app.utils.camera_queue import camera_queue
 
 # ─── Logging Setup ─────────────────────────────────────────────────────────────
 log_path = Path("logs.txt")
 log_path.parent.mkdir(parents=True, exist_ok=True)
+
 formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
-console_handler = logging.StreamHandler(); console_handler.setFormatter(formatter)
-file_handler = RotatingFileHandler(str(log_path), maxBytes=5 * 1024 * 1024, backupCount=3)
+
+console_handler = logging.StreamHandler()
+console_handler.setFormatter(formatter)
+
+file_handler = RotatingFileHandler(
+    filename=str(log_path),
+    maxBytes=5 * 1024 * 1024,
+    backupCount=3,
+)
 file_handler.setFormatter(formatter)
+
 logging.basicConfig(level=logging.INFO, handlers=[console_handler, file_handler])
 logger = logging.getLogger(__name__)
 
@@ -52,6 +62,7 @@ app = FastAPI(
     openapi_url=f"{API_V1_STR}/openapi.json",
 )
 
+# ─── Middlewares ───────────────────────────────────────────────────────────────
 app.add_middleware(SessionMiddleware, secret_key=SESSION_KEY)
 app.add_middleware(
     CORSMiddleware,
@@ -61,29 +72,39 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# ─── Static Files & Templates ─────────────────────────────────────────────────
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
-app.mount("/hls", StaticFiles(directory=os.getenv("CAM_DATA_ROOT", "./data")), name="hls")
+app.mount(
+    "/hls",
+    StaticFiles(directory=os.getenv("CAM_DATA_ROOT", "./data")),
+    name="hls",
+)
 templates = Jinja2Templates(directory="app/templates")
 
-# ─── Request Logging ──────────────────────────────────────────────────────────
+# ─── Request Logging Middleware ────────────────────────────────────────────────
 @app.middleware("http")
 async def log_requests(request: Request, call_next):
     start = time.time()
     ip = request.headers.get("x-forwarded-for", request.client.host)
     device_id = request.query_params.get("device_id", "-")
     try:
-        resp = await call_next(request)
+        response = await call_next(request)
     except Exception as e:
         logger.error(f"Error on {request.method} {request.url.path}: {e}", exc_info=True)
         raise
-    latency = (time.time() - start) * 1000
+    latency_ms = (time.time() - start) * 1000
     logger.info(
         "%s %s • ip=%s • device_id=%s • %d • %.1fms",
-        request.method, request.url.path, ip, device_id, resp.status_code, latency,
+        request.method,
+        request.url.path,
+        ip,
+        device_id,
+        response.status_code,
+        latency_ms,
     )
-    resp.headers["X-Process-Time"] = f"{latency/1000:.3f}"
-    resp.headers["X-API-Version"] = app.version
-    return resp
+    response.headers["X-Process-Time"] = f"{latency_ms/1000:.3f}"
+    response.headers["X-API-Version"] = app.version
+    return response
 
 # ─── Startup / Shutdown ────────────────────────────────────────────────────────
 @app.on_event("startup")
@@ -91,10 +112,10 @@ async def on_startup():
     # record uptime baseline
     app.state.start_time = time.time()
 
-    # in production initialize DB; in pytest TESTING==True so skip (conftest does it)
+    # in production initialize DB; in pytest (TESTING==True) skip this
     if not TESTING:
         await init_db()
-        # background watcher + camera queue only in prod
+        # kick off background camera watcher + queue workers only in prod
         asyncio.create_task(offline_watcher(db_factory=get_db, interval_seconds=30))
         camera_queue.start_workers()
 
@@ -102,10 +123,11 @@ async def on_startup():
 async def on_shutdown():
     # clean up any camera writers
     from app.routers.cameras import _clip_writers
+
     for info in _clip_writers.values():
         try:
             info["writer"].release()
-        except:
+        except Exception:
             pass
 
 # ─── Health Endpoints ─────────────────────────────────────────────────────────
@@ -132,7 +154,7 @@ async def database_health():
 @app.get(f"{API_V1_STR}/health/system", response_model=FullHealthCheck)
 async def system_health():
     sys = await health_check()
-    db  = await database_health()
+    db = await database_health()
     return FullHealthCheck(
         system=sys,
         database=db,
@@ -166,9 +188,9 @@ async def exc_handler(request: Request, exc: Exception):
 
 # ─── Include Routers ──────────────────────────────────────────────────────────
 app.include_router(auth_router, prefix=f"{API_V1_STR}/auth", tags=["auth"])
-# … include all your other routers here …
+# … include your other routers here …
 
-# ─── Run ─────────────────────────────────────────────────────────────────────
+# ─── Run the App ──────────────────────────────────────────────────────────────
 if __name__ == "__main__":
     uvicorn.run(
         "app.main:app",
