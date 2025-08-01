@@ -14,8 +14,8 @@ env/
 code.txt
 data/
 # Logs
-*.log
-
+logs.txt
+test_logs.txt
 # VSCode settings
 .vscode/
 

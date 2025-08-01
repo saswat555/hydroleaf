@@ -1,15 +1,17 @@
-# tests/test_plant_service.py
+# tests/services/test_plant_service.py
+
 import pytest
 from fastapi import HTTPException
 from app.services.plant_service import (
-    get_all_plants,
-    get_plant_by_id,
     create_plant,
+    list_plants_by_farm,
+    get_plant_by_id,
     delete_plant,
 )
-from app.models import Plant
+from app.models import Plant, Farm
 
-# --- helpers to fake the DB session and results ---
+# --- fake result/session helpers ---
+
 class DummyResult:
     def __init__(self, items):
         self._items = items
@@ -18,84 +20,112 @@ class DummyResult:
     def all(self):
         return self._items
 
-class FakeSession:
+class FakePlantSession:
     def __init__(self, plants=None, single=None):
+        # plants: what execute(select...) returns
+        # single: what get(Farm, id) or get(Plant, id) returns
         self._plants = plants or []
         self._single = single
     async def execute(self, stmt):
         return DummyResult(self._plants)
     async def get(self, model, pk):
-        return self._single
-    async def add(self, obj): pass
-    async def commit(self): pass
-    async def refresh(self, obj): pass
-    async def delete(self, obj): pass
+        # if asking for Farm, return self._single only if it's a Farm
+        if model is Farm and isinstance(self._single, Farm):
+            return self._single
+        # if asking for Plant, return self._single only if it's a Plant
+        if model is Plant and isinstance(self._single, Plant):
+            return self._single
+        return None
+    async def add(self, obj):
+        self.last_added = obj
+    async def commit(self):
+        pass
+    async def refresh(self, obj):
+        # simulate DB assigning an ID
+        if getattr(obj, "id", None) is None:
+            obj.id = 123
+    async def delete(self, obj):
+        pass
+
+# --- tests ---
 
 @pytest.mark.asyncio
-async def test_get_all_plants_empty():
-    sess = FakeSession(plants=[])
-    plants = await get_all_plants(sess)
-    assert plants == []
-
-@pytest.mark.asyncio
-async def test_get_all_plants_nonempty():
-    p1 = Plant(id=1, name="A", type="T", growth_stage="G", seeding_date="2020-01-01", region="R", location="L")
-    p2 = Plant(id=2, name="B", type="T", growth_stage="G", seeding_date="2020-01-02", region="R", location="L")
-    sess = FakeSession(plants=[p1, p2])
-    plants = await get_all_plants(sess)
-    assert plants == [p1, p2]
-
-@pytest.mark.asyncio
-async def test_get_plant_by_id_found():
-    p = Plant(id=5, name="X", type="T", growth_stage="G", seeding_date="2020-01-03", region="R", location="L")
-    sess = FakeSession(single=p)
-    got = await get_plant_by_id(5, sess)
-    assert got is p
-
-@pytest.mark.asyncio
-async def test_get_plant_by_id_not_found():
-    sess = FakeSession(single=None)
+async def test_create_plant_requires_existing_farm():
+    sess = FakePlantSession(single=None)
+    payload = {
+        "name": "Lettuce",
+        "type": "leaf",
+        "growth_stage": "veg",
+        "seeding_date": "2025-07-01T00:00:00Z",
+        "region": "Bangalore",
+        "location_description": "Greenhouse",
+        "target_ph_min": 5.5,
+        "target_ph_max": 6.5,
+        "target_tds_min": 300,
+        "target_tds_max": 700,
+    }
     with pytest.raises(HTTPException) as exc:
-        await get_plant_by_id(123, sess)
+        await create_plant(farm_id=42, payload=payload, db=sess)
     assert exc.value.status_code == 404
 
 @pytest.mark.asyncio
-async def test_create_and_delete_plant(tmp_path, monkeypatch):
-    # For create_plant and delete_plant we actually need a DB, but we can at least
-    # assert that they return the right types and messages under a fake session.
-    class FakePS(FakeSession):
-        async def commit(self): pass
-        async def refresh(self, obj): pass
-    fake = FakePS()
-    # create_plant
-    create_schema = type("S", (), {"model_dump": lambda self: {
-        "name":"P","type":"T","growth_stage":"G","seeding_date":"2020-01-01","region":"R","location":"L"}})()
-    new = await create_plant(create_schema, fake)
+async def test_create_and_list_plants_success():
+    farm = Farm(id=5, owner_id=1, name="FarmX", address="Addr", latitude=0, longitude=0)
+    plant = Plant(
+        id=None,
+        farm_id=5,
+        name="Tomato",
+        type="fruit",
+        growth_stage="flower",
+        seeding_date="2025-06-15T00:00:00Z",
+        region="Bangalore",
+        location_description="Greenhouse",
+        target_ph_min=5.8,
+        target_ph_max=6.2,
+        target_tds_min=400,
+        target_tds_max=800
+    )
+    sess = FakePlantSession(plants=[plant], single=farm)
+    # create
+    payload = {
+        "name": plant.name,
+        "type": plant.type,
+        "growth_stage": plant.growth_stage,
+        "seeding_date": plant.seeding_date,
+        "region": plant.region,
+        "location_description": plant.location_description,
+        "target_ph_min": plant.target_ph_min,
+        "target_ph_max": plant.target_ph_max,
+        "target_tds_min": plant.target_tds_min,
+        "target_tds_max": plant.target_tds_max,
+    }
+    new = await create_plant(farm_id=5, payload=payload, db=sess)
     assert isinstance(new, Plant)
-    # delete_plant: if single is None -> 404
-    fake2 = FakeSession(single=None)
-    with pytest.raises(HTTPException):
-        await delete_plant(1, fake2)
-    # if present -> returns dict
-    fake3 = FakeSession(single=new)
-    out = await delete_plant(new.id, fake3)
+    assert new.farm_id == 5
+
+    # list
+    plants = await list_plants_by_farm(farm_id=5, db=sess)
+    assert plants == [plant]
+
+@pytest.mark.asyncio
+async def test_get_plant_by_id_not_found():
+    sess = FakePlantSession(single=None)
+    with pytest.raises(HTTPException) as exc:
+        await get_plant_by_id(99, db=sess)
+    assert exc.value.status_code == 404
+
+@pytest.mark.asyncio
+async def test_delete_plant_success_and_missing():
+    # delete when missing
+    sess1 = FakePlantSession(single=None)
+    with pytest.raises(HTTPException) as exc:
+        await delete_plant(1, db=sess1)
+    assert exc.value.status_code == 404
+
+    # delete when exists
+    p = Plant(id=13, farm_id=5, name="Herb", type="herb", growth_stage="seedling",
+              seeding_date="2025-07-10T00:00:00Z", region="R", location_description="Home",
+              target_ph_min=6.0, target_ph_max=7.0, target_tds_min=200, target_tds_max=600)
+    sess2 = FakePlantSession(single=p)
+    out = await delete_plant(13, db=sess2)
     assert out == {"message": "Plant deleted successfully"}
-
-@pytest.mark.asyncio
-async def test_delete_plant_success(monkeypatch):
-    """If the plant exists, delete_plant returns the success dict."""
-    p = Plant(id=99, name="A", type="T", growth_stage="G",
-              seeding_date="2020-01-01", region="R", location="L")
-    sess = FakeSession(single=p)
-    out = await delete_plant(99, sess)
-    assert out == {"message":"Plant deleted successfully"}
-
-@pytest.mark.asyncio
-async def test_get_all_plants_db_error(monkeypatch):
-    """If sess.execute raises, get_all_plants should return [] (per implementation)."""
-    class BadSession(FakeSession):
-        async def execute(self, stmt):
-            raise RuntimeError("db is down")
-    sess = BadSession()
-    plants = await get_all_plants(sess)
-    assert plants == []
