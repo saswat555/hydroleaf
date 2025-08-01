@@ -1,0 +1,196 @@
+***Hydroleaf SaaS Solution Architecture Guide***
+
+---
+
+**Table of Contents**
+
+1. Overview
+2. High‑Level Component Diagram
+3. Multi‑Tenant & Home‑Use Modes
+4. API Layer & Routers
+5. Authentication & Authorization Flows
+
+   * User/Admin JWT
+   * Device Tokens
+   * Camera Tokens
+   * Cloud Keys
+6. Database Schema & Data Models
+
+   * Users & Profiles
+   * Farms & Devices
+   * Sensor Readings, Dosing Profiles & Operations
+   * Subscription Plans, Activation Keys & Billing
+   * Cameras & Detection Records
+7. Core Services & Background Workers
+
+   * Camera Processing Pipeline
+   * Offline Watcher & Queue Workers
+   * LLM‑Driven Dosing & Supply Chain Services
+8. Configuration & Environment
+9. Deployment & Scalability Considerations
+10. Error Handling, Logging & Monitoring
+11. Appendix: Key Endpoints Reference
+
+---
+
+## 1. Overview
+
+Hydroleaf is a cloud‑native, multi‑tenant SaaS platform for hydroponic device management and farm automation.  Users can:
+
+* Register single devices at home or manage multiple devices across one or more farms.
+* Monitor pH/TDS and environmental sensors, schedule automated dosing, and receive real‑time camera insights.
+* Purchase subscriptions, redeem activation keys, and process payments via UPI.
+* Leverage AI/LLM services for dosing recommendations and supply chain analysis.
+
+All backend services are built with FastAPI, SQLAlchemy (async), and PostgreSQL.  The system is designed for high availability, horizontal scaling, and secure multi‑tenant isolation.
+
+## 2. High‑Level Component Diagram
+
+```
++----------------------+      +----------------------+      +---------------------+
+|  Client Apps (UI /   | <--> |    FastAPI Gateway   | <--> |   Async Workers /   |
+|  Device SDKs)        |      |  (Routers & Logic)   |      |   Background Tasks  |
++----------------------+      +----------------------+      +---------------------+
+           |                             |                            |
+           v                             v                            v
+      +---------+  SQL+AsyncPG  +---------------+   Queue   +--------------+
+      |  Nginx  | -----------> |  PostgreSQL    | <-------> | Camera Queue |  
+      |  / ALB  |               +---------------+           +--------------+
+      +---------+                     |                             |
+                                      v                             v
+                         +----------------------+     +--------------------------+
+                         |   LLM Services       |     |  External Plant‑Village  |
+                         |  (Ollama / OpenAI)   |     |  Disease Classifier      |
+                         +----------------------+     +--------------------------+
+```
+
+## 3. Multi‑Tenant & Home‑Use Modes
+
+### Farm Mode (Multi‑Device)
+
+* Each **Farm** record groups multiple **Device** entries.
+* Farm owners (Users) see aggregated device status and sensor streams under their farm.
+* Subscriptions can be per‑farm (one subscription covers N devices) or per‑device, depending on plan configuration.
+
+### Home Mode (Single Device)
+
+* Users may register one device without a farm; `device.farm_id` is nullable.
+* Activation key validation and subscription logic is identical, scoped by device.
+
+## 4. API Layer & Routers
+
+### Core Routers
+
+* `/api/v1/auth` → login, signup, JWT issuance
+* `/api/v1/devices` → register & discover dosing, sensor, valve, smart‑switch
+* `/api/v1/subscriptions` → list plans, redeem activation keys, list my subscriptions
+* `/api/v1/payments` → create, confirm, upload proof, admin approve/reject
+* `/api/v1/cameras` → frame upload (day/night), streaming, reports
+* `/api/v1/users` → get/update profile
+
+### Admin Routers
+
+* `/admin/users`, `/admin/plans`, `/admin/cameras`, `/admin/subscriptions` → full CRUD & audit
+* Protected by `get_current_admin` dependency (JWT + `superadmin` role)
+
+### Internal Device Communication
+
+* `/device_comm/*` → unified token validation, firmware OTA, telemetry (switch/valve/pump), heartbeat
+* Uses `verify_device_token` dependency to authenticate any IoT device
+
+## 5. Authentication & Authorization Flows
+
+### User/Admin JWT
+
+* **OAuth2PasswordBearer** for user login/signup
+* JWT payload: `{ user_id, role, exp }`
+* Dependencies: `get_current_user`, `get_current_admin` decode & verify JWT, lookup in DB
+
+### Device Tokens
+
+* **Cloud Key** issued by admin → devices call `/cloud/authenticate` → upsert into `device_tokens` or `camera_tokens`
+* Bearer tokens expire by default after 30d (DeviceToken.expires\_at)
+* `verify_device_token` (and legacy versions) enforce token validity, optional type checks
+
+### Camera Tokens
+
+* Independently stored in `camera_tokens` table, one per camera
+* `verify_camera_token` guards camera frame uploads
+
+### Cloud Keys Usage
+
+* Single table `cloud_keys` + `cloud_key_usages` tracks every authentication
+* Admin can generate/rotate keys
+
+## 6. Database Schema & Data Models
+
+**Key tables & relationships**:
+
+* **users (1) ↔ user\_profiles (1)**
+* **users (1) ↔ farms (M)** ↔ **devices (M)**
+* **devices (1) ↔ dosing\_profiles (M), sensor\_readings (M), tasks (M)**
+* **devices (1) ↔ subscriptions (M)** ← **subscription\_plans (1) ↔ activation\_keys (M)**
+* **payment\_orders** link to user, device, plan; track status & screenshot proof
+* **cameras** ↔ **user\_cameras**; frames in fs + detection\_records in DB
+* **cloud\_keys** ↔ **cloud\_key\_usages**; **camera\_tokens** & **device\_tokens**
+* **supply\_chain\_analysis** & **conversation\_logs** for LLM logs
+* **switch\_states** & **valve\_states** cache last‑known configuration
+
+*Schema diagrams should be generated from SQLAlchemy models for clarity.*
+
+## 7. Core Services & Background Workers
+
+### Camera Processing Pipeline
+
+1. **Incoming frames** (upload → raw dir)
+2. **CameraQueue** → ULTRALYTICS YOLO detection → annotate & leaf crop
+3. **Clip Writer** → 10min rolling segments, purge by retention
+4. **Database updates** → Camera.frames\_received, detection\_records, stats
+5. **Async Workers**: `camera_queue.start_workers()` + `offline_watcher`
+
+### Dosing & Valve Control
+
+* **DoseManager** + **DeviceController** wrap HTTP calls to edge devices
+* `/dosing` endpoints call services, commit **DosingOperation** records
+* Cancellation & history endpoints
+
+### LLM Integration
+
+* **process\_dosing\_request** & **process\_sensor\_plan** in `app.services.llm`
+* Build detailed prompts (`build_dosing_prompt`, `build_plan_prompt`)
+* Call Ollama or OpenAI, robust JSON extraction & validation
+* Store supply chain analysis in `supply_chain_analysis` + `conversation_logs`
+
+## 8. Configuration & Environment
+
+Environment variables in `.env` (via `app/core/config.py`):
+
+* **DATABASE\_URL**, **TEST\_DATABASE\_URL**, **RESET\_DB**, **DB\_POOL\_SIZE**, **MAX\_OVERFLOW**
+* **API\_V1\_STR**, **ALLOWED\_ORIGINS**, **SESSION\_KEY**, **SECRET\_KEY**
+* **DEPLOYMENT\_MODE** (`LAN` vs `CLOUD`), **LAN\_SUBNET**, **LAN\_PORT**
+* **CAM\_DATA\_ROOT**, **CAM\_RAW\_DIR**, **CAM\_CLIPS\_DIR**, **FPS**, **RETENTION\_DAYS**
+* **USE\_OLLAMA**, **OLLAMA\_URL**, **MODEL\_NAME\_**, **OPENAI\_API\_KEY**, **SERPER\_API\_KEY**
+
+Use `TESTING=true` for sqlite in-memory and bypass LLM enrichment.
+
+## 9. Deployment & Scalability Considerations
+
+* **Stateless API** behind load balancer (Nginx / AWS ALB)
+* **PostgreSQL** with asyncpg + connection pooling; test mode uses NullPool
+* **Background tasks** run in same event loop; consider separate worker pool or Kubernetes jobs for heavy YOLO
+* **File storage** on shared volume (NFS / S3 gateway) for camera data + HLS segments
+* **Horizontal scaling**: multiple replicas of FastAPI + dedicated camera‑processing service if needed
+
+## 10. Error Handling, Logging & Monitoring
+
+* Centralized logging via `logging` + RotatingFileHandler → `logs.txt`
+* HTTP exception handlers for 4xx & 5xx, include timestamp & path in response
+* Metrics: process‑time header, optional instrumentation (Prometheus)
+
+## 11. Appendix: Key Endpoints Reference
+
+*(Provide a quick cheat‑sheet of major routes and expected inputs/responses)*
+
+---
+
+*This architecture.txt is the single source-of-truth for developers to understand, extend, and debug every aspect of the Hydroleaf backend.  Keep it updated as the code evolves.*
