@@ -100,7 +100,6 @@ ultralytics
 ultralytics-thop
 urllib3
 uvicorn
-uvloop
 watchfiles
 websockets
 zstandard

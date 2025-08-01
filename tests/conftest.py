@@ -34,7 +34,7 @@ if str(ROOT) not in sys.path:
 os.environ["TESTING"] = "1"
 TEST_DB_URL = os.getenv(
     "TEST_DATABASE_URL",
-    "postgresql+asyncpg://postgres:1234@localhost:5432/hydroleaf",
+    "postgresql+asyncpg://postgres:1234@localhost:5432/hydroleaf_test",
 )
 
 # ───────────────────────── database setup ───────────────────────

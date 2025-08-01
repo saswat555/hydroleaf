@@ -277,3 +277,70 @@ Return {"x":1}
 2025-08-01 16:53:12,495 - httpx - INFO - HTTP Request: POST http://testserver/api/v1/devices/dosing "HTTP/1.1 401 Unauthorized"
 2025-08-01 16:53:12,596 - app.main - INFO - POST /admin/device/nonexistent/issue-token â€¢ ip=127.0.0.1 â€¢ device_id=- â€¢ 404 â€¢ 0.2ms
 2025-08-01 16:53:12,596 - httpx - INFO - HTTP Request: POST http://testserver/admin/device/nonexistent/issue-token "HTTP/1.1 404 Not Found"
+2025-08-01 20:09:26,916 - passlib.handlers.bcrypt - WARNING - (trapped) error reading bcrypt version
+Traceback (most recent call last):
+  File "C:\Users\Smriti\KrishiVerse\hydroleaf\env\Lib\site-packages\passlib\handlers\bcrypt.py", line 620, in _load_backend_mixin
+    version = _bcrypt.__about__.__version__
+              ^^^^^^^^^^^^^^^^^
+AttributeError: module 'bcrypt' has no attribute '__about__'
+2025-08-01 20:09:27,313 - app.main - INFO - POST /api/v1/auth/signup • ip=127.0.0.1 • device_id=- • 201 • 531.2ms
+2025-08-01 20:09:27,314 - httpx - INFO - HTTP Request: POST http://testserver/api/v1/auth/signup "HTTP/1.1 201 Created"
+2025-08-01 20:09:28,082 - app.main - INFO - POST /api/v1/auth/signup • ip=127.0.0.1 • device_id=- • 201 • 439.2ms
+2025-08-01 20:09:28,082 - httpx - INFO - HTTP Request: POST http://testserver/api/v1/auth/signup "HTTP/1.1 201 Created"
+2025-08-01 20:09:28,763 - app.main - INFO - POST /api/v1/auth/signup • ip=127.0.0.1 • device_id=- • 201 • 407.1ms
+2025-08-01 20:09:28,764 - httpx - INFO - HTTP Request: POST http://testserver/api/v1/auth/signup "HTTP/1.1 201 Created"
+2025-08-01 20:09:28,844 - app.main - WARNING - HTTPException Email already registered on /api/v1/auth/signup
+2025-08-01 20:09:28,845 - app.main - INFO - POST /api/v1/auth/signup • ip=127.0.0.1 • device_id=- • 400 • 79.7ms
+2025-08-01 20:09:28,845 - httpx - INFO - HTTP Request: POST http://testserver/api/v1/auth/signup "HTTP/1.1 400 Bad Request"
+2025-08-01 20:09:29,109 - app.main - INFO - POST /api/v1/auth/signup • ip=127.0.0.1 • device_id=- • 422 • 1.0ms
+2025-08-01 20:09:29,109 - httpx - INFO - HTTP Request: POST http://testserver/api/v1/auth/signup "HTTP/1.1 422 Unprocessable Entity"
+2025-08-01 20:09:29,366 - app.main - INFO - POST /api/v1/auth/signup • ip=127.0.0.1 • device_id=- • 422 • 1.0ms
+2025-08-01 20:09:29,367 - httpx - INFO - HTTP Request: POST http://testserver/api/v1/auth/signup "HTTP/1.1 422 Unprocessable Entity"
+2025-08-01 20:09:29,655 - app.main - INFO - POST /api/v1/auth/signup • ip=127.0.0.1 • device_id=- • 422 • 1.0ms
+2025-08-01 20:09:29,655 - httpx - INFO - HTTP Request: POST http://testserver/api/v1/auth/signup "HTTP/1.1 422 Unprocessable Entity"
+2025-08-01 20:09:30,319 - app.main - INFO - POST /api/v1/auth/signup • ip=127.0.0.1 • device_id=- • 201 • 400.1ms
+2025-08-01 20:09:30,319 - httpx - INFO - HTTP Request: POST http://testserver/api/v1/auth/signup "HTTP/1.1 201 Created"
+2025-08-01 20:09:30,670 - app.main - INFO - POST /api/v1/auth/login • ip=127.0.0.1 • device_id=- • 200 • 349.1ms
+2025-08-01 20:09:30,671 - httpx - INFO - HTTP Request: POST http://testserver/api/v1/auth/login "HTTP/1.1 200 OK"
+2025-08-01 20:09:31,378 - app.main - INFO - POST /api/v1/auth/signup • ip=127.0.0.1 • device_id=- • 201 • 413.6ms
+2025-08-01 20:09:31,379 - httpx - INFO - HTTP Request: POST http://testserver/api/v1/auth/signup "HTTP/1.1 201 Created"
+2025-08-01 20:09:31,703 - app.main - WARNING - HTTPException Invalid credentials on /api/v1/auth/login
+2025-08-01 20:09:31,703 - app.main - INFO - POST /api/v1/auth/login • ip=127.0.0.1 • device_id=- • 401 • 323.2ms
+2025-08-01 20:09:31,704 - httpx - INFO - HTTP Request: POST http://testserver/api/v1/auth/login "HTTP/1.1 401 Unauthorized"
+2025-08-01 20:09:32,076 - app.main - WARNING - HTTPException Invalid credentials on /api/v1/auth/login
+2025-08-01 20:09:32,077 - app.main - INFO - POST /api/v1/auth/login • ip=127.0.0.1 • device_id=- • 401 • 92.2ms
+2025-08-01 20:09:32,078 - httpx - INFO - HTTP Request: POST http://testserver/api/v1/auth/login "HTTP/1.1 401 Unauthorized"
+2025-08-01 20:09:32,358 - app.main - INFO - POST /api/v1/auth/login • ip=127.0.0.1 • device_id=- • 422 • 2.3ms
+2025-08-01 20:09:32,358 - httpx - INFO - HTTP Request: POST http://testserver/api/v1/auth/login "HTTP/1.1 422 Unprocessable Entity"
+2025-08-01 20:09:33,052 - app.main - INFO - POST /api/v1/auth/signup • ip=127.0.0.1 • device_id=- • 201 • 418.5ms
+2025-08-01 20:09:33,052 - httpx - INFO - HTTP Request: POST http://testserver/api/v1/auth/signup "HTTP/1.1 201 Created"
+2025-08-01 20:09:34,727 - app.services.supply_chain_service - ERROR - No valid JSON block found in LLM response.
+2025-08-01 20:09:39,026 - app.services.llm - INFO - Sending prompt to LLM:
+
+2025-08-01 20:09:51,657 - app.services.dose_manager - INFO - Cancellation response for device devX: {'cancelled': True}
+2025-08-01 20:09:59,799 - app.services.llm - ERROR - No valid JSON block found in OpenAI response: no braces at all
+2025-08-01 20:10:04,989 - httpx - INFO - HTTP Request: GET https://google.serper.dev/search?q=optimal+growth.+Focus+on+best+practices+in+Europe+for+Veggie+cultivation.&gl=in&hl=en&apiKey=79729460be56c404bcbf96630c3bfd92ba6ecc3e5ef08d124f91aba3c8ecf580&num=5&full=true&output=detailed "HTTP/1.1 403 Forbidden"
+2025-08-01 20:10:04,991 - app.services.serper - ERROR - Serper API error [403]: {"message":"Unauthorized.","statusCode":403}
+2025-08-01 20:10:04,992 - app.services.llm - WARNING - Serper enrichment skipped (Client error '403 Forbidden' for url 'https://google.serper.dev/search?q=optimal+growth.+Focus+on+best+practices+in+Europe+for+Veggie+cultivation.&gl=in&hl=en&apiKey=79729460be56c404bcbf96630c3bfd92ba6ecc3e5ef08d124f91aba3c8ecf580&num=5&full=true&output=detailed'
+For more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/403)
+2025-08-01 20:10:06,177 - httpx - INFO - HTTP Request: GET http://localhost:11434/api/tags "HTTP/1.1 200 OK"
+2025-08-01 20:10:07,294 - httpx - INFO - HTTP Request: GET http://localhost:11434/api/tags "HTTP/1.1 200 OK"
+2025-08-01 20:10:07,296 - app.services.llm - INFO - Sending prompt to LLM:
+Return {"x":1}
+2025-08-01 20:10:15,688 - app.main - INFO - POST /api/v1/auth/signup • ip=127.0.0.1 • device_id=- • 422 • 1.1ms
+2025-08-01 20:10:15,688 - httpx - INFO - HTTP Request: POST http://testserver/api/v1/auth/signup "HTTP/1.1 422 Unprocessable Entity"
+2025-08-01 20:10:16,323 - app.main - INFO - POST /api/v1/auth/signup • ip=127.0.0.1 • device_id=- • 422 • 1.0ms
+2025-08-01 20:10:16,323 - httpx - INFO - HTTP Request: POST http://testserver/api/v1/auth/signup "HTTP/1.1 422 Unprocessable Entity"
+2025-08-01 20:10:17,003 - app.main - INFO - POST /api/v1/auth/signup • ip=127.0.0.1 • device_id=- • 422 • 1.0ms
+2025-08-01 20:10:17,003 - httpx - INFO - HTTP Request: POST http://testserver/api/v1/auth/signup "HTTP/1.1 422 Unprocessable Entity"
+2025-08-01 20:10:17,694 - app.main - INFO - POST /api/v1/auth/signup • ip=127.0.0.1 • device_id=- • 422 • 1.0ms
+2025-08-01 20:10:17,695 - httpx - INFO - HTTP Request: POST http://testserver/api/v1/auth/signup "HTTP/1.1 422 Unprocessable Entity"
+2025-08-01 20:10:18,351 - app.main - INFO - POST /api/v1/auth/signup • ip=127.0.0.1 • device_id=- • 422 • 1.1ms
+2025-08-01 20:10:18,352 - httpx - INFO - HTTP Request: POST http://testserver/api/v1/auth/signup "HTTP/1.1 422 Unprocessable Entity"
+2025-08-01 20:10:19,002 - app.main - INFO - POST /api/v1/auth/signup • ip=127.0.0.1 • device_id=- • 422 • 1.2ms
+2025-08-01 20:10:19,002 - httpx - INFO - HTTP Request: POST http://testserver/api/v1/auth/signup "HTTP/1.1 422 Unprocessable Entity"
+2025-08-01 20:10:22,213 - app.main - WARNING - HTTPException Could not validate credentials on /api/v1/devices/dosing
+2025-08-01 20:10:22,213 - app.main - INFO - POST /api/v1/devices/dosing • ip=127.0.0.1 • device_id=- • 401 • 1.9ms
+2025-08-01 20:10:22,214 - httpx - INFO - HTTP Request: POST http://testserver/api/v1/devices/dosing "HTTP/1.1 401 Unauthorized"
+2025-08-01 20:10:22,843 - app.main - INFO - POST /admin/device/nonexistent/issue-token • ip=127.0.0.1 • device_id=- • 404 • 0.3ms
+2025-08-01 20:10:22,844 - httpx - INFO - HTTP Request: POST http://testserver/admin/device/nonexistent/issue-token "HTTP/1.1 404 Not Found"
