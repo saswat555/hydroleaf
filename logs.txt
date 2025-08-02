@@ -6267,3 +6267,96 @@ Traceback (most recent call last):
 NameError: name 'JWTError' is not defined. Did you mean: 'EOFError'?
 2025-08-02 19:13:46,569 - app.main - INFO - POST /admin/device/nonexistent/issue-token • ip=127.0.0.1 • device_id=- • 404 • 0.2ms
 2025-08-02 19:13:46,570 - httpx - INFO - HTTP Request: POST http://testserver/admin/device/nonexistent/issue-token "HTTP/1.1 404 Not Found"
+2025-08-02 19:15:50,557 - passlib.handlers.bcrypt - WARNING - (trapped) error reading bcrypt version
+Traceback (most recent call last):
+  File "/Users/saswatpandey/hydroleaf/env/lib/python3.12/site-packages/passlib/handlers/bcrypt.py", line 620, in _load_backend_mixin
+    version = _bcrypt.__about__.__version__
+              ^^^^^^^^^^^^^^^^^
+AttributeError: module 'bcrypt' has no attribute '__about__'
+2025-08-02 19:15:50,830 - app.main - INFO - POST /api/v1/auth/signup • ip=127.0.0.1 • device_id=- • 201 • 314.9ms
+2025-08-02 19:15:50,830 - httpx - INFO - HTTP Request: POST http://testserver/api/v1/auth/signup "HTTP/1.1 201 Created"
+2025-08-02 19:15:51,254 - app.main - INFO - POST /api/v1/auth/signup • ip=127.0.0.1 • device_id=- • 201 • 264.4ms
+2025-08-02 19:15:51,255 - httpx - INFO - HTTP Request: POST http://testserver/api/v1/auth/signup "HTTP/1.1 201 Created"
+2025-08-02 19:15:51,587 - app.main - INFO - POST /api/v1/auth/signup • ip=127.0.0.1 • device_id=- • 201 • 253.3ms
+2025-08-02 19:15:51,588 - httpx - INFO - HTTP Request: POST http://testserver/api/v1/auth/signup "HTTP/1.1 201 Created"
+2025-08-02 19:15:51,602 - app.main - WARNING - HTTPException Email already registered on /api/v1/auth/signup
+2025-08-02 19:15:51,603 - app.main - INFO - POST /api/v1/auth/signup • ip=127.0.0.1 • device_id=- • 400 • 14.4ms
+2025-08-02 19:15:51,603 - httpx - INFO - HTTP Request: POST http://testserver/api/v1/auth/signup "HTTP/1.1 400 Bad Request"
+2025-08-02 19:15:51,685 - app.main - INFO - POST /api/v1/auth/signup • ip=127.0.0.1 • device_id=- • 422 • 1.0ms
+2025-08-02 19:15:51,685 - httpx - INFO - HTTP Request: POST http://testserver/api/v1/auth/signup "HTTP/1.1 422 Unprocessable Entity"
+2025-08-02 19:15:51,739 - app.main - INFO - POST /api/v1/auth/signup • ip=127.0.0.1 • device_id=- • 422 • 1.3ms
+2025-08-02 19:15:51,740 - httpx - INFO - HTTP Request: POST http://testserver/api/v1/auth/signup "HTTP/1.1 422 Unprocessable Entity"
+2025-08-02 19:15:51,791 - app.main - INFO - POST /api/v1/auth/signup • ip=127.0.0.1 • device_id=- • 422 • 1.2ms
+2025-08-02 19:15:51,791 - httpx - INFO - HTTP Request: POST http://testserver/api/v1/auth/signup "HTTP/1.1 422 Unprocessable Entity"
+2025-08-02 19:15:52,107 - app.main - INFO - POST /api/v1/auth/signup • ip=127.0.0.1 • device_id=- • 201 • 267.5ms
+2025-08-02 19:15:52,108 - httpx - INFO - HTTP Request: POST http://testserver/api/v1/auth/signup "HTTP/1.1 201 Created"
+2025-08-02 19:15:52,341 - app.main - INFO - POST /api/v1/auth/login • ip=127.0.0.1 • device_id=- • 200 • 233.0ms
+2025-08-02 19:15:52,342 - httpx - INFO - HTTP Request: POST http://testserver/api/v1/auth/login "HTTP/1.1 200 OK"
+2025-08-02 19:15:52,697 - app.main - INFO - POST /api/v1/auth/signup • ip=127.0.0.1 • device_id=- • 201 • 256.0ms
+2025-08-02 19:15:52,697 - httpx - INFO - HTTP Request: POST http://testserver/api/v1/auth/signup "HTTP/1.1 201 Created"
+2025-08-02 19:15:52,929 - app.main - WARNING - HTTPException Invalid credentials on /api/v1/auth/login
+2025-08-02 19:15:52,929 - app.main - INFO - POST /api/v1/auth/login • ip=127.0.0.1 • device_id=- • 401 • 231.6ms
+2025-08-02 19:15:52,930 - httpx - INFO - HTTP Request: POST http://testserver/api/v1/auth/login "HTTP/1.1 401 Unauthorized"
+2025-08-02 19:15:53,011 - app.main - WARNING - HTTPException Invalid credentials on /api/v1/auth/login
+2025-08-02 19:15:53,011 - app.main - INFO - POST /api/v1/auth/login • ip=127.0.0.1 • device_id=- • 401 • 9.1ms
+2025-08-02 19:15:53,012 - httpx - INFO - HTTP Request: POST http://testserver/api/v1/auth/login "HTTP/1.1 401 Unauthorized"
+2025-08-02 19:15:53,068 - app.main - INFO - POST /api/v1/auth/login • ip=127.0.0.1 • device_id=- • 422 • 2.3ms
+2025-08-02 19:15:53,068 - httpx - INFO - HTTP Request: POST http://testserver/api/v1/auth/login "HTTP/1.1 422 Unprocessable Entity"
+2025-08-02 19:15:53,373 - app.main - INFO - POST /api/v1/auth/signup • ip=127.0.0.1 • device_id=- • 201 • 254.5ms
+2025-08-02 19:15:53,373 - httpx - INFO - HTTP Request: POST http://testserver/api/v1/auth/signup "HTTP/1.1 201 Created"
+2025-08-02 19:15:53,939 - app.services.supply_chain_service - ERROR - No valid JSON block found in LLM response.
+2025-08-02 19:15:53,991 - app.services.llm - INFO - Sending prompt to LLM:
+Return exactly this JSON: {"foo":42}
+2025-08-02 19:15:53,991 - app.services.llm - INFO - Ollama → deepseek-r1:1.5b prompt:
+Return exactly this JSON: {"foo":42}
+2025-08-02 19:15:54,265 - app.services.llm - INFO - Sending prompt to LLM:
+
+2025-08-02 19:15:54,265 - app.services.llm - INFO - Ollama → deepseek-r1:1.5b prompt:
+
+2025-08-02 19:15:55,709 - app.services.dose_manager - INFO - Cancellation response for device devX: {'cancelled': True}
+2025-08-02 19:15:56,816 - app.services.llm - ERROR - No valid JSON block found in OpenAI response: no braces at all
+2025-08-02 19:15:59,052 - httpx - INFO - HTTP Request: GET https://google.serper.dev/search?q=optimal+growth.+Focus+on+best+practices+in+Europe+for+Veggie+cultivation.&gl=in&hl=en&apiKey=eeaeee2729768c737ca5a6004968a9840677e523&num=5&full=true&output=detailed "HTTP/1.1 200 OK"
+2025-08-02 19:15:59,445 - httpx - INFO - HTTP Request: GET https://www.researchgate.net/publication/323363546_Strategies_for_optimal_fertiliser_management_of_vegetable_crops_in_Europe "HTTP/1.1 403 Forbidden"
+2025-08-02 19:15:59,449 - app.services.serper - WARNING - Scrape forbidden (403) for https://www.researchgate.net/publication/323363546_Strategies_for_optimal_fertiliser_management_of_vegetable_crops_in_Europe
+2025-08-02 19:15:59,451 - httpx - INFO - HTTP Request: GET https://www.researchgate.net/publication/260984593_Good_Agricultural_Practices_for_greenhouse_vegetable_crops_Principles_for_Mediterranean_climate_areas "HTTP/1.1 403 Forbidden"
+2025-08-02 19:15:59,463 - app.services.serper - WARNING - Scrape forbidden (403) for https://www.researchgate.net/publication/260984593_Good_Agricultural_Practices_for_greenhouse_vegetable_crops_Principles_for_Mediterranean_climate_areas
+2025-08-02 19:15:59,538 - httpx - INFO - HTTP Request: GET https://www.sciencedirect.com/science/article/pii/S0301479724014737 "HTTP/1.1 403 Forbidden"
+2025-08-02 19:15:59,679 - app.services.serper - WARNING - Scrape forbidden (403) for https://www.sciencedirect.com/science/article/pii/S0301479724014737
+2025-08-02 19:15:59,791 - httpx - INFO - HTTP Request: GET https://www.fao.org/4/i3284e/i3284e.pdf "HTTP/1.1 200 OK"
+2025-08-02 19:16:00,388 - httpx - INFO - HTTP Request: GET https://www.agronomyjournals.com/article/view/2394/8-1-44 "HTTP/1.1 302 Moved Temporarily"
+2025-08-02 19:16:00,390 - app.services.serper - WARNING - HTTP error scraping https://www.agronomyjournals.com/article/view/2394/8-1-44: Redirect response '302 Moved Temporarily' for url 'https://www.agronomyjournals.com/article/view/2394/8-1-44'
+Redirect location: 'https://www.agronomyjournals.com/archives/2025/vol8issue1/PartD/8-1-44-621.pdf'
+For more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/302
+2025-08-02 19:16:00,809 - httpx - INFO - HTTP Request: GET http://localhost:11434/api/tags "HTTP/1.1 200 OK"
+2025-08-02 19:16:00,809 - app.services.llm - INFO - Sending prompt to LLM:
+Return exactly this JSON: {"foo":42}
+2025-08-02 19:16:00,809 - app.services.llm - INFO - Ollama → deepseek-r1:1.5b prompt:
+Return exactly this JSON: {"foo":42}
+2025-08-02 19:16:00,965 - app.main - INFO - POST /admin/plans/ • ip=127.0.0.1 • device_id=- • 404 • 1.9ms
+2025-08-02 19:16:00,967 - httpx - INFO - HTTP Request: POST http://testserver/admin/plans/ "HTTP/1.1 404 Not Found"
+2025-08-02 19:16:01,665 - app.services.plant_service - INFO - Fetching plants from database...
+2025-08-02 19:16:01,666 - app.services.plant_service - INFO - Fetched 1 plants from the database
+2025-08-02 19:16:01,862 - app.main - INFO - POST /admin/plans/ • ip=127.0.0.1 • device_id=- • 404 • 0.5ms
+2025-08-02 19:16:01,862 - httpx - INFO - HTTP Request: POST http://testserver/admin/plans/ "HTTP/1.1 404 Not Found"
+2025-08-02 19:16:02,121 - app.main - INFO - POST /admin/plans/ • ip=127.0.0.1 • device_id=- • 404 • 0.8ms
+2025-08-02 19:16:02,121 - httpx - INFO - HTTP Request: POST http://testserver/admin/plans/ "HTTP/1.1 404 Not Found"
+2025-08-02 19:16:02,450 - app.main - INFO - POST /api/v1/auth/signup • ip=127.0.0.1 • device_id=- • 201 • 270.9ms
+2025-08-02 19:16:02,450 - httpx - INFO - HTTP Request: POST http://testserver/api/v1/auth/signup "HTTP/1.1 201 Created"
+2025-08-02 19:16:02,811 - app.main - INFO - POST /api/v1/auth/signup • ip=127.0.0.1 • device_id=- • 201 • 251.7ms
+2025-08-02 19:16:02,811 - httpx - INFO - HTTP Request: POST http://testserver/api/v1/auth/signup "HTTP/1.1 201 Created"
+2025-08-02 19:16:03,186 - app.main - INFO - POST /api/v1/auth/signup • ip=127.0.0.1 • device_id=- • 201 • 253.9ms
+2025-08-02 19:16:03,186 - httpx - INFO - HTTP Request: POST http://testserver/api/v1/auth/signup "HTTP/1.1 201 Created"
+2025-08-02 19:16:03,615 - app.main - INFO - POST /api/v1/auth/signup • ip=127.0.0.1 • device_id=- • 201 • 264.3ms
+2025-08-02 19:16:03,615 - httpx - INFO - HTTP Request: POST http://testserver/api/v1/auth/signup "HTTP/1.1 201 Created"
+2025-08-02 19:16:03,986 - app.main - INFO - POST /api/v1/auth/signup • ip=127.0.0.1 • device_id=- • 201 • 251.7ms
+2025-08-02 19:16:03,987 - httpx - INFO - HTTP Request: POST http://testserver/api/v1/auth/signup "HTTP/1.1 201 Created"
+2025-08-02 19:16:04,360 - app.main - INFO - POST /api/v1/auth/signup • ip=127.0.0.1 • device_id=- • 201 • 251.9ms
+2025-08-02 19:16:04,360 - httpx - INFO - HTTP Request: POST http://testserver/api/v1/auth/signup "HTTP/1.1 201 Created"
+2025-08-02 19:16:04,735 - app.main - INFO - POST /api/v1/auth/signup • ip=127.0.0.1 • device_id=- • 201 • 255.2ms
+2025-08-02 19:16:04,736 - httpx - INFO - HTTP Request: POST http://testserver/api/v1/auth/signup "HTTP/1.1 201 Created"
+2025-08-02 19:16:05,084 - app.main - INFO - POST /api/v1/auth/signup • ip=127.0.0.1 • device_id=- • 201 • 243.9ms
+2025-08-02 19:16:05,085 - httpx - INFO - HTTP Request: POST http://testserver/api/v1/auth/signup "HTTP/1.1 201 Created"
+2025-08-02 19:16:05,411 - app.main - INFO - POST /api/v1/auth/signup • ip=127.0.0.1 • device_id=- • 201 • 239.7ms
+2025-08-02 19:16:05,411 - httpx - INFO - HTTP Request: POST http://testserver/api/v1/auth/signup "HTTP/1.1 201 Created"
+2025-08-02 19:16:06,079 - app.main - INFO - POST /admin/device/nonexistent/issue-token • ip=127.0.0.1 • device_id=- • 404 • 0.4ms
+2025-08-02 19:16:06,080 - httpx - INFO - HTTP Request: POST http://testserver/admin/device/nonexistent/issue-token "HTTP/1.1 404 Not Found"

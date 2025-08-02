@@ -1,4 +1,4 @@
-# tests/test_token_refactor.py
+# tests/test_token_admin.py
 
 import secrets
 import pytest
@@ -10,9 +10,9 @@ from app.models import Device, DeviceToken, DeviceType
 from app.dependencies import verify_device_token, get_current_admin
 from app.core.database import AsyncSessionLocal
 
-# ──────────────────────────────────────────────────────────────────────────────
+# -------------------------------------------------------------------
 # 1) verify_device_token unit tests
-# ──────────────────────────────────────────────────────────────────────────────
+# -------------------------------------------------------------------
 
 @pytest.mark.asyncio
 async def test_issue_and_verify_device_token_success():
@@ -106,16 +106,49 @@ async def test_verify_device_token_wrong_type_raises_403():
     assert exc.value.status_code == 403
 
 
-# ──────────────────────────────────────────────────────────────────────────────
-# 2) Admin-only “issue-token” endpoint
-# ──────────────────────────────────────────────────────────────────────────────
+@pytest.mark.asyncio
+async def test_verify_device_token_inactive_device_raises_403():
+    """Tokens for inactive devices should be rejected."""
+    async with AsyncSessionLocal() as db:
+        async with db.begin():
+            dev = Device(
+                id="dev-3",
+                mac_id="mac-3",
+                name="Demo3",
+                type=DeviceType.DOSING_UNIT,
+                http_endpoint="http://example",
+                is_active=False,
+            )
+            db.add(dev)
+
+            token = secrets.token_urlsafe(16)
+            db.add(DeviceToken(
+                device_id=dev.id,
+                token=token,
+                device_type=dev.type,
+            ))
+    class DummyCred:
+        credentials = token
+
+    async with AsyncSessionLocal() as db_verify:
+        with pytest.raises(HTTPException) as exc:
+            await verify_device_token(
+                DummyCred,
+                db_verify,
+                expected_type=DeviceType.DOSING_UNIT
+            )
+    assert exc.value.status_code == 403
+
+# -------------------------------------------------------------------
+# 2) Admin-only "issue-token" endpoint tests
+# -------------------------------------------------------------------
 
 @pytest.fixture
-async def create_device(async_client: AsyncClient):
+async def create_device(async_client: AsyncClient, signed_up_user):
     """
     Create a new dosing_unit via the public API so we can issue a token for it.
     """
-    # we assume your /api/v1/devices/dosing endpoint exists
+    _, _, headers = signed_up_user
     payload = {
         "mac_id": "AA:BB:CC",
         "name": "Test Doser",
@@ -123,31 +156,48 @@ async def create_device(async_client: AsyncClient):
         "http_endpoint": "http://device.local",
         "pump_configurations": [{"pump_number": 1, "chemical_name": "Water"}],
     }
-    # here we need a valid user token; reuse signup/login fixture if you have one
-    # for simplicity, assume a top‐level “admin” user already exists or auth is stubbed
     resp = await async_client.post(
         "/api/v1/devices/dosing",
         json=payload,
-        headers={"Authorization": "Bearer test-user-token"},
+        headers=headers,
     )
     assert resp.status_code == 201, "Failed to create device"
     return resp.json()["id"]
 
+
 @pytest.mark.asyncio
 async def test_admin_issue_token_endpoint_success(monkeypatch, async_client, create_device):
     """
-    Admin can POST /admin/device/{device_id}/issue-token → 201 + JSON{device_id,token}
+    Admin can POST /admin/device/{device_id}/issue-token → 201 + JSON{device_id,token}.
+    Returned token must authenticate that device.
     """
-    # stub out real admin auth
-    monkeypatch.setattr(get_current_admin, "__call__", lambda _: True)
+    # stub out admin auth
+    dummy_admin = type("A", (), {"id": 1, "role": "superadmin"})()
+    monkeypatch.setattr(get_current_admin, "__call__", lambda _: dummy_admin)
 
-    device_id = create_device
-    resp = await async_client.post(f"/admin/device/{device_id}/issue-token")
+    resp = await async_client.post(f"/admin/device/{create_device}/issue-token")
     assert resp.status_code == 201, resp.text
 
     data = resp.json()
-    assert data["device_id"] == device_id
+    assert data["device_id"] == create_device
     assert isinstance(data["token"], str) and len(data["token"]) > 10
+
+    # newly issued token should pass verify_device_token
+    new_token = data["token"]
+    class Cred:
+        credentials = new_token
+    async with AsyncSessionLocal() as db_verify:
+        v_id = await verify_device_token(Cred, db_verify, expected_type=DeviceType.DOSING_UNIT)
+    assert v_id == create_device
+
+
+@pytest.mark.asyncio
+async def test_admin_issue_token_endpoint_unauthorized(async_client, create_device):
+    """
+    Without admin auth, issuing a token must be rejected.
+    """
+    resp = await async_client.post(f"/admin/device/{create_device}/issue-token")
+    assert resp.status_code in (401, 403)
 
 
 @pytest.mark.asyncio
@@ -155,7 +205,9 @@ async def test_admin_issue_token_endpoint_404_for_unknown_device(monkeypatch, as
     """
     POST /admin/device/{nonexistent}/issue-token should return 404.
     """
-    monkeypatch.setattr(get_current_admin, "__call__", lambda _: True)
+    # stub admin
+    dummy_admin = type("A", (), {"id": 1, "role": "superadmin"})()
+    monkeypatch.setattr(get_current_admin, "__call__", lambda _: dummy_admin)
 
     resp = await async_client.post("/admin/device/nonexistent/issue-token")
     assert resp.status_code == 404

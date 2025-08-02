@@ -65,6 +65,16 @@ _db_mod.AsyncSessionLocal = TestSessionLocal
 from app.main import app
 from app.core.database import Base, get_db
 
+def pytest_configure(config):
+    """
+    If pytest-cov is available, enable coverage of the 'app' package
+    and show missing lines in the terminal report by default.
+    """
+    cov = config.pluginmanager.getplugin("cov")
+    if cov:
+        config.option.cov_source = ["app"]
+        config.option.cov_report = ["term-missing"]
+        
 @pytest.fixture(scope="session", autouse=True)
 async def _setup_db_and_overrides():
     # Create tables once
