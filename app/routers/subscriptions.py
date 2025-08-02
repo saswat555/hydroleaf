@@ -13,7 +13,7 @@ from app.dependencies import get_current_user
 from app.models import ActivationKey, DeviceToken, Subscription, SubscriptionPlan, Device
 from app.schemas import SubscriptionPlanResponse, SubscriptionResponse
 
-router = APIRouter(prefix="/api/v1/subscriptions", tags=["subscriptions"])
+router = APIRouter(prefix="/api/v1/subscriptions")
 
 
 @router.post(

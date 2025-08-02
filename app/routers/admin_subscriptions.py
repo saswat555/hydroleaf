@@ -12,7 +12,7 @@ from app.schemas import ActivationKeyResponse
 
 router = APIRouter(
     prefix="/admin",
-    tags=["admin"],
+    tags=["Admin Subscriptions"],
     dependencies=[Depends(get_current_admin)],
 )
 

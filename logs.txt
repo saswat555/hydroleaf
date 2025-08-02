@@ -6360,3 +6360,277 @@ Return exactly this JSON: {"foo":42}
 2025-08-02 19:16:05,411 - httpx - INFO - HTTP Request: POST http://testserver/api/v1/auth/signup "HTTP/1.1 201 Created"
 2025-08-02 19:16:06,079 - app.main - INFO - POST /admin/device/nonexistent/issue-token • ip=127.0.0.1 • device_id=- • 404 • 0.4ms
 2025-08-02 19:16:06,080 - httpx - INFO - HTTP Request: POST http://testserver/admin/device/nonexistent/issue-token "HTTP/1.1 404 Not Found"
+2025-08-02 19:22:00,838 - uvicorn.error - INFO - Started server process [89756]
+2025-08-02 19:22:00,839 - uvicorn.error - INFO - Waiting for application startup.
+2025-08-02 19:22:00,839 - uvicorn.error - INFO - Application startup complete.
+2025-08-02 19:22:00,841 - uvicorn.error - INFO - Uvicorn running on http://0.0.0.0:8000 (Press CTRL+C to quit)
+2025-08-02 19:22:13,405 - app.main - INFO - GET /api/v1/docs • ip=127.0.0.1 • device_id=- • 200 • 1.0ms
+2025-08-02 19:22:13,951 - app.main - INFO - GET /api/v1/openapi.json • ip=127.0.0.1 • device_id=- • 200 • 30.8ms
+2025-08-02 19:23:15,910 - uvicorn.error - INFO - Shutting down
+2025-08-02 19:23:16,020 - uvicorn.error - INFO - Waiting for application shutdown.
+2025-08-02 19:23:16,024 - uvicorn.error - INFO - Application shutdown complete.
+2025-08-02 19:23:16,025 - uvicorn.error - INFO - Finished server process [89756]
+2025-08-02 19:23:36,264 - uvicorn.error - INFO - Started server process [90026]
+2025-08-02 19:23:36,265 - uvicorn.error - INFO - Waiting for application startup.
+2025-08-02 19:23:36,267 - uvicorn.error - INFO - Application startup complete.
+2025-08-02 19:23:36,271 - uvicorn.error - INFO - Uvicorn running on http://0.0.0.0:8000 (Press CTRL+C to quit)
+2025-08-02 19:23:37,732 - app.main - INFO - GET /api/v1/docs • ip=127.0.0.1 • device_id=- • 200 • 1.8ms
+2025-08-02 19:23:38,042 - app.main - INFO - GET /api/v1/openapi.json • ip=127.0.0.1 • device_id=- • 200 • 40.0ms
+2025-08-02 19:23:58,469 - uvicorn.error - INFO - Shutting down
+2025-08-02 19:23:58,579 - uvicorn.error - INFO - Finished server process [90026]
+2025-08-02 19:23:58,594 - uvicorn.error - ERROR - Traceback (most recent call last):
+  File "/opt/homebrew/anaconda3/lib/python3.12/asyncio/runners.py", line 194, in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+  File "/opt/homebrew/anaconda3/lib/python3.12/asyncio/runners.py", line 118, in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "uvloop/loop.pyx", line 1512, in uvloop.loop.Loop.run_until_complete
+  File "uvloop/loop.pyx", line 1505, in uvloop.loop.Loop.run_until_complete
+  File "uvloop/loop.pyx", line 1379, in uvloop.loop.Loop.run_forever
+  File "uvloop/loop.pyx", line 557, in uvloop.loop.Loop._run
+  File "uvloop/loop.pyx", line 476, in uvloop.loop.Loop._on_idle
+  File "uvloop/cbhandles.pyx", line 83, in uvloop.loop.Handle._run
+  File "uvloop/cbhandles.pyx", line 63, in uvloop.loop.Handle._run
+  File "/Users/saswatpandey/hydroleaf/env/lib/python3.12/site-packages/uvicorn/server.py", line 69, in serve
+    with self.capture_signals():
+         ^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/homebrew/anaconda3/lib/python3.12/contextlib.py", line 144, in __exit__
+    next(self.gen)
+  File "/Users/saswatpandey/hydroleaf/env/lib/python3.12/site-packages/uvicorn/server.py", line 330, in capture_signals
+    signal.raise_signal(captured_signal)
+  File "/opt/homebrew/anaconda3/lib/python3.12/asyncio/runners.py", line 157, in _on_sigint
+    raise KeyboardInterrupt()
+KeyboardInterrupt
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/Users/saswatpandey/hydroleaf/env/lib/python3.12/site-packages/starlette/routing.py", line 699, in lifespan
+    await receive()
+  File "/Users/saswatpandey/hydroleaf/env/lib/python3.12/site-packages/uvicorn/lifespan/on.py", line 137, in receive
+    return await self.receive_queue.get()
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/homebrew/anaconda3/lib/python3.12/asyncio/queues.py", line 158, in get
+    await getter
+asyncio.exceptions.CancelledError
+
+2025-08-02 19:24:02,147 - uvicorn.error - INFO - Started server process [90185]
+2025-08-02 19:24:02,148 - uvicorn.error - INFO - Waiting for application startup.
+2025-08-02 19:24:02,149 - uvicorn.error - INFO - Application startup complete.
+2025-08-02 19:24:02,151 - uvicorn.error - INFO - Uvicorn running on http://0.0.0.0:8000 (Press CTRL+C to quit)
+2025-08-02 19:25:31,356 - uvicorn.error - INFO - Shutting down
+2025-08-02 19:25:31,467 - uvicorn.error - INFO - Finished server process [90185]
+2025-08-02 19:25:31,483 - uvicorn.error - ERROR - Traceback (most recent call last):
+  File "/opt/homebrew/anaconda3/lib/python3.12/asyncio/runners.py", line 194, in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+  File "/opt/homebrew/anaconda3/lib/python3.12/asyncio/runners.py", line 118, in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "uvloop/loop.pyx", line 1512, in uvloop.loop.Loop.run_until_complete
+  File "uvloop/loop.pyx", line 1505, in uvloop.loop.Loop.run_until_complete
+  File "uvloop/loop.pyx", line 1379, in uvloop.loop.Loop.run_forever
+  File "uvloop/loop.pyx", line 557, in uvloop.loop.Loop._run
+  File "uvloop/loop.pyx", line 476, in uvloop.loop.Loop._on_idle
+  File "uvloop/cbhandles.pyx", line 83, in uvloop.loop.Handle._run
+  File "uvloop/cbhandles.pyx", line 63, in uvloop.loop.Handle._run
+  File "/Users/saswatpandey/hydroleaf/env/lib/python3.12/site-packages/uvicorn/server.py", line 69, in serve
+    with self.capture_signals():
+         ^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/homebrew/anaconda3/lib/python3.12/contextlib.py", line 144, in __exit__
+    next(self.gen)
+  File "/Users/saswatpandey/hydroleaf/env/lib/python3.12/site-packages/uvicorn/server.py", line 330, in capture_signals
+    signal.raise_signal(captured_signal)
+  File "/opt/homebrew/anaconda3/lib/python3.12/asyncio/runners.py", line 157, in _on_sigint
+    raise KeyboardInterrupt()
+KeyboardInterrupt
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/Users/saswatpandey/hydroleaf/env/lib/python3.12/site-packages/starlette/routing.py", line 699, in lifespan
+    await receive()
+  File "/Users/saswatpandey/hydroleaf/env/lib/python3.12/site-packages/uvicorn/lifespan/on.py", line 137, in receive
+    return await self.receive_queue.get()
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/homebrew/anaconda3/lib/python3.12/asyncio/queues.py", line 158, in get
+    await getter
+asyncio.exceptions.CancelledError
+
+2025-08-02 19:25:34,604 - uvicorn.error - INFO - Started server process [90306]
+2025-08-02 19:25:34,604 - uvicorn.error - INFO - Waiting for application startup.
+2025-08-02 19:25:34,605 - uvicorn.error - INFO - Application startup complete.
+2025-08-02 19:25:34,605 - uvicorn.error - INFO - Uvicorn running on http://0.0.0.0:8000 (Press CTRL+C to quit)
+2025-08-02 19:25:34,998 - app.main - INFO - GET /api/v1/docs • ip=127.0.0.1 • device_id=- • 200 • 0.9ms
+2025-08-02 19:25:35,549 - app.main - INFO - GET /api/v1/openapi.json • ip=127.0.0.1 • device_id=- • 200 • 22.8ms
+2025-08-02 19:26:10,795 - app.main - INFO - GET /api/v1/docs • ip=127.0.0.1 • device_id=- • 200 • 15.4ms
+2025-08-02 19:26:10,999 - app.main - INFO - GET /api/v1/openapi.json • ip=127.0.0.1 • device_id=- • 200 • 1.7ms
+2025-08-02 19:27:27,332 - app.main - INFO - GET /api/v1/docs • ip=127.0.0.1 • device_id=- • 200 • 1.7ms
+2025-08-02 19:27:27,412 - app.main - INFO - GET /api/v1/openapi.json • ip=127.0.0.1 • device_id=- • 200 • 4.7ms
+2025-08-02 19:27:30,405 - uvicorn.error - INFO - Shutting down
+2025-08-02 19:27:30,509 - uvicorn.error - INFO - Waiting for application shutdown.
+2025-08-02 19:27:30,512 - uvicorn.error - INFO - Application shutdown complete.
+2025-08-02 19:27:30,513 - uvicorn.error - INFO - Finished server process [90306]
+2025-08-02 19:27:34,254 - uvicorn.error - INFO - Started server process [90469]
+2025-08-02 19:27:34,255 - uvicorn.error - INFO - Waiting for application startup.
+2025-08-02 19:27:34,255 - uvicorn.error - INFO - Application startup complete.
+2025-08-02 19:27:34,255 - uvicorn.error - INFO - Uvicorn running on http://0.0.0.0:8000 (Press CTRL+C to quit)
+2025-08-02 19:27:35,706 - app.main - INFO - GET /api/v1/docs • ip=127.0.0.1 • device_id=- • 200 • 0.7ms
+2025-08-02 19:27:35,774 - app.main - INFO - GET /api/v1/openapi.json • ip=127.0.0.1 • device_id=- • 200 • 27.2ms
+2025-08-02 19:28:01,867 - uvicorn.error - INFO - Shutting down
+2025-08-02 19:28:01,975 - uvicorn.error - INFO - Waiting for application shutdown.
+2025-08-02 19:28:01,978 - uvicorn.error - INFO - Application shutdown complete.
+2025-08-02 19:28:01,979 - uvicorn.error - INFO - Finished server process [90469]
+2025-08-02 19:29:52,272 - uvicorn.error - INFO - Will watch for changes in these directories: ['/Users/saswatpandey/hydroleaf']
+2025-08-02 19:29:52,274 - uvicorn.error - INFO - Uvicorn running on http://0.0.0.0:8000 (Press CTRL+C to quit)
+2025-08-02 19:29:52,274 - uvicorn.error - INFO - Started reloader process [90978] using WatchFiles
+2025-08-02 19:29:53,883 - uvicorn.error - INFO - Started server process [90983]
+2025-08-02 19:29:53,883 - uvicorn.error - INFO - Waiting for application startup.
+2025-08-02 19:29:53,885 - uvicorn.error - INFO - Application startup complete.
+2025-08-02 19:30:01,958 - watchfiles.main - INFO - 1 change detected
+2025-08-02 19:30:01,962 - uvicorn.error - WARNING - WatchFiles detected changes in 'app/main.py'. Reloading...
+2025-08-02 19:30:01,970 - uvicorn.error - INFO - Shutting down
+2025-08-02 19:30:02,080 - uvicorn.error - INFO - Waiting for application shutdown.
+2025-08-02 19:30:02,082 - uvicorn.error - INFO - Application shutdown complete.
+2025-08-02 19:30:02,083 - uvicorn.error - INFO - Finished server process [90983]
+2025-08-02 19:30:02,852 - watchfiles.main - INFO - 1 change detected
+2025-08-02 19:30:03,217 - watchfiles.main - INFO - 3 changes detected
+2025-08-02 19:30:04,622 - uvicorn.error - INFO - Started server process [90992]
+2025-08-02 19:30:04,622 - uvicorn.error - INFO - Waiting for application startup.
+2025-08-02 19:30:04,622 - uvicorn.error - INFO - Application startup complete.
+2025-08-02 19:30:11,520 - app.main - INFO - GET /api/v1/docs • ip=127.0.0.1 • device_id=- • 200 • 1.7ms
+2025-08-02 19:30:11,605 - app.main - INFO - GET /api/v1/openapi.json • ip=127.0.0.1 • device_id=- • 200 • 26.2ms
+2025-08-02 19:30:34,190 - watchfiles.main - INFO - 1 change detected
+2025-08-02 19:30:34,196 - uvicorn.error - WARNING - WatchFiles detected changes in 'app/routers/subscriptions.py'. Reloading...
+2025-08-02 19:30:34,283 - uvicorn.error - INFO - Shutting down
+2025-08-02 19:30:34,393 - uvicorn.error - INFO - Waiting for application shutdown.
+2025-08-02 19:30:34,407 - uvicorn.error - INFO - Application shutdown complete.
+2025-08-02 19:30:34,409 - uvicorn.error - INFO - Finished server process [90992]
+2025-08-02 19:30:35,159 - watchfiles.main - INFO - 2 changes detected
+2025-08-02 19:30:35,160 - uvicorn.error - WARNING - WatchFiles detected changes in 'app/routers/subscriptions.py'. Reloading...
+2025-08-02 19:30:37,207 - uvicorn.error - INFO - Started server process [91028]
+2025-08-02 19:30:37,208 - uvicorn.error - INFO - Waiting for application startup.
+2025-08-02 19:30:37,208 - uvicorn.error - INFO - Application startup complete.
+2025-08-02 19:30:37,253 - watchfiles.main - INFO - 3 changes detected
+2025-08-02 19:30:38,947 - app.main - INFO - GET /api/v1/docs • ip=127.0.0.1 • device_id=- • 200 • 0.7ms
+2025-08-02 19:30:39,335 - app.main - INFO - GET /api/v1/openapi.json • ip=127.0.0.1 • device_id=- • 200 • 34.3ms
+2025-08-02 19:31:00,575 - watchfiles.main - INFO - 3 changes detected
+2025-08-02 19:31:02,408 - watchfiles.main - INFO - 1 change detected
+2025-08-02 19:31:02,509 - passlib.handlers.bcrypt - WARNING - (trapped) error reading bcrypt version
+Traceback (most recent call last):
+  File "/Users/saswatpandey/hydroleaf/env/lib/python3.12/site-packages/passlib/handlers/bcrypt.py", line 620, in _load_backend_mixin
+    version = _bcrypt.__about__.__version__
+              ^^^^^^^^^^^^^^^^^
+AttributeError: module 'bcrypt' has no attribute '__about__'
+2025-08-02 19:31:02,776 - app.main - INFO - POST /api/v1/auth/signup • ip=127.0.0.1 • device_id=- • 201 • 317.3ms
+2025-08-02 19:31:02,777 - httpx - INFO - HTTP Request: POST http://testserver/api/v1/auth/signup "HTTP/1.1 201 Created"
+2025-08-02 19:31:02,879 - watchfiles.main - INFO - 1 change detected
+2025-08-02 19:31:03,271 - app.main - INFO - POST /api/v1/auth/signup • ip=127.0.0.1 • device_id=- • 201 • 273.0ms
+2025-08-02 19:31:03,272 - httpx - INFO - HTTP Request: POST http://testserver/api/v1/auth/signup "HTTP/1.1 201 Created"
+2025-08-02 19:31:03,348 - watchfiles.main - INFO - 1 change detected
+2025-08-02 19:31:03,609 - app.main - INFO - POST /api/v1/auth/signup • ip=127.0.0.1 • device_id=- • 201 • 253.4ms
+2025-08-02 19:31:03,609 - httpx - INFO - HTTP Request: POST http://testserver/api/v1/auth/signup "HTTP/1.1 201 Created"
+2025-08-02 19:31:03,621 - app.main - WARNING - HTTPException Email already registered on /api/v1/auth/signup
+2025-08-02 19:31:03,621 - app.main - INFO - POST /api/v1/auth/signup • ip=127.0.0.1 • device_id=- • 400 • 11.9ms
+2025-08-02 19:31:03,622 - httpx - INFO - HTTP Request: POST http://testserver/api/v1/auth/signup "HTTP/1.1 400 Bad Request"
+2025-08-02 19:31:03,701 - app.main - INFO - POST /api/v1/auth/signup • ip=127.0.0.1 • device_id=- • 422 • 1.3ms
+2025-08-02 19:31:03,701 - httpx - INFO - HTTP Request: POST http://testserver/api/v1/auth/signup "HTTP/1.1 422 Unprocessable Entity"
+2025-08-02 19:31:03,705 - watchfiles.main - INFO - 1 change detected
+2025-08-02 19:31:03,759 - app.main - INFO - POST /api/v1/auth/signup • ip=127.0.0.1 • device_id=- • 422 • 1.7ms
+2025-08-02 19:31:03,759 - httpx - INFO - HTTP Request: POST http://testserver/api/v1/auth/signup "HTTP/1.1 422 Unprocessable Entity"
+2025-08-02 19:31:03,811 - app.main - INFO - POST /api/v1/auth/signup • ip=127.0.0.1 • device_id=- • 422 • 1.0ms
+2025-08-02 19:31:03,811 - httpx - INFO - HTTP Request: POST http://testserver/api/v1/auth/signup "HTTP/1.1 422 Unprocessable Entity"
+2025-08-02 19:31:04,070 - watchfiles.main - INFO - 1 change detected
+2025-08-02 19:31:04,120 - app.main - INFO - POST /api/v1/auth/signup • ip=127.0.0.1 • device_id=- • 201 • 259.0ms
+2025-08-02 19:31:04,120 - httpx - INFO - HTTP Request: POST http://testserver/api/v1/auth/signup "HTTP/1.1 201 Created"
+2025-08-02 19:31:04,350 - app.main - INFO - POST /api/v1/auth/login • ip=127.0.0.1 • device_id=- • 200 • 229.5ms
+2025-08-02 19:31:04,350 - httpx - INFO - HTTP Request: POST http://testserver/api/v1/auth/login "HTTP/1.1 200 OK"
+2025-08-02 19:31:04,435 - watchfiles.main - INFO - 1 change detected
+2025-08-02 19:31:04,689 - app.main - INFO - POST /api/v1/auth/signup • ip=127.0.0.1 • device_id=- • 201 • 253.9ms
+2025-08-02 19:31:04,689 - httpx - INFO - HTTP Request: POST http://testserver/api/v1/auth/signup "HTTP/1.1 201 Created"
+2025-08-02 19:31:04,919 - app.main - WARNING - HTTPException Invalid credentials on /api/v1/auth/login
+2025-08-02 19:31:04,919 - app.main - INFO - POST /api/v1/auth/login • ip=127.0.0.1 • device_id=- • 401 • 229.4ms
+2025-08-02 19:31:04,919 - httpx - INFO - HTTP Request: POST http://testserver/api/v1/auth/login "HTTP/1.1 401 Unauthorized"
+2025-08-02 19:31:05,016 - watchfiles.main - INFO - 1 change detected
+2025-08-02 19:31:05,018 - app.main - WARNING - HTTPException Invalid credentials on /api/v1/auth/login
+2025-08-02 19:31:05,019 - app.main - INFO - POST /api/v1/auth/login • ip=127.0.0.1 • device_id=- • 401 • 10.6ms
+2025-08-02 19:31:05,019 - httpx - INFO - HTTP Request: POST http://testserver/api/v1/auth/login "HTTP/1.1 401 Unauthorized"
+2025-08-02 19:31:05,079 - app.main - INFO - POST /api/v1/auth/login • ip=127.0.0.1 • device_id=- • 422 • 3.1ms
+2025-08-02 19:31:05,079 - httpx - INFO - HTTP Request: POST http://testserver/api/v1/auth/login "HTTP/1.1 422 Unprocessable Entity"
+2025-08-02 19:31:05,381 - watchfiles.main - INFO - 1 change detected
+2025-08-02 19:31:05,395 - app.main - INFO - POST /api/v1/auth/signup • ip=127.0.0.1 • device_id=- • 201 • 265.0ms
+2025-08-02 19:31:05,395 - httpx - INFO - HTTP Request: POST http://testserver/api/v1/auth/signup "HTTP/1.1 201 Created"
+2025-08-02 19:31:05,801 - watchfiles.main - INFO - 5 changes detected
+2025-08-02 19:31:05,887 - app.services.supply_chain_service - ERROR - No valid JSON block found in LLM response.
+2025-08-02 19:31:05,941 - app.services.llm - INFO - Sending prompt to LLM:
+Return exactly this JSON: {"foo":42}
+2025-08-02 19:31:05,941 - app.services.llm - INFO - Ollama → deepseek-r1:1.5b prompt:
+Return exactly this JSON: {"foo":42}
+2025-08-02 19:31:06,161 - watchfiles.main - INFO - 1 change detected
+2025-08-02 19:31:06,223 - app.services.llm - INFO - Sending prompt to LLM:
+
+2025-08-02 19:31:06,223 - app.services.llm - INFO - Ollama → deepseek-r1:1.5b prompt:
+
+2025-08-02 19:31:06,522 - watchfiles.main - INFO - 1 change detected
+2025-08-02 19:31:06,880 - watchfiles.main - INFO - 1 change detected
+2025-08-02 19:31:07,242 - watchfiles.main - INFO - 1 change detected
+2025-08-02 19:31:07,578 - app.services.dose_manager - INFO - Cancellation response for device devX: {'cancelled': True}
+2025-08-02 19:31:07,599 - watchfiles.main - INFO - 1 change detected
+2025-08-02 19:31:07,961 - watchfiles.main - INFO - 1 change detected
+2025-08-02 19:31:08,323 - watchfiles.main - INFO - 1 change detected
+2025-08-02 19:31:08,630 - app.services.llm - ERROR - No valid JSON block found in OpenAI response: no braces at all
+2025-08-02 19:31:08,688 - watchfiles.main - INFO - 1 change detected
+2025-08-02 19:31:09,049 - watchfiles.main - INFO - 1 change detected
+2025-08-02 19:31:10,631 - httpx - INFO - HTTP Request: GET https://google.serper.dev/search?q=optimal+growth.+Focus+on+best+practices+in+Europe+for+Veggie+cultivation.&gl=in&hl=en&apiKey=eeaeee2729768c737ca5a6004968a9840677e523&num=5&full=true&output=detailed "HTTP/1.1 200 OK"
+2025-08-02 19:31:10,955 - httpx - INFO - HTTP Request: GET https://www.researchgate.net/publication/323363546_Strategies_for_optimal_fertiliser_management_of_vegetable_crops_in_Europe "HTTP/1.1 403 Forbidden"
+2025-08-02 19:31:10,958 - app.services.serper - WARNING - Scrape forbidden (403) for https://www.researchgate.net/publication/323363546_Strategies_for_optimal_fertiliser_management_of_vegetable_crops_in_Europe
+2025-08-02 19:31:10,969 - httpx - INFO - HTTP Request: GET https://www.researchgate.net/publication/260984593_Good_Agricultural_Practices_for_greenhouse_vegetable_crops_Principles_for_Mediterranean_climate_areas "HTTP/1.1 403 Forbidden"
+2025-08-02 19:31:10,971 - app.services.serper - WARNING - Scrape forbidden (403) for https://www.researchgate.net/publication/260984593_Good_Agricultural_Practices_for_greenhouse_vegetable_crops_Principles_for_Mediterranean_climate_areas
+2025-08-02 19:31:11,364 - httpx - INFO - HTTP Request: GET https://www.fao.org/4/i3284e/i3284e.pdf "HTTP/1.1 200 OK"
+2025-08-02 19:31:11,888 - httpx - INFO - HTTP Request: GET https://www.frontiersin.org/journals/plant-science/articles/10.3389/fpls.2024.1357153/full "HTTP/1.1 200 OK"
+2025-08-02 19:31:11,970 - httpx - INFO - HTTP Request: GET https://www.agronomyjournals.com/article/view/2394/8-1-44 "HTTP/1.1 302 Moved Temporarily"
+2025-08-02 19:31:11,972 - app.services.serper - WARNING - HTTP error scraping https://www.agronomyjournals.com/article/view/2394/8-1-44: Redirect response '302 Moved Temporarily' for url 'https://www.agronomyjournals.com/article/view/2394/8-1-44'
+Redirect location: 'https://www.agronomyjournals.com/archives/2025/vol8issue1/PartD/8-1-44-621.pdf'
+For more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/302
+2025-08-02 19:31:12,507 - watchfiles.main - INFO - 1 change detected
+2025-08-02 19:31:12,585 - httpx - INFO - HTTP Request: GET http://localhost:11434/api/tags "HTTP/1.1 200 OK"
+2025-08-02 19:31:12,586 - app.services.llm - INFO - Sending prompt to LLM:
+Return exactly this JSON: {"foo":42}
+2025-08-02 19:31:12,586 - app.services.llm - INFO - Ollama → deepseek-r1:1.5b prompt:
+Return exactly this JSON: {"foo":42}
+2025-08-02 19:31:12,670 - app.main - INFO - POST /admin/plans/ • ip=127.0.0.1 • device_id=- • 404 • 3.1ms
+2025-08-02 19:31:12,670 - httpx - INFO - HTTP Request: POST http://testserver/admin/plans/ "HTTP/1.1 404 Not Found"
+2025-08-02 19:31:12,869 - watchfiles.main - INFO - 1 change detected
+2025-08-02 19:31:13,209 - app.services.plant_service - INFO - Fetching plants from database...
+2025-08-02 19:31:13,210 - app.services.plant_service - INFO - Fetched 1 plants from the database
+2025-08-02 19:31:13,232 - watchfiles.main - INFO - 1 change detected
+2025-08-02 19:31:13,401 - app.main - INFO - POST /admin/plans/ • ip=127.0.0.1 • device_id=- • 404 • 0.4ms
+2025-08-02 19:31:13,401 - httpx - INFO - HTTP Request: POST http://testserver/admin/plans/ "HTTP/1.1 404 Not Found"
+2025-08-02 19:31:13,590 - watchfiles.main - INFO - 1 change detected
+2025-08-02 19:31:13,705 - app.main - INFO - POST /admin/plans/ • ip=127.0.0.1 • device_id=- • 404 • 0.8ms
+2025-08-02 19:31:13,706 - httpx - INFO - HTTP Request: POST http://testserver/admin/plans/ "HTTP/1.1 404 Not Found"
+2025-08-02 19:31:13,953 - watchfiles.main - INFO - 1 change detected
+2025-08-02 19:31:14,035 - app.main - INFO - POST /api/v1/auth/signup • ip=127.0.0.1 • device_id=- • 201 • 269.7ms
+2025-08-02 19:31:14,035 - httpx - INFO - HTTP Request: POST http://testserver/api/v1/auth/signup "HTTP/1.1 201 Created"
+2025-08-02 19:31:14,399 - app.main - INFO - POST /api/v1/auth/signup • ip=127.0.0.1 • device_id=- • 201 • 248.0ms
+2025-08-02 19:31:14,399 - httpx - INFO - HTTP Request: POST http://testserver/api/v1/auth/signup "HTTP/1.1 201 Created"
+2025-08-02 19:31:14,774 - app.main - INFO - POST /api/v1/auth/signup • ip=127.0.0.1 • device_id=- • 201 • 256.6ms
+2025-08-02 19:31:14,774 - httpx - INFO - HTTP Request: POST http://testserver/api/v1/auth/signup "HTTP/1.1 201 Created"
+2025-08-02 19:31:15,157 - app.main - INFO - POST /api/v1/auth/signup • ip=127.0.0.1 • device_id=- • 201 • 255.9ms
+2025-08-02 19:31:15,157 - httpx - INFO - HTTP Request: POST http://testserver/api/v1/auth/signup "HTTP/1.1 201 Created"
+2025-08-02 19:31:15,529 - app.main - INFO - POST /api/v1/auth/signup • ip=127.0.0.1 • device_id=- • 201 • 254.7ms
+2025-08-02 19:31:15,530 - httpx - INFO - HTTP Request: POST http://testserver/api/v1/auth/signup "HTTP/1.1 201 Created"
+2025-08-02 19:31:15,917 - app.main - INFO - POST /api/v1/auth/signup • ip=127.0.0.1 • device_id=- • 201 • 253.5ms
+2025-08-02 19:31:15,917 - httpx - INFO - HTTP Request: POST http://testserver/api/v1/auth/signup "HTTP/1.1 201 Created"
+2025-08-02 19:31:16,291 - app.main - INFO - POST /api/v1/auth/signup • ip=127.0.0.1 • device_id=- • 201 • 251.1ms
+2025-08-02 19:31:16,291 - httpx - INFO - HTTP Request: POST http://testserver/api/v1/auth/signup "HTTP/1.1 201 Created"
+2025-08-02 19:31:16,664 - app.main - INFO - POST /api/v1/auth/signup • ip=127.0.0.1 • device_id=- • 201 • 253.3ms
+2025-08-02 19:31:16,664 - httpx - INFO - HTTP Request: POST http://testserver/api/v1/auth/signup "HTTP/1.1 201 Created"
+2025-08-02 19:31:17,036 - app.main - INFO - POST /api/v1/auth/signup • ip=127.0.0.1 • device_id=- • 201 • 252.4ms
+2025-08-02 19:31:17,037 - httpx - INFO - HTTP Request: POST http://testserver/api/v1/auth/signup "HTTP/1.1 201 Created"
+2025-08-02 19:31:17,286 - watchfiles.main - INFO - 1 change detected
+2025-08-02 19:31:17,562 - app.main - INFO - POST /admin/device/nonexistent/issue-token • ip=127.0.0.1 • device_id=- • 404 • 0.2ms
+2025-08-02 19:31:17,562 - httpx - INFO - HTTP Request: POST http://testserver/admin/device/nonexistent/issue-token "HTTP/1.1 404 Not Found"
+2025-08-02 19:31:17,699 - watchfiles.main - INFO - 3 changes detected
+2025-08-02 19:31:18,063 - watchfiles.main - INFO - 2 changes detected

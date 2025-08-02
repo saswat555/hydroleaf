@@ -15,7 +15,7 @@ from app.core.config import SECRET_KEY
 from app.models import User, Admin, UserProfile
 from app.schemas import AuthResponse, UserCreate, UserResponse
 
-router = APIRouter(tags=["auth"])
+router = APIRouter(tags=["Auth"])
 
 # password hashing
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")

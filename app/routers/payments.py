@@ -38,7 +38,7 @@ from app.schemas import (
 # ─────────────────────────────────────────────────────────────────────────────
 # Routers
 # ─────────────────────────────────────────────────────────────────────────────
-router = APIRouter(prefix="/api/v1/payments", tags=["payments"])
+router = APIRouter(prefix="/api/v1/payments", tags=["Payments"])
 
 admin_router = APIRouter(
     prefix="/admin/payments",
