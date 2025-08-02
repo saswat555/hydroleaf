@@ -2,7 +2,7 @@ import logging
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from fastapi import HTTPException
-from app.models import Plant
+from app.models import Farm, Plant
 logger = logging.getLogger(__name__)
 
 async def get_all_plants(db: AsyncSession):
@@ -33,9 +33,22 @@ async def get_plant_by_id(plant_id: int, db: AsyncSession):
         raise HTTPException(status_code=404, detail="Plant not found")
     return plant
 
-async def create_plant(plant_data, db: AsyncSession):
-    """Create a new plant."""
-    new_plant = Plant(**plant_data.model_dump())
+async def create_plant(payload, db: AsyncSession, farm_id: int | None = None):
+    """
+    Create a new plant.  Accepts either a PlantCreate Pydantic model or a dict.
+
+    If `farm_id` is provided, verify that the farm exists and assign it to the Plant.
+    """
+    # Convert Pydantic model to dict if necessary
+    data = payload.model_dump() if hasattr(payload, "model_dump") else dict(payload)
+    # Check farm existence if farm_id supplied
+    if farm_id is not None:
+        farm = await db.get(Farm, farm_id)
+        if not farm:
+            raise HTTPException(status_code=404, detail="Farm not found")
+        data["farm_id"] = farm_id
+
+    new_plant = Plant(**data)
     db.add(new_plant)
     await db.commit()
     await db.refresh(new_plant)

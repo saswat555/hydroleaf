@@ -32,7 +32,7 @@ from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, Asyn
 from sqlalchemy import create_engine, text
 from sqlalchemy.pool import NullPool
 import jwt as _jwt
-
+import uuid
 # patch out JWT signature checks in tests
 _orig_jwt_decode = _jwt.decode
 def _decode_no_key(token, key=None, algorithms=None, options=None, **kwargs):

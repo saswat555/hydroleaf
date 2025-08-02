@@ -61,20 +61,20 @@ YOLO_MODEL_PATH       = os.getenv("YOLO_MODEL_PATH", "yolov5s.pt")
 CAM_DETECTION_WORKERS = _get_int("CAM_DETECTION_WORKERS", 4)
 CAM_EVENT_GAP_SECONDS = _get_int("CAM_EVENT_GAP_SECONDS", 2)
 DETECTORS             = [d.strip() for d in os.getenv("DETECTORS", "ssd,yolo").split(",")]
-
+# ——————————————————————————————————————————
 # LLM / Ollama / OpenAI
-def _default_ollama_use() -> bool:
-    explicit = os.getenv("USE_OLLAMA")
-    if explicit is not None:
-        return _get_bool("USE_OLLAMA")
-    return TESTING
-
-USE_OLLAMA     = _default_ollama_use()
-OLLAMA_HOST    = os.getenv("OLLAMA_HOST", "http://localhost:11434")
-OLLAMA_URL     = os.getenv("OLLAMA_URL", f"{OLLAMA_HOST.rstrip('/')}/api/generate")
-MODEL_NAME_1_5B = os.getenv("MODEL_NAME_1_5B", "deepseek-r1:1.5b")
-MODEL_NAME_7B   = os.getenv("MODEL_NAME_7B", "gemma")
-GPT_MODEL       = os.getenv("GPT_MODEL", "gpt-3.5-turbo")
+# ——————————————————————————————————————————
+# choose provider via env: “OLLAMA” or “OPENAI”
+LLM_PROVIDER    = os.getenv("LLM_PROVIDER", "OLLAMA" if TESTING else "OPENAI").upper()
+# Ollama settings
+OLLAMA_HOST     = os.getenv("OLLAMA_HOST", "http://localhost:11434")
+OLLAMA_URL      = os.getenv("OLLAMA_URL", f"{OLLAMA_HOST.rstrip('/')}/api/generate")
+OLLAMA_MODEL    = os.getenv("OLLAMA_MODEL", "deepseek-r1:1.5b")
+# OpenAI settings
+OPENAI_MODEL    = os.getenv("OPENAI_MODEL", "gpt-3.5-turbo")
+OPENAI_API_KEY  = os.getenv("OPENAI_API_KEY", "")
+# common timeout for LLM calls
+LLM_REQUEST_TIMEOUT = _get_int("LLM_REQUEST_TIMEOUT", 300)
 
 # Third‑party API keys
 SERPER_API_KEY = os.getenv("SERPER_API_KEY", "")

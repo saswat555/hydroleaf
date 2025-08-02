@@ -3,7 +3,7 @@
 import os
 from datetime import datetime, timezone
 from typing import Optional, Any
-from jose import jwt, JWTError
+import jwt
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials, OAuth2PasswordBearer
 from sqlalchemy import select

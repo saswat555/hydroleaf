@@ -81,8 +81,7 @@ def test_parse_json_response_valid() -> None:
     assert res == {"a": 1, "b": 2}
 
 def test_parse_json_response_malformed() -> None:
-    with pytest.raises(httpx.HTTPError) or pytest.raises(Exception):
-        # you may be raising HTTPException inside parse_json_response
+    with pytest.raises(ValueError):
         parse_json_response("no json here")
 
 def test_parse_ollama_response_removes_think() -> None:
@@ -193,23 +192,22 @@ async def test_build_plan_prompt_live_search() -> None:
 
 @pytest.mark.asyncio
 async def test_call_llm_async_integration() -> None:
-    prompt = "Return exactly this JSON: {\"foo\": 42}"
-    # Ollama path
+    prompt = 'Return exactly this JSON: {"foo":42}'
     if llm.USE_OLLAMA:
-        if not await _ollama_available():
-            pytest.skip("Ollama server not reachable")
+        # Ollama must be reachable
+        available = await _ollama_available()
+        assert available, "Local Ollama server must be running for this integration test"
         parsed, raw = await call_llm_async(prompt, llm.MODEL_1_5B)
         assert isinstance(parsed, dict)
-        assert parsed.get("foo") == 42
-        # ensure raw is the minified JSON
-        assert raw.strip() == json.dumps(parsed, separators=(',',':'))
-    # OpenAI path
+        assert parsed["foo"] == 42
+        # raw should be the compact JSON
+        assert raw.strip() == json.dumps(parsed, separators=(",", ":"))
     else:
-        if not _openai_key_present():
-            pytest.skip("OPENAI_API_KEY missing – skipping OpenAI integration test")
+        # OPENAI_API_KEY must be present
+        assert _openai_key_present(), "OPENAI_API_KEY must be set for OpenAI integration test"
         model = os.getenv("GPT_MODEL") or "gpt-3.5-turbo"
         parsed, raw = await call_llm_async(prompt, model)
         assert isinstance(parsed, dict)
-        assert parsed.get("foo") == 42
-        # raw must be a JSON string parseable to the same dict
+        assert parsed["foo"] == 42
+        # raw must be parseable to the same dict
         assert json.loads(raw) == parsed

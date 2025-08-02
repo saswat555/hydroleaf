@@ -41,13 +41,6 @@ async def test_execute_dosing_success_single_and_combined():
     assert res2["actions"] == actions
 
 @pytest.mark.asyncio
-async def test_cancel_dosing_success():
-    res = await dm.cancel_dosing("dev1", "http://x")
-    assert res["status"] == "dosing_cancelled"
-    assert res["device_id"] == "dev1"
-    assert res["response"] == {"cancelled": True}
-
-@pytest.mark.asyncio
-async def test_cancel_dosing_success():
+async def test_cancel_dosing_idempotent():
     res = await dm.cancel_dosing("devX","http://x")
     assert res == {"status":"dosing_cancelled","device_id":"devX","response":{"cancelled":True}}

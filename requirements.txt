@@ -68,7 +68,6 @@ pytest
 pytest-asyncio
 python-dateutil
 python-dotenv
-python-jose
 python-multipart
 pytz
 PyYAML

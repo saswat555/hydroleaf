@@ -45,32 +45,32 @@ def enhance_query(user_query: str, plant_profile: dict) -> str:
     return user_query
 
 def parse_json_response(json_str: str) -> dict:
-    """
-    Try to parse entire string as JSON.
-    On failure, pull out the first {...} block (single-quotes → double-quotes) and parse that.
-    If still invalid, raise HTTPException.
-    """
+    # 1) Try raw JSON first
     try:
         return json.loads(json_str)
     except json.JSONDecodeError:
-        normalized = json_str.replace("'", '"').strip()
-        # 1) Try a top-level list if it starts with [
-        if normalized.startswith('['):
-            m_list = re.search(r"(\[.*?\])", normalized, flags=re.DOTALL)
-            if m_list:
-                try:
-                    return json.loads(m_list.group(1))
-                except json.JSONDecodeError:
-                    pass
-        # 2) Fallback: first object block
-        m = re.search(r"(\{.*?\})", normalized, flags=re.DOTALL)
-        if m:
-            try:
-                return json.loads(m.group(1))
-            except json.JSONDecodeError:
-                pass
-        # nothing worked
-        raise HTTPException(status_code=500, detail="Malformed JSON format from LLM")
+        pass
+
+    # 2) Remove common think-block wrappers:
+    #    - Markdown fences: ```…``` (including ```think``` or ```analysis```)
+    #    - Custom XML-style tags: <think>…</think>
+    cleaned = re.sub(r"```[\s\S]*?```", "", json_str)
+    cleaned = re.sub(r"<think>[\s\S]*?</think>", "", cleaned, flags=re.IGNORECASE)
+    
+    # 3) Normalize quotes to JSON style and strip whitespace
+    normalized = cleaned.replace("'", '"').strip()
+
+    # 4) Extract the first [...] or {...} substring
+    match = re.search(r"(\[.*?\]|\{.*?\})", normalized, flags=re.DOTALL)
+    if match:
+        fragment = match.group(1)
+        try:
+            return json.loads(fragment)
+        except json.JSONDecodeError:
+            pass
+
+    # 5) Nothing worked → propagate as HTTP error    
+    raise ValueError("Malformed JSON format from LLM")
 
 def parse_ollama_response(raw_response: str) -> str:
     # Remove any <think> block and extra whitespace

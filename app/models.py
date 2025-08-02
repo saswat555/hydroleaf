@@ -14,9 +14,8 @@ from sqlalchemy import (
     ForeignKey,
     JSON,
     func,
-    text
 )
-from sqlalchemy.orm import relationship
+from sqlalchemy.orm import relationship, synonym
 from sqlalchemy import Enum as Enum 
 from app.core.database import Base
 from app.schemas import DeviceType
@@ -28,6 +27,16 @@ from app.schemas import DeviceType
 
 def _uuid() -> str:
     return uuid.uuid4().hex 
+class FarmShare(Base):
+    __tablename__ = "farm_shares"
+
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
+    farm_id = Column(Integer, ForeignKey("farms.id", ondelete="CASCADE"), primary_key=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+    # back-refs for the two sides
+    user = relationship("User", back_populates="farm_shares")
+    farm = relationship("Farm", back_populates="farm_shares")
 
 class User(Base):
     __tablename__ = "users"
@@ -43,6 +52,16 @@ class User(Base):
                          onupdate=func.now(),
                          nullable=False,
                      )
+    shared_farms = relationship(
+        "Farm",
+        secondary="farm_shares",
+        back_populates="shared_users",
+    )
+    farm_shares = relationship(
+        "FarmShare",
+        back_populates="user",
+        cascade="all, delete-orphan",
+    )
 
     # one‐to‐one
     profile      = relationship(
@@ -86,20 +105,36 @@ class UserProfile(Base):
 # -------------------------------------------------------------------
 # FARMS
 # -------------------------------------------------------------------
-
 class Farm(Base):
     __tablename__ = "farms"
 
-    id          = Column(Integer, primary_key=True, index=True)
-    user_id     = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
-    name        = Column(String(128), nullable=False)
-    location    = Column(String(256))
-    created_at  = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
-    updated_at  = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
+    id = Column(Integer, primary_key=True, index=True)
+    # map DB column user_id to attribute owner_id, and expose user_id as a synonym
+    owner_id = Column("user_id", Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    user_id = synonym("owner_id")
 
-    user    = relationship("User", back_populates="farms")
+    name = Column(String(128), nullable=False)
+    location = Column(String, index=True)
+    address = synonym("location")
+    latitude = Column(Float)
+    longitude = Column(Float)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
+
+    user = relationship("User", back_populates="farms")
     devices = relationship("Device", back_populates="farm", cascade="all, delete-orphan")
-
+    # one-to-many to the association object
+    farm_shares = relationship(
+        "FarmShare",
+        back_populates="farm",
+        cascade="all, delete-orphan",
+    )
+    # many-to-many to User via the FarmShare association table
+    shared_users = relationship(
+        "User",
+        secondary="farm_shares",
+        back_populates="shared_farms",
+    )
 
 # -------------------------------------------------------------------
 # DEVICES & PROFILES
@@ -161,7 +196,7 @@ class DosingProfile(Base):
 class DeviceCommand(Base):
     __tablename__ = "device_commands"
     id            = Column(Integer, primary_key=True)
-    device_id     = Column(String, index=True)
+    device_id = Column(String(64), ForeignKey("devices.id", ondelete="CASCADE"), nullable=False, index=True)
     action = Column(
         Enum("restart", "update", name="cmd_action", native_enum=False),
         nullable=False,
@@ -216,15 +251,27 @@ class DosingOperation(Base):
 class Plant(Base):
     __tablename__ = "plants"
 
-    id           = Column(Integer, primary_key=True, index=True)
-    name         = Column(String(100), nullable=False)
-    type         = Column(String(100), nullable=False)
-    growth_stage = Column(String(50),  nullable=False)
+    id = Column(Integer, primary_key=True, index=True)
+    # new link to farm
+    farm_id = Column(Integer, ForeignKey("farms.id", ondelete="CASCADE"), nullable=True)
+
+    name = Column(String(100), nullable=False)
+    type = Column(String(100), nullable=False)
+    growth_stage = Column(String(50), nullable=False)
     seeding_date = Column(DateTime(timezone=True), nullable=False)
-    region       = Column(String(100), nullable=False)
-    location     = Column(String(100), nullable=False)
-    created_at   = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
-    updated_at   = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
+    region = Column(String(100), nullable=False)
+    # keep the original location column but alias it via location_description
+    location = Column(String(100), nullable=False)
+    location_description = synonym("location")
+
+    # dosing parameter fields added for tests and dosing service
+    target_ph_min = Column(Float)
+    target_ph_max = Column(Float)
+    target_tds_min = Column(Float)
+    target_tds_max = Column(Float)
+
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
 
 
 class SupplyChainAnalysis(Base):

@@ -1,8 +1,7 @@
 import pytest
-import base64
-import json
 from httpx import AsyncClient
 from app.main import app
+import jwt
 
 # Base URL for auth endpoints
 AUTH_URL = "/api/v1/auth"
@@ -209,9 +208,7 @@ async def test_login_missing_fields(async_client: AsyncClient):
 @pytest.mark.asyncio
 async def test_token_payload_contains_user_and_role(async_client: AsyncClient, signed_up_user):
     _, token, _ = signed_up_user
-    # grab the middle part, base64‐url decode and parse JSON
-    payload_b64 = token.split(".")[1]
-    padding = "=" * (-len(payload_b64) % 4)
-    decoded = json.loads(base64.urlsafe_b64decode(payload_b64 + padding))
+    # decode without verifying signature
+    decoded = jwt.decode(token, options={"verify_signature": False})
     assert decoded.get("user_id") is not None
     assert decoded.get("role") == "user"

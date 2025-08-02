@@ -9,7 +9,7 @@ import httpx
 from fastapi import HTTPException
 
 from app.services.device_controller import DeviceController
-from app.services.llm import call_llm_async, USE_OLLAMA
+from app.services.llm import call_llm_async, USE_OLLAMA, MODEL_1_5B
 from app.services.supply_chain_service import extract_json_from_response
 from app.services.llm import parse_json_response, build_dosing_prompt
 from app.models import Device
@@ -55,43 +55,31 @@ def test_extract_json_happy_path():
 def test_extract_json_throws_on_no_json():
     with pytest.raises(HTTPException):
         extract_json_from_response("no JSON here")
-
 # -----------------------------
-# 3) dynamic USE_OLLAMA logic
-# -----------------------------
-def test_use_ollama_flag_respects_testing(monkeypatch):
-    monkeypatch.setenv("USE_OLLAMA", "false")
-    monkeypatch.setenv("TESTING", "1")
-    import app.services.llm as llm
-    importlib.reload(llm)
-    assert llm.USE_OLLAMA is True
-
-def test_use_ollama_flag_respects_env_when_not_testing(monkeypatch):
-    monkeypatch.setenv("USE_OLLAMA", "true")
-    monkeypatch.setenv("TESTING", "0")
-    import app.services.llm as llm
-    importlib.reload(llm)
-    assert llm.USE_OLLAMA is True
-
-# -----------------------------
-# 4) call_llm_async openai path
+# 3) call_llm_async live integration
 # -----------------------------
 @pytest.mark.asyncio
-async def test_call_llm_async_openai():
-    import app.services.llm as llm
-
-    if llm.USE_OLLAMA:
-        pytest.skip("USE_OLLAMA=true – skipping OpenAI branch")
-    if not os.getenv("OPENAI_API_KEY"):
-        pytest.skip("OPENAI_API_KEY missing – skipping live OpenAI test")
-
-    model = os.getenv("GPT_MODEL") or "gpt-3.5-turbo"
-    parsed, raw = await call_llm_async("hi", model)
-    assert isinstance(parsed, dict)
-    assert raw.strip().startswith("{")
+async def test_call_llm_async_live():
+    """
+    Invoke the real LLM backend.  If USE_OLLAMA, hits Ollama; otherwise OpenAI.
+    """
+    prompt = 'Return exactly this JSON: {"foo":42}'
+    if USE_OLLAMA:
+        # Ollama must be reachable
+        parsed, raw = await call_llm_async(prompt, MODEL_1_5B)
+        assert isinstance(parsed, dict)
+        assert parsed.get("foo") == 42
+    else:
+        # OPENAI_API_KEY must be set
+        key = os.getenv("OPENAI_API_KEY")
+        assert key, "OPENAI_API_KEY must be set for OpenAI integration tests"
+        model = os.getenv("GPT_MODEL") or "gpt-3.5-turbo"
+        parsed, raw = await call_llm_async(prompt, model)
+        assert isinstance(parsed, dict)
+        assert parsed.get("foo") == 42
 
 # -----------------------------
-# 5) build_dosing_prompt errors
+# 4) build_dosing_prompt errors
 # -----------------------------
 @pytest.mark.asyncio
 async def test_build_dosing_prompt_raises_on_no_pumps():
@@ -110,7 +98,7 @@ async def test_build_dosing_prompt_raises_on_no_pumps():
         await build_dosing_prompt(dummy, {"ph": 7, "tds": 100}, {})
 
 # -----------------------------
-# 6) parse_json_response edge
+# 5) parse_json_response edge
 # -----------------------------
 def test_parse_json_response_strips_extra_text():
     s = "junk { 'x': 10 } more junk"
@@ -139,7 +127,7 @@ def test_extract_json_multiple_json_blocks():
     assert out == {"a": 1}
 
 # -----------------------------
-# 7) call_llm_async ollama error propagation
+# 6) call_llm_async ollama error propagation
 # -----------------------------
 @pytest.mark.asyncio
 async def test_call_llm_async_ollama_http_error():
@@ -152,7 +140,7 @@ async def test_call_llm_async_ollama_http_error():
         await call_llm_async("", llm.MODEL_1_5B)
 
 # -----------------------------
-# 8) parse_json_response top-level list
+# 7) parse_json_response top-level list
 # -----------------------------
 def test_parse_json_response_top_level_list():
     s = "[ {'x':10}, {'y':20} ] extra"
@@ -161,7 +149,7 @@ def test_parse_json_response_top_level_list():
     assert out == [{"x": 10}, {"y": 20}]
 
 # -----------------------------
-# 9) build_dosing_prompt many pumps
+# 8) build_dosing_prompt many pumps
 # -----------------------------
 @pytest.mark.asyncio
 async def test_build_dosing_prompt_many_pumps():
