@@ -30,14 +30,7 @@ from app.schemas import (
     CloudAuthenticationResponse,
     DosingCancellationRequest,
 )
-from app.models import (
-    CameraToken,
-    CloudKey,
-    CloudKeyUsage,
-    Device,
-    DeviceToken,
-    User,
-)
+from app.models import CameraToken, CloudKey, CloudKeyUsage, Device, DeviceToken, Admin
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -150,7 +143,7 @@ async def dosing_cancel(request: DosingCancellationRequest):
 )
 async def generate_cloud_key(
     db: AsyncSession = Depends(get_db),
-    admin: User = Depends(get_current_admin),
+    admin: Admin = Depends(get_current_admin),
 ):
     """
     Mint a **new** cloud-key.  

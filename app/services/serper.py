@@ -1,34 +1,30 @@
-# app/services/serper.py
-
 import os
 import asyncio
 import httpx
 from httpx import HTTPStatusError
 from bs4 import BeautifulSoup
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict
 import logging
 from urllib.parse import quote_plus
 
 logger = logging.getLogger(__name__)
 
-# --- production configuration ---
+# --- configuration ---
 SERPER_API_KEY = os.getenv("SERPER_API_KEY", "")
-BASE_URL       = "https://google.serper.dev/search"
-HEADERS        = {"User-Agent": "Hydroleaf/1.0 (+https://yourdomain.com)"}
+BASE_URL = "https://google.serper.dev/search"
+HEADERS = {"User-Agent": "Hydroleaf/1.0 (+https://yourdomain.com)"}
 MAX_SCRAPE_WORKERS = int(os.getenv("SERPER_MAX_WORKERS", "5"))
-RETRY_ATTEMPTS     = int(os.getenv("SERPER_RETRIES",      "3"))
-RETRY_BACKOFF_BASE = float(os.getenv("SERPER_BACKOFF",     "1.0"))
+RETRY_ATTEMPTS = int(os.getenv("SERPER_RETRIES", "3"))
+RETRY_BACKOFF_BASE = float(os.getenv("SERPER_BACKOFF", "1.0"))
 
-# --- fallback sources for plant/region/disease queries ---
 RELIABLE_SOURCES: Dict[str, str] = {
-    "Wikipedia":         "https://en.wikipedia.org/wiki/",
-    "Open Library":      "https://openlibrary.org/search?q=",
+    "Wikipedia": "https://en.wikipedia.org/wiki/",
+    "Open Library": "https://openlibrary.org/search?q=",
     "Project Gutenberg": "https://www.gutenberg.org/ebooks/search/?query=",
-    "PubMed":            "https://pubmed.ncbi.nlm.nih.gov/?term=",
+    "PubMed": "https://pubmed.ncbi.nlm.nih.gov/?term=",
 }
 
 def _sync_scrape_text(url: str) -> str:
-    """Blocking scrape + plain‑text extraction (BeautifulSoup)."""
     if not url:
         return ""
     try:
@@ -40,30 +36,42 @@ def _sync_scrape_text(url: str) -> str:
                 tag.decompose()
             return soup.get_text(separator=" ", strip=True)
     except HTTPStatusError as http_err:
-        if http_err.response.status_code == 403:
-            logger.warning(f"Scrape forbidden (403) for {url}")
-        else:
-            logger.warning(f"HTTP error scraping {url}: {http_err}")
+        logger.warning(f"HTTP error scraping {url}: {http_err}")
         return ""
     except Exception as exc:
         logger.warning(f"Scrape failed for {url}: {exc}")
         return ""
 
 async def _scrape_page_text(url: str) -> str:
-    """Async wrapper around the blocking scraper."""
     return await asyncio.to_thread(_sync_scrape_text, url)
 
 async def _get_json_with_retry(
     client: httpx.AsyncClient, url: str, params: Dict[str, Any]
 ) -> Dict[str, Any]:
-    """Serper API call with retry + exponential backoff."""
+    """HTTP GET with retry that works with both real and mocked responses."""
     for attempt in range(1, RETRY_ATTEMPTS + 1):
         try:
             resp = await client.get(url, params=params, headers=HEADERS, timeout=10.0)
-            resp.raise_for_status()
+
+            # ✅ Works even if mocked object lacks raise_for_status
+            if hasattr(resp, "raise_for_status") and callable(resp.raise_for_status):
+                resp.raise_for_status()
+            else:
+                if getattr(resp, "status_code", 200) >= 400:
+                    raise HTTPStatusError(
+                        f"HTTP {getattr(resp, 'status_code', '?')}",
+                        request=None,
+                        response=resp
+                    )
+
             return resp.json()
+
         except HTTPStatusError as http_err:
-            logger.error(f"Serper API error [{http_err.response.status_code}]: {http_err.response.text}")
+            # Real API errors
+            logger.error(
+                f"Serper API error [{getattr(http_err.response, 'status_code', '?')}]: "
+                f"{getattr(http_err.response, 'text', http_err)}"
+            )
             raise
         except Exception as exc:
             if attempt == RETRY_ATTEMPTS:
@@ -72,6 +80,7 @@ async def _get_json_with_retry(
             backoff = RETRY_BACKOFF_BASE * (2 ** (attempt - 1))
             logger.info(f"Retrying Serper API in {backoff:.1f}s (attempt {attempt}/{RETRY_ATTEMPTS})")
             await asyncio.sleep(backoff)
+
     raise RuntimeError("Unreachable retry logic in _get_json_with_retry")
 
 async def fetch_search_results(
@@ -80,34 +89,30 @@ async def fetch_search_results(
     gl: str = "in",
     hl: str = "en",
 ) -> Dict[str, Any]:
-    """
-    1. If no SERPER_API_KEY: return curated “reliable” lookup links.  
-    2. Otherwise call Serper, take up to num_results organic entries, 
-       scrape each in parallel (bounded), and fallback to snippet or
-       to a matching RELIABLE_SOURCE when scrape is empty.
-    """
-    # --- 1) fallback when no API key ---
+    """Performs search via Serper or returns fallback links if no API key."""
+    # --- fallback ---
     if not SERPER_API_KEY:
         logger.warning("SERPER_API_KEY missing: returning RELIABLE_SOURCES fallback")
         q = quote_plus(query)
-        organic = []
-        for name, prefix in RELIABLE_SOURCES.items():
-            organic.append({
-                "title":   name,
-                "link":    prefix + q,
+        organic = [
+            {
+                "title": name,
+                "link": prefix + q,
                 "snippet": f"Search '{query}' on {name}",
                 "page_content": "",
-            })
+            }
+            for name, prefix in RELIABLE_SOURCES.items()
+        ]
         return {"organic": organic, "fallback": True}
 
-    # --- 2) call Serper ---
+    # --- API call ---
     params = {
-        "q":     query,
-        "gl":    gl,
-        "hl":    hl,
+        "q": query,
+        "gl": gl,
+        "hl": hl,
         "apiKey": SERPER_API_KEY,
-        "num":    num_results,
-        "full":   "true",
+        "num": num_results,
+        "full": "true",
         "output": "detailed",
     }
     async with httpx.AsyncClient() as client:
@@ -116,17 +121,16 @@ async def fetch_search_results(
     raw_organic = data.get("organic") or []
     results = raw_organic[:num_results]
 
-    # --- 3) bounded concurrent scraping ---
+    # --- scrape in parallel ---
     sem = asyncio.Semaphore(MAX_SCRAPE_WORKERS)
+
     async def _enrich(entry: Dict[str, Any]) -> None:
         link = entry.get("link") or ""
         content = ""
         if link:
             async with sem:
                 content = await _scrape_page_text(link)
-        # if scrape failed, fallback to snippet
         entry["page_content"] = content or entry.get("snippet", "")
-        # if still empty, and link’s domain in RELIABLE_SOURCES, replace link
         if not entry["page_content"]:
             for name, prefix in RELIABLE_SOURCES.items():
                 if name.lower() in link.lower():

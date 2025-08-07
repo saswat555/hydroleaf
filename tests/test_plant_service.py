@@ -2,6 +2,8 @@
 
 import pytest
 from fastapi import HTTPException
+from types import SimpleNamespace
+
 from app.services.plant_service import (
     create_plant,
     list_plants_by_farm,
@@ -129,3 +131,24 @@ async def test_delete_plant_success_and_missing():
     sess2 = FakePlantSession(single=p)
     out = await delete_plant(13, db=sess2)
     assert out == {"message": "Plant deleted successfully"}
+
+
+
+@pytest.mark.asyncio
+async def test_list_plants_empty():
+    # when there are no plants in the farm, you get back an empty list
+    sess = FakePlantSession(plants=[], single=SimpleNamespace(id=5))
+    plants = await list_plants_by_farm(farm_id=5, db=sess)
+    assert plants == []
+
+@pytest.mark.asyncio
+async def test_get_plant_by_id_success():
+    # retrieving an existing plant returns it directly
+    p = Plant(
+        id=42, farm_id=7, name="Basil", type="herb", growth_stage="seed",
+        seeding_date="2025-08-01T00:00:00Z", region="Kitchen", location_description="Window",
+        target_ph_min=6.0, target_ph_max=7.0, target_tds_min=250, target_tds_max=450
+    )
+    sess = FakePlantSession(single=p)
+    result = await get_plant_by_id(42, db=sess)
+    assert result is p

@@ -86,5 +86,9 @@ async def set_dosing_profile_service(
         raise HTTPException(status_code=500, detail="Error saving dosing profile") from exc
 
     # 6) Return both the actions and the freshly created profile
+    # build a JSON-serializable dict
     profile_out = DosingProfileResponse.from_orm(new_profile)
-    return {"recommended_dose": actions, "profile": profile_out}
+    return {
+        "recommended_dose": actions,
+        **profile_out.model_dump(),         # expand all profile fields at top level
+    }

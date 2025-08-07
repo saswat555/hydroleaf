@@ -12,7 +12,7 @@ async def analyze_supply_chain(request: TransportRequest, db: AsyncSession = Dep
     Trigger the transport optimization analysis and return the results.
     """
     try:
-        result = await trigger_transport_analysis(request.dict(), db)
+        result = await trigger_transport_analysis(request.model_dump(), db)
         # result["analysis"] is the analysis record dictionary returned from our service
         return result["analysis"]
     except Exception as e:

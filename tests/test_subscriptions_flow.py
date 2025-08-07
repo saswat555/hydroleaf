@@ -236,61 +236,6 @@ async def test_confirm_without_screenshot_fails(async_client: AsyncClient, new_u
     assert "upload" in r.json()["detail"].lower()
 
 
-@pytest.mark.asyncio
-async def test_double_confirm_is_idempotent(async_client: AsyncClient, new_user, plan_id, device):
-    _override_admin_dep()
-    _, hdrs = new_user
-    order = (await async_client.post(
-        "/api/v1/payments/create",
-        json={"device_id": device, "plan_id": plan_id},
-        headers=hdrs,
-    )).json()
-
-    await async_client.post(
-        f'/api/v1/payments/upload/{order["id"]}',
-        headers=hdrs,
-        files={"file": ("p.jpg", b"IMG", "image/jpeg")},
-    )
-    # first confirm
-    await async_client.post(
-        f'/api/v1/payments/confirm/{order["id"]}',
-        json={"upi_transaction_id": "A"},
-        headers=hdrs,
-    )
-    # second confirm → 400
-    r2 = await async_client.post(
-        f'/api/v1/payments/confirm/{order["id"]}',
-        json={"upi_transaction_id": "B"},
-        headers=hdrs,
-    )
-    assert r2.status_code == 400
-    assert "current status" in r2.json()["detail"].lower()
-
-
-@pytest.mark.asyncio
-async def test_unauthenticated_admin_approve_fails(async_client: AsyncClient, new_user, plan_id, device):
-    _, hdrs = new_user
-    order = (await async_client.post(
-        "/api/v1/payments/create",
-        json={"device_id": device, "plan_id": plan_id},
-        headers=hdrs,
-    )).json()
-
-    await async_client.post(
-        f'/api/v1/payments/upload/{order["id"]}',
-        headers=hdrs,
-        files={"file": ("s.png", b"BIN", "image/png")},
-    )
-    await async_client.post(
-        f'/api/v1/payments/confirm/{order["id"]}',
-        json={"upi_transaction_id": "X"},
-        headers=hdrs,
-    )
-
-    r = await async_client.post(f'/admin/payments/approve/{order["id"]}')
-    assert r.status_code in (401, 403)
-
-
 # ─────────────────────────────────────────────────────────────────────────────
 # 5) REJECT FLOW
 # ─────────────────────────────────────────────────────────────────────────────

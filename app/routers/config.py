@@ -2,7 +2,6 @@
 
 from fastapi import APIRouter, HTTPException, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.future import select
 from typing import List
 from sqlalchemy import select, func
 from app.core.database import get_db
@@ -13,8 +12,7 @@ from app.schemas import (
     PlantCreate,
     PlantResponse
 )
-from app.models import Device, DosingOperation, DosingProfile, Plant, SensorReading
-
+from app.models import Device, DosingProfile
 router = APIRouter()
 
 @router.get("/system-info", summary="Get system information")

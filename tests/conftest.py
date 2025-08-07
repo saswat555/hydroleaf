@@ -15,6 +15,7 @@ import sys
 import datetime as _dt
 from pathlib import Path
 from dotenv import load_dotenv
+import tests.virtual_iot as _virtual_iot
 
 # 1) Load .env from project root, then force TESTING
 ROOT = Path(__file__).resolve().parents[1]
@@ -119,28 +120,15 @@ def _truncate_tables_after_each_test():
             conn.execute(text(f'TRUNCATE TABLE "{tbl.name}" RESTART IDENTITY CASCADE'))
         conn.execute(text("SET session_replication_role = DEFAULT;"))
 
-# ───── DeviceController mock ─────
-class MockController:
-    def __init__(self, device_ip: str, request_timeout: float = 10.0):
-        self.device_ip = device_ip
 
-    async def discover(self):
-        suffix_map = {
-            "dosing": {"device_id": "dev-dosing", "name": "Mock Dosing", "type": "dosing_unit"},
-            "sensor": {"device_id": "dev-sensor", "name": "Mock Sensor", "type": "ph_tds_sensor"},
-            "valve": {"device_id": "dev-valve",  "name": "Mock Valve",  "type": "valve_controller"},
-            "switch": {"device_id": "dev-switch", "name": "Mock Switch", "type": "smart_switch"},
-        }
-        for suf, payload in suffix_map.items():
-            if self.device_ip.endswith(suf):
-                return {**payload, "ip": self.device_ip}
-        return None
+# ───── Virtual IoT services ─────
 
-@pytest.fixture(autouse=True)
-def _patch_device_controller(monkeypatch, request):
-    if "async_client" in request.fixturenames:
-        import app.services.device_controller as dc_mod
-        monkeypatch.setattr(dc_mod, "DeviceController", MockController)
+@pytest.fixture(scope="session", autouse=True)
+def virtual_iot_services():
+    # start four FastAPI-based device emulators on localhost:8001–8004
+    _virtual_iot.start_virtual_iot()
+    yield
+    _virtual_iot.stop_virtual_iot()
 
 # ───── Camera data root helper ─────
 @pytest.fixture(autouse=True)

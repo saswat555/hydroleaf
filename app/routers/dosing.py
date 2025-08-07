@@ -153,9 +153,10 @@ async def llm_dosing_request(
 
         # Process the dosing request
         from app.services.llm import process_dosing_request
-        result,raw = await process_dosing_request(device_id, request.sensor_data, request.plant_profile, db)
-
-        return result,raw
+        result, raw = await process_dosing_request(
+            device_id, request.sensor_data, request.plant_profile, db
+        )
+        return {"result": result, "raw": raw}
 
     except HTTPException as he:
         raise he  # Allow already handled errors to propagate correctly

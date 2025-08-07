@@ -17,9 +17,16 @@ from sqlalchemy import (
 )
 from sqlalchemy.orm import relationship, synonym
 from sqlalchemy import Enum as Enum 
+from sqlalchemy import Index
 from app.core.database import Base
 from app.schemas import DeviceType
 
+class TaskStatus(PyEnum):
+    PENDING   = "pending"
+    LEASED    = "leased"      # leased by a device, invisible to others
+    COMPLETED = "completed"
+    FAILED    = "failed"
+    CANCELLED = "cancelled"
 
 # -------------------------------------------------------------------
 # USERS & PROFILES
@@ -202,20 +209,35 @@ class DeviceCommand(Base):
         nullable=False,
     )
     parameters    = Column(JSON, nullable=True)     # e.g. {"url": "..."}
-    issued_at     = Column(DateTime, default=datetime.utcnow)
+    issued_at     = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     dispatched    = Column(Boolean, default=False)
 
 class Task(Base):
     __tablename__ = "tasks"
 
-    id           = Column(Integer, primary_key=True, index=True)
-    device_id= Column(String(64), ForeignKey("devices.id", ondelete="CASCADE"), nullable=False, index=True)
-    type         = Column(String(50), nullable=False)
-    parameters   = Column(JSON)
-    status       = Column(String(50), nullable=False, default="pending")
-    created_at   = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    id         = Column(Integer, primary_key=True, index=True)
+    device_id  = Column(String(64), ForeignKey("devices.id", ondelete="CASCADE"), nullable=False, index=True)
+    type       = Column(String(50), nullable=False)
+    parameters = Column(JSON)
+    # ↓↓↓ REAL QUEUE FIELDS
+    status        = Column(Enum(TaskStatus, name="task_status", native_enum=False),
+                           nullable=False, server_default=TaskStatus.PENDING.value, index=True)
+    priority      = Column(Integer, nullable=False, server_default="100")           # higher first
+    available_at  = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
+    lease_id      = Column(String(64), nullable=True, index=True)                   # UUID hex
+    leased_until  = Column(DateTime(timezone=True), nullable=True, index=True)      # visibility timeout
+    attempts      = Column(Integer, nullable=False, server_default="0")
+    error_message = Column(String(255))
+
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
     device = relationship("Device", back_populates="tasks")
+
+    __table_args__ = (
+        # fast lookups for “available for this device”
+        Index("ix_tasks_device_status_avail", "device_id", "status", "available_at"),
+        Index("ix_tasks_device_lease", "device_id", "lease_id"),
+    )
 
 
 class SensorReading(Base):
@@ -321,7 +343,7 @@ class SubscriptionPlan(Base):
     device_types  = Column(JSON, nullable=False)    # e.g. ["dosing_unit"]
     duration_days = Column(Integer, nullable=False)  # 28 to 730
     price_cents   = Column(Integer, nullable=False)
-    created_by    = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=False)
+    created_by    = Column(Integer, ForeignKey("admins.id", ondelete="SET NULL"), nullable=True)
     created_at    = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
     activation_keys = relationship("ActivationKey", back_populates="plan", cascade="all, delete-orphan")
@@ -336,7 +358,7 @@ class ActivationKey(Base):
     key                 = Column(String(64), unique=True, nullable=False, index=True)
     device_type         = Column(Enum(DeviceType, name="activation_device_type"), nullable=False)
     plan_id             = Column(Integer, ForeignKey("subscription_plans.id", ondelete="CASCADE"), nullable=False)
-    created_by          = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=False)
+    created_by          = Column(Integer, ForeignKey("admins.id", ondelete="SET NULL"), nullable=True)
     created_at          = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     redeemed            = Column(Boolean, default=False, nullable=False)
     redeemed_at         = Column(DateTime(timezone=True), nullable=True)
@@ -345,7 +367,7 @@ class ActivationKey(Base):
     allowed_device_id   = Column(String(64), ForeignKey("devices.id", ondelete="SET NULL"))
 
     plan             = relationship("SubscriptionPlan", back_populates="activation_keys")
-    creator          = relationship("User", foreign_keys=[created_by])
+    creator          = relationship("Admin", foreign_keys=[created_by])
     redeemed_device  = relationship("Device", foreign_keys=[redeemed_device_id])
     redeemed_user    = relationship("User", foreign_keys=[redeemed_user_id])
     allowed_device   = relationship("Device", foreign_keys=[allowed_device_id], backref="allowed_activation_keys")
@@ -357,7 +379,7 @@ class Subscription(Base):
     id         = Column(Integer, primary_key=True, index=True)
     user_id    = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     device_id = Column(String(64), ForeignKey("devices.id", ondelete="CASCADE"))
-    plan_id    = Column(Integer, ForeignKey("subscription_plans.id", ondelete="SET NULL"), nullable=False)
+    plan_id    = Column(Integer, ForeignKey("subscription_plans.id", ondelete="SET NULL"), nullable=True)
     start_date = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     end_date   = Column(DateTime(timezone=True), nullable=False)
     active     = Column(Boolean, default=True, nullable=False)
@@ -381,7 +403,7 @@ class PaymentOrder(Base):
     id                 = Column(Integer, primary_key=True, index=True)
     user_id            = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     device_id          = Column(String(64), ForeignKey("devices.id", ondelete="CASCADE"))
-    plan_id            = Column(Integer, ForeignKey("subscription_plans.id", ondelete="SET NULL"), nullable=False)
+    plan_id            = Column(Integer, ForeignKey("subscription_plans.id", ondelete="SET NULL"), nullable=True)
     amount_cents       = Column(Integer, nullable=False)
     status             = Column(Enum(PaymentStatus, name="payment_status"), default=PaymentStatus.PENDING, nullable=False)
     upi_transaction_id = Column(String(64))
@@ -483,7 +505,7 @@ class Admin(Base):
 class ValveState(Base):
     __tablename__ = "valve_states"
     device_id  = Column(String(64), primary_key=True, index=True)
-    states     = Column(JSON, nullable=False, default={})
+    states     = Column(JSON, nullable=False, default=dict)
     updated_at = Column(DateTime(timezone=True),
                         server_default=func.now(),
                         onupdate=func.now(),
@@ -492,7 +514,7 @@ class ValveState(Base):
 class SwitchState(Base):
     __tablename__ = "switch_states"
     device_id  = Column(String(64), primary_key=True, index=True)
-    states     = Column(JSON, nullable=False, default={})
+    states     = Column(JSON, nullable=False, default=dict)
     updated_at = Column(DateTime(timezone=True),
                         server_default=func.now(),
                         onupdate=func.now(),

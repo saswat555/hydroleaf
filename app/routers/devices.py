@@ -27,6 +27,8 @@ from app.schemas import (
     ValveDeviceCreate,
     SwitchDeviceCreate,
 )
+from urllib.parse import urlparse  # add at top
+
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -62,7 +64,10 @@ async def discover_cloud_device(device: Device, client: httpx.AsyncClient) -> di
         response = await asyncio.wait_for(client.get(url), timeout=2.0)
         if response.status_code == 200:
             data = response.json()
-            data["ip"] = device.http_endpoint
+            parsed = urlparse(device.http_endpoint if device.http_endpoint.startswith(("http://", "https://")) else f"http://{device.http_endpoint}")
+            host = parsed.hostname or device.http_endpoint
+            port = parsed.port or (443 if parsed.scheme == "https" else 80)
+            data["ip"] = f"{host}:{port}"
             return data
     except Exception as e:
         logger.error(f"Cloud discovery error for device {device.id} at {device.http_endpoint}: {e}")
@@ -74,7 +79,7 @@ async def discover_lan_device(ip: str, port: str, client: httpx.AsyncClient) -> 
         response = await asyncio.wait_for(client.get(url), timeout=2.0)
         if response.status_code == 200:
             data = response.json()
-            data["ip"] = ip
+            data["ip"] = f"{ip}:{port}"
             return data
     except Exception as e:
         logger.debug(f"No response from {ip}:{port} - {e}")
@@ -195,7 +200,8 @@ async def create_dosing_device(
 @router.post("/sensor", response_model=DeviceResponse)
 async def create_sensor_device(
     device: SensorDeviceCreate,
-    session: AsyncSession = Depends(get_db)
+    session: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     try:
         new_device = Device(
@@ -206,7 +212,8 @@ async def create_sensor_device(
             location_description=device.location_description,
             sensor_parameters=device.sensor_parameters,
             is_active=True,
-            farm_id=device.farm_id
+            farm_id=device.farm_id,
+            user_id=current_user.id,
         )
         session.add(new_device)
         await session.commit()
@@ -229,15 +236,19 @@ async def get_device(device_id: str = PathParam(..., description="MAC ID of the 
         raise HTTPException(status_code=404, detail="Device not found")
     return device
 
-@router.get("/sensoreading/{device_id}")
+@router.get("/{device_id}/sensoreading")
 async def get_sensor_readings(device_id: str, db: AsyncSession = Depends(get_db)):
     result = await db.execute(select(Device).where(Device.id == device_id))
     device = result.scalar_one_or_none()
     if not device:
         raise HTTPException(status_code=404, detail="Device not found")
-    sensor_data = await getSensorData(device)
-    return sensor_data
-
+    try:
+        async with httpx.AsyncClient() as client:
+            r = await client.get(f"{device.http_endpoint.rstrip('/')}/sensor", timeout=5)
+            r.raise_for_status()
+            return r.json()
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Failed to fetch sensor data: {e}")
 
 @router.get("/device/{device_id}/version", summary="Get device version")
 async def get_device_version(device_id: str, db: AsyncSession = Depends(get_db)):
@@ -308,7 +319,7 @@ async def list_my_devices(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    now = datetime.now(timezone.utc)
+    now = datetime.datetime.now(datetime.timezone.utc)
     # only devices I own *and* that have an active subscription right now
     q = (
         select(Device)

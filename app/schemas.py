@@ -131,6 +131,7 @@ class HealthCheck(BaseModel):
     version: str
     timestamp: datetime
     environment: str
+    uptime: float
 
 class DatabaseHealthCheck(BaseModel):
     status: str

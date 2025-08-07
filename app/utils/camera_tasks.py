@@ -28,8 +28,7 @@ from typing import Any
 import cv2
 import numpy as np
 from sqlalchemy import func, select
-from ultralytics import YOLO
-
+from app.utils.detectors import get_detector
 from app.core.config import (
     BOUNDARY,
     CAM_DETECTION_WORKERS,
@@ -53,8 +52,7 @@ logger = logging.getLogger(__name__)
 os.environ.setdefault("OPENCV_LOG_LEVEL", "SILENT")
 
 _executor = asyncio.get_event_loop().run_in_executor
-_model = YOLO(YOLO_MODEL_PATH)
-_LABELS = _model.names
+_detector = get_detector()
 
 # share the clip-writer dictionaries used by routers.cameras
 from app.routers.cameras import _clip_writers, _clip_locks, CLIP_DURATION  # noqa
@@ -80,31 +78,8 @@ def _ensure_dirs(cam_id: str) -> tuple[Path, Path, Path]:
 
 
 def _annotate(img: np.ndarray) -> tuple[np.ndarray, list[dict[str, Any]]]:
-    """
-    Run YOLO → draw boxes → return (annotated_frame, detections list)
-    """
-    res = _model(img, imgsz=640, conf=0.35, verbose=False)[0]
-    detections: list[dict[str, Any]] = []
-
-    for box, conf, cls in zip(res.boxes.xyxy, res.boxes.conf, res.boxes.cls):
-        x1, y1, x2, y2 = map(int, box.tolist())
-        cls_name = _LABELS[int(cls)]
-        detections.append(
-            {"name": cls_name, "conf": float(conf), "bbox": (x1, y1, x2, y2)}
-        )
-        label = f"{cls_name}:{conf:.2f}"
-        cv2.rectangle(img, (x1, y1), (x2, y2), (0, 255, 0), 2)
-        cv2.putText(
-            img,
-            label,
-            (x1, y1 - 6),
-            cv2.FONT_HERSHEY_SIMPLEX,
-            0.5,
-            (0, 255, 0),
-            1,
-        )
-    return img, detections
-
+    """Delegate to configured detector (YOLO in prod; stub in CI)."""
+    return _detector.detect_and_annotate(img)
 
 async def _call_disease_model(crop_path: Path) -> None:
     """

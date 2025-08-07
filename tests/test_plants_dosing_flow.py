@@ -1,38 +1,14 @@
 # tests/test_plants_dosing_flow.py
-
+import os, importlib
 import json
 import datetime as dt
 import pytest
 from httpx import AsyncClient
 
+# force real Ollama integration
+os.environ["USE_OLLAMA"] = "true"
 import app.services.llm as llm_mod
-from app.services.llm import call_llm_async as real_call_llm
-
-
-@pytest.fixture(autouse=True)
-def fake_llm(monkeypatch):
-    """
-    Replace call_llm_async with a deterministic fake that always returns
-    one action of 5 mL on pump 1.
-    """
-    async def _fake_call_llm(prompt, model):
-        parsed = {
-            "actions": [
-                {
-                    "pump_number": 1,
-                    "chemical_name": "N",
-                    "dose_ml": 5,
-                    "reasoning": "unit test dosing"
-                }
-            ]
-        }
-        raw = json.dumps(parsed)
-        return parsed, raw
-
-    monkeypatch.setattr(llm_mod, "call_llm_async", _fake_call_llm)
-    yield
-    # restore real LLM after tests
-    monkeypatch.setattr(llm_mod, "call_llm_async", real_call_llm)
+importlib.reload(llm_mod)
 
 
 @pytest.mark.asyncio
@@ -147,3 +123,38 @@ async def test_complete_plants_dosing_flow(async_client: AsyncClient, signed_up_
     t1 = dt.datetime.fromisoformat(logs[0]["timestamp"].rstrip("Z"))
     t2 = dt.datetime.fromisoformat(logs[1]["timestamp"].rstrip("Z"))
     assert t1 < t2
+
+
+@pytest.mark.asyncio
+async def test_dosing_run_fails_without_plant(async_client: AsyncClient, signed_up_user):
+    # user + headers
+    _, _, headers = signed_up_user
+
+    # create a farm (but NO plant)
+    farm = (await async_client.post(
+        "/api/v1/farms/",
+        json={"name":"NoPlant Farm","address":"A","latitude":0,"longitude":0},
+        headers=headers,
+    )).json()
+    farm_id = farm["id"]
+
+    # register a dosing device
+    device = (await async_client.post(
+        "/api/v1/devices/dosing",
+        json={
+            "mac_id": "NP:AA:BB",
+            "name": "NoPlant Doser",
+            "type": "dosing_unit",
+            "http_endpoint": "http://doser.local",
+            "pump_configurations": [{"pump_number": 1, "chemical_name": "N"}],
+        },
+        headers=headers,
+    )).json()["id"]
+
+    # try to run dosing with a bogus plant_id → must fail
+    resp = await async_client.post(
+        "/api/v1/dosing/run",
+        json={"farm_id": farm_id, "plant_id": 999999, "device_id": device},
+        headers=headers,
+    )
+    assert resp.status_code in (400, 404, 422)  # failure expected

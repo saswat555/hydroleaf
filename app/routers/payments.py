@@ -19,9 +19,8 @@ Flow
 """
 
 from pathlib import Path
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
-import segno
 from fastapi import APIRouter, Depends, File, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
@@ -52,16 +51,10 @@ router.include_router(admin_router)
 # ─────────────────────────────────────────────────────────────────────────────
 # Globals & helpers
 # ─────────────────────────────────────────────────────────────────────────────
-QR_DIR = Path("app/static/qr_codes")
+QR_DIR         = Path("app/static/qr_codes")
+STATIC_QR_FILE = QR_DIR / "hydroleaf_upi.png"
+STATIC_QR_URL  = f"/static/qr_codes/{STATIC_QR_FILE.name}"
 QR_DIR.mkdir(parents=True, exist_ok=True)
-
-UPI_ID           = "your-upi-id@bank"                         # ← update IRL
-CONSTANT_UPI_URL = f"upi://pay?pa={UPI_ID}&pn=Hydroleaf&cu=INR"
-STATIC_QR_FILE   = QR_DIR / "hydroleaf_upi.png"
-STATIC_QR_URL    = f"/static/qr_codes/{STATIC_QR_FILE.name}"
-
-if not STATIC_QR_FILE.exists():
-    segno.make(CONSTANT_UPI_URL).save(str(STATIC_QR_FILE), scale=5, border=1)
 
 # ─────────────────────────────────────────────────────────────────────────────
 # User-side routes
@@ -87,7 +80,7 @@ async def create_payment(
         device_id    = req.device_id,
         plan_id      = plan.id,
         amount_cents = plan.price_cents,
-        expires_at   = datetime.utcnow() + timedelta(hours=1),
+        expires_at   = datetime.now(timezone.utc) + timedelta(hours=1),
     )
     db.add(order)
     await db.commit()
@@ -112,7 +105,7 @@ async def confirm_payment(
         raise HTTPException(404, "Payment order not found")
     if order.status != PaymentStatus.PENDING:
         raise HTTPException(400, "Order is not in PENDING state")
-    if order.expires_at and order.expires_at < datetime.utcnow():
+    if order.expires_at and order.expires_at < datetime.now(timezone.utc):
         raise HTTPException(400, "Order has expired – create a new one")
 
     order.upi_transaction_id = req.upi_transaction_id
@@ -171,7 +164,7 @@ async def approve_payment(
     order.status = PaymentStatus.COMPLETED
 
     # 2) activate subscription
-    now  = datetime.utcnow()
+    now  = datetime.now(timezone.utc)
     plan = await db.get(SubscriptionPlan, order.plan_id)
     sub  = Subscription(
         user_id    = order.user_id,

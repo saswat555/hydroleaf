@@ -8,7 +8,7 @@ from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials, OAuth2PasswordBearer
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-
+from jwt import InvalidTokenError
 from app.core.config import SECRET_KEY as CONFIG_SECRET
 from app.core.database import get_db
 from app.models import (
@@ -20,11 +20,9 @@ from app.models import (
     Subscription,
     SubscriptionPlan,
     DeviceToken,
-    DeviceType,
 )
-
 # --- auth schemes & settings ----------------------------------------
-
+from app.schemas import DeviceType
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login")
 bearer_scheme = HTTPBearer()
 
@@ -43,7 +41,7 @@ async def get_current_user(
         user_id: str = payload.get("user_id")
         if not user_id:
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid authentication credentials")
-    except JWTError:
+    except InvalidTokenError:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Could not validate credentials")
 
     result = await db.execute(select(User).where(User.id == user_id))
@@ -62,7 +60,7 @@ async def get_current_admin(
         admin_id: str = payload.get("user_id")
         if not admin_id:
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid authentication credentials")
-    except JWTError:
+    except InvalidTokenError:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Could not validate credentials")
 
     result = await db.execute(select(Admin).where(Admin.id == admin_id))
@@ -149,5 +147,12 @@ async def verify_device_token(
     if getattr(tok_row, "expires_at", None) and tok_row.expires_at < datetime.now(timezone.utc):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Device token expired")
 
-    # 4) success!
-    return tok_row.device_id
+    # 4) device must exist and be active
+    device = await db.get(Device, tok_row.device_id)
+    if not device:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Device not found")
+    if getattr(device, "is_active", True) is False:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Device is inactive")
+
+    # 5) success!
+    return device.id

@@ -25,8 +25,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import DATA_ROOT, PROCESSED_DIR, RAW_DIR
 from app.core.database import get_db
 from app.dependencies import get_current_admin
-from app.models import Device, DeviceToken, DeviceType
-from app.schemas import DeviceResponse, CameraReportResponse
+from app.models import Device, DeviceToken
+from app.schemas import DeviceResponse, CameraReportResponse, DeviceType
 
 # ─────────────────────────────────────────────────────────────────────────────
 router = APIRouter(

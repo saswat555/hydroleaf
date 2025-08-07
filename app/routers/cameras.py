@@ -4,8 +4,6 @@ import time
 from pathlib import Path
 from collections import defaultdict
 
-import numpy as np
-import cv2
 from fastapi import (
     APIRouter,
     Depends,
@@ -72,7 +70,8 @@ async def _process_upload(
     raw_file = raw_dir / f"{ts}.jpg"
     raw_file.write_bytes(body)
     latest_file = base / "latest.jpg"
-    tmp_latest = latest_file.with_suffix('.jpg.tmp')
+    # Use a single suffix; then atomically rename to latest.jpg
+    tmp_latest = latest_file.with_suffix('.tmp')
     tmp_latest.write_bytes(body)
     tmp_latest.rename(latest_file)
     background_tasks.add_task(camera_queue.enqueue, camera_id, latest_file)
@@ -148,7 +147,7 @@ def stream(
                         f"Content-Type: image/jpeg\r\n"
                         f"Content-Length: {len(data)}\r\n\r\n"
                     ).encode() + data + b"\r\n"
-            await asyncio.sleep(1 / FPS)
+            await asyncio.sleep(1 / max(FPS, 1))
 
     return StreamingResponse(
         gen(), media_type=f"multipart/x-mixed-replace; boundary={BOUNDARY}"

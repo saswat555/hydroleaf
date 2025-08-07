@@ -3,25 +3,29 @@
 Integration-style tests for app.services.llm
 -------------------------------------------
 
-• If USE_OLLAMA=true (or TESTING=1) we hit your local Ollama server.
-  Tests are skipped if it isn’t reachable.
-• Otherwise we hit OpenAI.  Skipped if OPENAI_API_KEY is missing.
-• SERPER_API_KEY tests for build_plan_prompt are also skipped if missing.
+These tests exercise:
+- Utility functions (no I/O)
+- Prompt builders
+- A live call against Ollama's HTTP API at /api/models and /api/generate
 """
-from __future__ import annotations
+
 import os
+import re
 import json
 import pytest
 import httpx
 from dotenv import load_dotenv
 
-# 1) Load .env and THEN import llm so it sees the right env vars
+# 1) Load .env and THEN force USE_OLLAMA (and disable TESTING)
 ROOT = os.path.dirname(os.path.dirname(__file__))
 load_dotenv(os.path.join(ROOT, ".env"))
+os.environ.pop("TESTING", None)
+os.environ["USE_OLLAMA"] = "true"
 
+# 2) Reload the module so it picks up the new env settings
 import importlib
 import app.services.llm as llm
-importlib.reload(llm)  # ensure module picks up freshly loaded env vars
+importlib.reload(llm)
 
 from app.services.llm import (
     enhance_query,
@@ -35,29 +39,24 @@ from app.services.llm import (
 )
 
 # ───────────────────────────────────────────────────────────────────────────── #
-# Helper utilities                                                             #
+# Helpers for integration checks                                              #
 # ───────────────────────────────────────────────────────────────────────────── #
 
-async def _ollama_available() -> bool:
-    base = llm.OLLAMA_URL.split("/api/")[0]
+async def is_ollama_up() -> bool:
+    """Check that Ollama's HTTP API is reachable at /api/models."""
+    base = llm.OLLAMA_URL.rsplit("/api/", 1)[0]
     try:
         async with httpx.AsyncClient(timeout=2) as client:
-            r = await client.get(f"{base}/api/tags")
+            r = await client.get(f"{base}/api/models")
             return r.status_code == 200
     except Exception:
         return False
-
-def _openai_key_present() -> bool:
-    return bool(os.getenv("OPENAI_API_KEY"))
-
-def _serper_key_present() -> bool:
-    return bool(os.getenv("SERPER_API_KEY"))
 
 # ───────────────────────────────────────────────────────────────────────────── #
 # 1. Pure utility functions (no I/O)                                           #
 # ───────────────────────────────────────────────────────────────────────────── #
 
-def test_enhance_query_adds_context() -> None:
+def test_enhance_query_adds_context():
     q = "Adjust dose"
     profile = {
         "plant_name": "Rose",
@@ -69,53 +68,67 @@ def test_enhance_query_adds_context() -> None:
     out = enhance_query(q, profile)
     assert "Please consider that the plant 'Rose'" in out
 
-def test_enhance_query_no_duplicate_location() -> None:
+def test_enhance_query_no_duplicate_location():
     q = "dose in Farm"
     profile = {"location": "Farm"}
     out = enhance_query(q, profile)
     assert "Please consider that the plant" not in out
 
-def test_parse_json_response_valid() -> None:
-    s = "{ 'a': 1, 'b': 2 } trailing"
+def test_parse_json_response_valid_simple():
+    # single‐quoted JSON with trailing text
+    s = "blah { 'a': 1 , 'b': [2,3] } extra"
     res = parse_json_response(s)
-    assert res == {"a": 1, "b": 2}
+    assert res == {"a": 1, "b": [2, 3]}
 
-def test_parse_json_response_malformed() -> None:
+def test_parse_json_response_double_quotes_and_nested():
+    s = '{"x": {"y":2},"z":3} tail'
+    res = parse_json_response(s)
+    assert res == {"x": {"y": 2}, "z": 3}
+
+def test_parse_json_response_malformed():
     with pytest.raises(ValueError):
         parse_json_response("no json here")
 
-def test_parse_ollama_response_removes_think() -> None:
-    raw = "<think>debug</think>{\"x\":1}"
+def test_parse_ollama_response_strips_all_think_blocks():
+    raw = "<think>foo</think>   <think>bar</think>   {\"x\":1} tail"
     cleaned = parse_ollama_response(raw)
-    assert cleaned == "{\"x\":1}"
+    assert cleaned.strip() == '{"x":1}'
 
-def test_parse_openai_response_good() -> None:
-    raw = "prefix {\"y\":2} suffix"
+def test_parse_openai_response_extracts_first_json_block():
+    raw = (
+        "prefix```analysis\n"
+        "{'k':4,'l':[5,6]}\n"
+        "```\n"
+        "suffix {\"m\":7}"
+    )
     out = parse_openai_response(raw)
-    assert out == json.dumps({"y": 2})
+    # Must be a JSON string with double quotes and valid structure
+    assert re.match(r'^\{.*"k"\s*:\s*4.*"l"\s*:\s*\[5,6\].*\}$', out)
 
-def test_parse_openai_response_nested() -> None:
-    raw = "foo {\"a\":{\"b\":2}} bar"
+def test_parse_openai_response_nested_and_escaped():
+    raw = "foo {\"a\":{\"b\":[1,2,3]}} bar"
     out = parse_openai_response(raw)
-    assert out == json.dumps({"a": {"b": 2}})
+    parsed = json.loads(out)
+    assert parsed == {"a": {"b": [1, 2, 3]}}
 
-def test_parse_openai_response_bad() -> None:
+def test_parse_openai_response_bad_format():
     with pytest.raises(ValueError):
-        parse_openai_response("no braces at all")
+        parse_openai_response("definitely no braces")
 
-def test_validate_llm_response_good() -> None:
+def test_validate_llm_response_good():
     payload = {
         "actions": [
             {"pump_number": 1, "chemical_name": "A", "dose_ml": 10, "reasoning": "ok"}
         ]
     }
-    validate_llm_response(payload)  # should not raise
+    # should not raise
+    validate_llm_response(payload)
 
-def test_validate_llm_response_missing_actions() -> None:
+def test_validate_llm_response_missing_actions():
     with pytest.raises(ValueError):
         validate_llm_response({})
 
-def test_validate_llm_response_bad_dose() -> None:
+def test_validate_llm_response_bad_dose():
     bad = {
         "actions": [
             {"pump_number": 1, "chemical_name": "A", "dose_ml": -5, "reasoning": "oops"}
@@ -129,18 +142,14 @@ def test_validate_llm_response_bad_dose() -> None:
 # ───────────────────────────────────────────────────────────────────────────── #
 
 class _DummyDevice:
-    def __init__(self) -> None:
+    def __init__(self):
         self.id = "d1"
         self.pump_configurations = [
-            {
-                "pump_number": 1,
-                "chemical_name": "Chem-A",
-                "chemical_description": "Desc",
-            }
+            {"pump_number": 1, "chemical_name": "Chem-A", "chemical_description": "Desc"}
         ]
 
 @pytest.mark.asyncio
-async def test_build_dosing_prompt_contains_expected_sections() -> None:
+async def test_build_dosing_prompt_contains_expected_sections():
     dev = _DummyDevice()
     sensor = {"ph": 6.5, "tds": 300}
     profile = {
@@ -158,22 +167,18 @@ async def test_build_dosing_prompt_contains_expected_sections() -> None:
     }
     prompt = await build_dosing_prompt(dev, sensor, profile)
     assert "Pump 1: Chem-A" in prompt
-    assert "- pH: 6.5" in prompt
+    assert re.search(r"- pH:\s*6\.5", prompt)
 
 @pytest.mark.asyncio
-async def test_build_dosing_prompt_raises_when_no_pumps() -> None:
+async def test_build_dosing_prompt_raises_when_no_pumps():
     class NoPump:
         id = "x"
         pump_configurations = None
-
     with pytest.raises(ValueError):
         await build_dosing_prompt(NoPump(), {"ph": 7, "tds": 100}, {})
 
 @pytest.mark.asyncio
-async def test_build_plan_prompt_live_search() -> None:
-    if not _serper_key_present():
-        pytest.skip("SERPER_API_KEY missing – skipping live Serper test")
-
+async def test_build_plan_prompt_includes_search_insights_or_placeholder():
     sensor_data = {"P": 1, "TDS": 2}
     profile = {
         "plant_name": "TestPlant",
@@ -187,27 +192,42 @@ async def test_build_plan_prompt_live_search() -> None:
     assert "Detailed Search Insights" in prompt
 
 # ───────────────────────────────────────────────────────────────────────────── #
-# 3. Unified integration test                                                #
+# 3. Integration: live against local Ollama                                   #
 # ───────────────────────────────────────────────────────────────────────────── #
 
 @pytest.mark.asyncio
-async def test_call_llm_async_integration() -> None:
+async def test_call_llm_async_integration():
+    # 1) Skip if Ollama isn't running
+    if not await is_ollama_up():
+        pytest.skip("Local Ollama server not reachable at %s" % llm.OLLAMA_URL)
+
+    # 2) Ask it to return a simple JSON
     prompt = 'Return exactly this JSON: {"foo":42}'
-    if llm.USE_OLLAMA:
-        # Ollama must be reachable
-        available = await _ollama_available()
-        assert available, "Local Ollama server must be running for this integration test"
-        parsed, raw = await call_llm_async(prompt, llm.MODEL_1_5B)
-        assert isinstance(parsed, dict)
-        assert parsed["foo"] == 42
-        # raw should be the compact JSON
-        assert raw.strip() == json.dumps(parsed, separators=(",", ":"))
-    else:
-        # OPENAI_API_KEY must be present
-        assert _openai_key_present(), "OPENAI_API_KEY must be set for OpenAI integration test"
-        model = os.getenv("GPT_MODEL") or "gpt-3.5-turbo"
-        parsed, raw = await call_llm_async(prompt, model)
-        assert isinstance(parsed, dict)
-        assert parsed["foo"] == 42
-        # raw must be parseable to the same dict
-        assert json.loads(raw) == parsed
+    parsed, raw = await call_llm_async(prompt, llm.OLLAMA_MODEL)
+
+    # 3) Verify the parsed structure
+    assert isinstance(parsed, dict)
+    assert parsed.get("foo") == 42
+
+    # 4) Verify raw is compact JSON matching parsed
+    compact = json.dumps(parsed, separators=(",", ":"))
+    assert raw.strip() == compact
+
+def test_parse_openai_response_multiple_fences():
+    raw = ("Intro\n```analysis\n"
+           "{'a':1}\n```\n"
+           "some text\n```analysis\n{'b':2}\n```\n"
+           "end")
+    out = parse_openai_response(raw)
+    # must pick the FIRST valid block
+    assert out == '{"a":1}'
+
+@pytest.mark.asyncio
+async def test_build_plan_prompt_empty_insights_and_search(monkeypatch):
+    # no serper results AND no profile entries
+    async def empty_search(q): return []
+    monkeypatch.setattr("app.services.llm._serper_search", empty_search)
+
+    prompt = await build_plan_prompt(sensor_data={}, profile={}, query="grow")
+    assert "No external insights found" in prompt
+    assert "sensor data" in prompt or "plant profile" in prompt  # still include placeholders

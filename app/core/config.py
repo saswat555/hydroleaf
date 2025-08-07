@@ -3,8 +3,8 @@
 import os
 from pathlib import Path
 from dotenv import load_dotenv
-
 # load .env from project root
+
 DOTENV_PATH = Path(__file__).resolve().parents[2] / ".env"
 load_dotenv(dotenv_path=DOTENV_PATH, override=False)
 
@@ -78,7 +78,6 @@ LLM_REQUEST_TIMEOUT = _get_int("LLM_REQUEST_TIMEOUT", 300)
 
 # Third‑party API keys
 SERPER_API_KEY = os.getenv("SERPER_API_KEY", "")
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
 
 # JWT / session signing
 SECRET_KEY = os.getenv("SECRET_KEY")
@@ -87,6 +86,7 @@ if not SECRET_KEY:
         SECRET_KEY = "hydroleaf-test-secret"
     else:
         raise RuntimeError("SECRET_KEY is required for JWT/session signing")
+
 
 __all__ = [
     # core
@@ -102,10 +102,11 @@ __all__ = [
     "YOLO_MODEL_PATH", "CAM_DETECTION_WORKERS", "CAM_EVENT_GAP_SECONDS",
     "DETECTORS",
     # LLM
-    "USE_OLLAMA", "OLLAMA_HOST", "OLLAMA_URL",
-    "MODEL_NAME_1_5B", "MODEL_NAME_7B", "GPT_MODEL",
+    "LLM_PROVIDER", "OLLAMA_HOST", "OLLAMA_URL", "OLLAMA_MODEL",
+    "OPENAI_MODEL", "LLM_REQUEST_TIMEOUT",
     # keys
     "SERPER_API_KEY", "OPENAI_API_KEY",
     # secrets
     "SECRET_KEY",
 ]
+

@@ -123,3 +123,19 @@ async def test_share_farm_success_records_and_returns_association():
     assert isinstance(assoc, SimpleNamespace)
     assert assoc.farm_id == 7
     assert assoc.user_id == sub_user_id
+
+
+@pytest.mark.asyncio
+async def test_get_farm_by_id_success():
+    # retrieving a known farm yields the exact ORM object
+    farm = Farm(id=8, owner_id=2, name="Farm8", address="Addr8", latitude=8.8, longitude=9.9)
+    sess = FakeFarmSession(single=farm)
+    result = await get_farm_by_id(8, db=sess)
+    assert result is farm
+
+@pytest.mark.asyncio
+async def test_list_farms_for_user_empty():
+    # user with no farms returns []
+    sess = FakeFarmSession(farms=[])
+    farms = await list_farms_for_user(user_id=99, db=sess)
+    assert farms == []

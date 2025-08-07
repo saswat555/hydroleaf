@@ -23,16 +23,25 @@ from app.schemas import HealthCheck, DatabaseHealthCheck, FullHealthCheck
 # ─── Routers ──────────────────────────────────────────────────────────────────
 from app.routers.auth import router as auth_router
 from app.routers.devices import router as devices_router
+from app.routers.farms import router as farms_router
 from app.routers.payments import router as payments_router
 from app.routers.subscriptions import router as subscriptions_router
 from app.routers.cameras import router as cameras_router
+from app.routers.device_comm import router as device_comm_router
+from app.routers.cloud import router as cloud_router
+from app.routers.plants import router as plants_router
+from app.routers.admin import router as admin_router
+from app.routers.admin_users import router as admin_users_router
+from app.routers.admin_subscription_plans import router as admin_plans_router
+from app.routers.admin_clips import router as admin_clips_router
+from app.routers.dosing import router as dosing_router
+from app.routers.config import router as config_router
+from app.routers.users import router as users_router
+from app.routers.supply_chain import router as supply_chain_router
 
 # Admin-only
 from app.routers.admin_subscriptions import router as admin_subscriptions_router
 
-# ─── Background tasks ─────────────────────────────────────────────────────────
-from app.utils.camera_tasks import offline_watcher
-from app.utils.camera_queue import camera_queue
 
 # ─── Logging Setup ─────────────────────────────────────────────────────────────
 log_path = Path("logs.txt")
@@ -73,8 +82,10 @@ app.add_middleware(
 )
 
 # ─── Static Files & Templates ─────────────────────────────────────────────────
-app.mount("/static", StaticFiles(directory="app/static"), name="static")
-app.mount("/hls",    StaticFiles(directory=os.getenv("CAM_DATA_ROOT","./data")), name="hls")
+_static_dir = Path("app/static"); _static_dir.mkdir(parents=True, exist_ok=True)
+_hls_dir    = Path(os.getenv("CAM_DATA_ROOT", "./data")); _hls_dir.mkdir(parents=True, exist_ok=True)
+app.mount("/static", StaticFiles(directory=str(_static_dir)), name="static")
+app.mount("/hls",    StaticFiles(directory=str(_hls_dir)),   name="hls")
 templates = Jinja2Templates(directory="app/templates")
 
 # ─── Request-logging Middleware ───────────────────────────────────────────────
@@ -101,6 +112,9 @@ async def on_startup():
     app.state.start_time = time.time()
     if not TESTING:
         await init_db()
+        # import heavy CV/YOLO only when we actually run them
+        from app.utils.camera_tasks import offline_watcher
+        from app.utils.camera_queue import camera_queue
         asyncio.create_task(offline_watcher(db_factory=get_db, interval_seconds=30))
         camera_queue.start_workers()
 
@@ -161,15 +175,30 @@ async def exc_handler(request: Request, exc: Exception):
     )
 
 # ─── Include Routers ──────────────────────────────────────────────────────────
-app.include_router(auth_router,          prefix=f"{API_V1_STR}/auth",          tags=["Auth"])
-app.include_router(devices_router,       prefix=f"{API_V1_STR}/devices",       tags=["Devices"])
-app.include_router(payments_router,      prefix=f"{API_V1_STR}/payments",      tags=["Payments"])
-app.include_router(subscriptions_router, prefix=f"{API_V1_STR}/subscriptions", tags=["Subscriptions"])
-app.include_router(cameras_router,       prefix=f"{API_V1_STR}/cameras",       tags=["Cameras"])
-# Admin routes
-app.include_router(admin_subscriptions_router,
-                   prefix=f"{API_V1_STR}/admin/subscriptions", tags=["Admin Subscriptions"])
+app.include_router(auth_router,        prefix=f"{API_V1_STR}/auth",        tags=["Auth"])
+app.include_router(device_comm_router, prefix=f"{API_V1_STR}/device_comm", tags=["Device Comm"])
+app.include_router(cloud_router,       prefix=f"{API_V1_STR}/cloud",       tags=["Cloud"])
+# These already define /api/v1/... inside the files – include as-is
+app.include_router(payments_router)
+app.include_router(subscriptions_router)
+app.include_router(cameras_router,     prefix=f"{API_V1_STR}/cameras",     tags=["Cameras"])
+app.include_router(admin_subscriptions_router, prefix=f"{API_V1_STR}")
+app.include_router(admin_clips_router, prefix=f"{API_V1_STR}") 
+# Routers without internal prefixes – mount them under /api/v1
+app.include_router(devices_router,     prefix=f"{API_V1_STR}/devices",     tags=["Devices"])
+app.include_router(farms_router,       prefix=f"{API_V1_STR}/farms",       tags=["Farms"])
+app.include_router(plants_router,      prefix=f"{API_V1_STR}/plants",      tags=["Plants"])
+app.include_router(dosing_router,      prefix=f"{API_V1_STR}/dosing",      tags=["Dosing"])
+app.include_router(config_router,      prefix=f"{API_V1_STR}/config",      tags=["Config"])
+app.include_router(supply_chain_router, prefix=f"{API_V1_STR}/supply_chain", tags=["Supply Chain"])
 
+# Admin routers already have /admin... inside; expose them under /api/v1
+app.include_router(admin_router,        prefix=f"{API_V1_STR}")
+app.include_router(admin_users_router,  prefix=f"{API_V1_STR}")
+app.include_router(admin_plans_router,  prefix=f"{API_V1_STR}")
+
+# Users router already carries /api/v1/users in the file; include as-is
+app.include_router(users_router)
 # ─── Run the App ──────────────────────────────────────────────────────────────
 if __name__ == "__main__":
     uvicorn.run(

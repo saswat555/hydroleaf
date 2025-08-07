@@ -7,7 +7,7 @@ import secrets
 
 from app.core.database import get_db
 from app.dependencies import get_current_admin
-from app.models import ActivationKey, DeviceToken, SubscriptionPlan, Device
+from app.models import ActivationKey, DeviceToken, SubscriptionPlan, Device, Admin
 from app.schemas import ActivationKeyResponse
 
 router = APIRouter(

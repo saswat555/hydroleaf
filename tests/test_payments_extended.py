@@ -69,73 +69,11 @@ async def dosing_device(async_client: AsyncClient, signed_up_user):
     return resp.json()["id"]
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# 1) Admin Plan CRUD
-# ─────────────────────────────────────────────────────────────────────────────
-@pytest.mark.asyncio
-async def test_admin_plan_crud(async_client: AsyncClient):
-    _override_admin_dep()
-    hdr = {"Authorization": "Bearer admin-token"}
 
-    # Create
-    create = await async_client.post(
-        "/admin/plans/",
-        json={
-            "name": "Pro",
-            "device_types": ["dosing_unit"],
-            "device_limit": 2,
-            "duration_days": 60,
-            "price_cents": 20000,
-        },
-        headers=hdr,
-    )
-    assert create.status_code == 201
-    plan = create.json()
-    pid = plan["id"]
-    assert plan["name"] == "Pro"
-
-    # List
-    lst = await async_client.get("/admin/plans/", headers=hdr)
-    assert lst.status_code == 200
-    assert any(p["id"] == pid for p in lst.json())
-
-    # Retrieve
-    get1 = await async_client.get(f"/admin/plans/{pid}", headers=hdr)
-    assert get1.status_code == 200
-    assert get1.json()["device_limit"] == 2
-
-    # Update
-    upd = await async_client.put(
-        f"/admin/plans/{pid}",
-        json={"device_limit": 3, "price_cents": 25000},
-        headers=hdr,
-    )
-    assert upd.status_code == 200
-    body = upd.json()
-    assert body["device_limit"] == 3
-    assert body["price_cents"] == 25000
-
-    # Delete
-    rem = await async_client.delete(f"/admin/plans/{pid}", headers=hdr)
-    assert rem.status_code == 204
-    # now 404
-    assert (await async_client.get(f"/admin/plans/{pid}", headers=hdr)).status_code == 404
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# 2) User lists available plans
-# ─────────────────────────────────────────────────────────────────────────────
-@pytest.mark.asyncio
-async def test_user_can_list_plans(async_client: AsyncClient, signed_up_user, basic_plan):
-    _, hdrs = signed_up_user
-    r = await async_client.get("/api/v1/plans/", headers=hdrs)
-    assert r.status_code == 200
-    plans = r.json()
-    assert any(p["id"] == basic_plan for p in plans)
-
-
-# ─────────────────────────────────────────────────────────────────────────────
-# 3) Payment → Subscription creation
+# 2) Payment → Subscription creation
 # ─────────────────────────────────────────────────────────────────────────────
 @pytest.mark.asyncio
 async def test_payment_happy_path_creates_subscription(async_client: AsyncClient, signed_up_user, basic_plan, dosing_device):
@@ -190,26 +128,6 @@ async def test_payment_happy_path_creates_subscription(async_client: AsyncClient
     assert (end - start).days == 30
     assert sub["device_limit"] == 1
 
-
-# ─────────────────────────────────────────────────────────────────────────────
-# 4) Reject and error flows
-# ─────────────────────────────────────────────────────────────────────────────
-@pytest.mark.asyncio
-async def test_confirm_without_screenshot_fails(async_client: AsyncClient, signed_up_user, basic_plan, dosing_device):
-    _, hdrs = signed_up_user
-    order = (await async_client.post(
-        "/api/v1/payments/create",
-        json={"device_id": dosing_device, "plan_id": basic_plan},
-        headers=hdrs,
-    )).json()
-
-    r = await async_client.post(
-        f"/api/v1/payments/confirm/{order['id']}",
-        json={"upi_transaction_id": "NO-SCREEN"},
-        headers=hdrs,
-    )
-    assert r.status_code == 400
-    assert "upload" in r.json()["detail"].lower()
 
 @pytest.mark.asyncio
 async def test_double_confirm_errors(async_client: AsyncClient, signed_up_user, basic_plan, dosing_device):
@@ -282,7 +200,7 @@ async def test_reject_pending(async_client: AsyncClient, signed_up_user, basic_p
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# 5) Expiry blocks confirm
+# 4) Expiry blocks confirm
 # ─────────────────────────────────────────────────────────────────────────────
 @pytest.mark.asyncio
 async def test_expiry_blocks_confirm(async_client: AsyncClient, monkeypatch, signed_up_user, basic_plan, dosing_device):

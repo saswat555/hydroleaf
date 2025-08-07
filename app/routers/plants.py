@@ -3,7 +3,6 @@ from fastapi.logger import logger
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List
-from app.schemas import DosingOperation, PlantCreate, PlantDosingResponse, PlantResponse, SensorReading
 from app.core.database import get_db
 from app.services.plant_service import (
     get_all_plants,
@@ -11,8 +10,8 @@ from app.services.plant_service import (
     create_plant,
     delete_plant
 )
-from app.models import Plant
-
+from app.schemas import PlantCreate, PlantDosingResponse, PlantResponse
+from app.models import Plant, SensorReading as SensorReadingModel
 router = APIRouter()
 
 @router.get("/", response_model=List[PlantResponse])
@@ -49,9 +48,9 @@ async def execute_dosing(plant_id: int, db: AsyncSession = Depends(get_db)):
     if not plant:
         raise HTTPException(status_code=404, detail="Plant Profile not found")
     
-    # Ensure the plant has dosing parameters.
+    # Ensure dosing params exist and are not None
     for attr in ("target_ph_min", "target_ph_max", "target_tds_min", "target_tds_max"):
-        if not hasattr(plant, attr):
+        if getattr(plant, attr, None) is None:
             raise HTTPException(status_code=400, detail="Plant dosing parameters not configured")
     
     target_ph_min = getattr(plant, "target_ph_min")
@@ -61,9 +60,7 @@ async def execute_dosing(plant_id: int, db: AsyncSession = Depends(get_db)):
     
     # Get latest sensor readings for the plant's location.
     readings_result = await db.execute(
-        select(SensorReading)
-        .where(SensorReading.location == plant.location)
-        .order_by(SensorReading.timestamp.desc())
+        select(SensorReadingModel).where(SensorReadingModel.location == plant.location)
     )
     latest_readings = readings_result.scalars().all()
     if not latest_readings:

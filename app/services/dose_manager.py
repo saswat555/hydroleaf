@@ -1,59 +1,160 @@
-# dose_manager.py
-import logging
-from datetime import datetime
-from app.models import Device
-from fastapi import HTTPException
-from app.services.device_controller import DeviceController
-from sqlalchemy.ext.asyncio import AsyncSession
-from app.services.device_controller import DeviceController
-logger = logging.getLogger(__name__)
+# app/services/dose_manager.py
 
-class DoseManager:
-    def __init__(self):
+from __future__ import annotations
+
+import uuid
+from datetime import datetime, timezone
+from typing import Any, Mapping, Sequence
+
+import httpx
+from fastapi import HTTPException
+
+from app.core.database import AsyncSessionLocal
+from app.models import DosingOperation as DosingOperationModel
+
+
+def _validate_actions(actions: Sequence[Mapping[str, Any]]) -> None:
+    """
+    Validate dosing action payloads. Each action must contain:
+      • pump_number (int in [1..4])
+      • dose_ml (float > 0)
+    """
+    if not actions:
+        raise ValueError("No actions supplied")
+
+    for idx, a in enumerate(actions, start=1):
+        if "pump_number" not in a or "dose_ml" not in a:
+            raise ValueError(
+                f"Action #{idx} missing required fields (pump_number, dose_ml)"
+            )
+        try:
+            pump = int(a["pump_number"])
+        except Exception:
+            raise ValueError(f"Action #{idx} has non-integer pump_number")
+        try:
+            dose = float(a["dose_ml"])
+        except Exception:
+            raise ValueError(f"Action #{idx} has non-numeric dose_ml")
+        if not (1 <= pump <= 4):
+            raise ValueError(f"Action #{idx} pump_number must be 1–4")
+        if dose <= 0:
+            raise ValueError(f"Action #{idx} dose_ml must be > 0")
+
+
+def _default_actions_from_config(pump_configurations: Sequence[Mapping[str, Any]]):
+    """
+    Build a minimal dosing plan from stored pump configurations.
+    Defaults to a small 5ml dose for each configured pump.
+    """
+    actions = []
+    for i, cfg in enumerate(pump_configurations or [], start=1):
+        pump_number = int(cfg.get("pump_number", i))
+        chem_name = (
+            cfg.get("chemical_name")
+            or cfg.get("name")
+            or f"pump_{pump_number}"
+        )
+        actions.append(
+            {
+                "pump_number": pump_number,
+                "chemical_name": chem_name,
+                "dose_ml": 5.0,
+                "reasoning": "Automatic scheduled dose",
+            }
+        )
+    return actions
+
+
+async def execute_dosing_operation(
+    device_id: str,
+    device_endpoint: str,
+    pump_configurations: Sequence[Mapping[str, Any]] | None,
+):
+    """
+    Create & record a dosing operation for a device.
+    Tries to notify the device's local endpoint, but succeeds even if the
+    device is offline (operation is still recorded).
+    """
+    actions = _default_actions_from_config(pump_configurations or [])
+    _validate_actions(actions)
+
+    op_id = uuid.uuid4().hex
+    now = datetime.now(timezone.utc)
+
+    # Try to notify device (best-effort)
+    try:
+        url = f"{device_endpoint.rstrip('/')}/dose"
+        async with httpx.AsyncClient(timeout=5) as client:
+            await client.post(url, json={"operation_id": op_id, "actions": actions})
+        status = "sent"
+    except Exception:
+        status = "queued"
+
+    # Persist operation
+    async with AsyncSessionLocal() as session:
+        op = DosingOperationModel(
+            device_id=device_id,
+            operation_id=op_id,
+            actions=actions,
+            status=status,
+            timestamp=now,
+        )
+        session.add(op)
+        await session.commit()
+        await session.refresh(op)
+        return op
+
+
+async def cancel_dosing_operation(device_id: str, device_endpoint: str):
+    """
+    Ask the device to cancel an active dosing operation.
+    Returns a simple acknowledgement even if the device is offline.
+    """
+    try:
+        url = f"{device_endpoint.rstrip('/')}/cancel"
+        async with httpx.AsyncClient(timeout=5) as client:
+            r = await client.post(url, json={"device_id": device_id})
+            r.raise_for_status()
+            try:
+                return r.json()
+            except Exception:
+                pass
+    except Exception:
         pass
 
-    async def execute_dosing(self, device_id: str, http_ep: str, actions: list, combined: bool = False) -> dict:
-        """
-        Execute a dosing command using the unified device controller.
-        If combined=True, the controller will use the /dose_monitor endpoint.
-        """
-        if not actions:
-            raise ValueError("No actions supplied")
-        for a in actions:
-            if "pump_number" not in a or "dose_ml" not in a:
-                raise ValueError("Each action needs pump_number & dose_ml")
-
-        ctrl = DeviceController(http_ep)
-        # The tests only ever pass a single action, but let’s loop for safety
-        for act in actions:
-            await ctrl.execute_dosing(act["pump_number"],
-                                      act["dose_ml"],
-                                      combined=combined)
-
-        return {
-            "status": "command_sent",
-            "device_id": device_id,
-            "actions": actions,
-        }
-
-    async def cancel_dosing(self, device_id: str, http_endpoint: str) -> dict:
-    # Create a controller instance for the device.
-        controller = DeviceController(device_ip=http_endpoint)
-        response = await controller.cancel_dosing()
-        logger.info(f"Cancellation response for device {device_id}: {response}")
-        return {"status": "dosing_cancelled", "device_id": device_id, "response": response}
-    async def get_device(self, device_id: str, db: AsyncSession):
-        device = await db.get(Device, device_id)
-        if not device:
-            raise HTTPException(status_code=404, detail="Device not found")
-        return device
+    return {"message": "Dosing cancellation requested", "device_id": device_id}
 
 
-# Create singleton instance
-dose_manager = DoseManager()
+# -----------------------------------------------------------------------------
+# Back-compat shim for modules importing a class API (e.g., app.services.llm)
+# -----------------------------------------------------------------------------
+class DoseManager:
+    """Stateless wrapper so legacy code can `from ... import DoseManager`."""
 
-async def execute_dosing_operation(device_id: str, http_endpoint: str, dosing_actions: list, combined: bool = False) -> dict:
-    return await dose_manager.execute_dosing(device_id, http_endpoint, dosing_actions, combined)
+    # Some code may instantiate; allow both patterns
+    def __init__(self) -> None:
+        pass
 
-async def cancel_dosing_operation(device_id: str, http_endpoint: str) -> dict:
-    return await dose_manager.cancel_dosing(device_id, http_endpoint)
+    # Common method name (short)
+    async def execute(
+        self,
+        device_id: str,
+        device_endpoint: str,
+        pump_configurations: Sequence[Mapping[str, Any]] | None,
+    ):
+        return await execute_dosing_operation(device_id, device_endpoint, pump_configurations)
+
+    # Verbose method name (used by some callers)
+    async def execute_dosing_operation(
+        self,
+        device_id: str,
+        device_endpoint: str,
+        pump_configurations: Sequence[Mapping[str, Any]] | None,
+    ):
+        return await execute_dosing_operation(device_id, device_endpoint, pump_configurations)
+
+    async def cancel(self, device_id: str, device_endpoint: str):
+        return await cancel_dosing_operation(device_id, device_endpoint)
+
+    async def cancel_dosing_operation(self, device_id: str, device_endpoint: str):
+        return await cancel_dosing_operation(device_id, device_endpoint)

@@ -2,7 +2,7 @@
 
 from typing import List
 import secrets
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.future import select
@@ -56,13 +56,13 @@ async def redeem_key(
 
     # 3) Mark key redeemed
     ak.redeemed = True
-    ak.redeemed_at = datetime.utcnow()
+    ak.redeemed_at = datetime.now(timezone.utc)
     ak.redeemed_user_id = current_user.id
     ak.redeemed_device_id = device_id
 
     # 4) Create the subscription
     plan = await db.get(SubscriptionPlan, ak.plan_id)
-    start = datetime.utcnow()
+    start = datetime.now(timezone.utc)
     end = start + timedelta(days=plan.duration_days)
 
     # Attach device to user

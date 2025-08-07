@@ -16,10 +16,10 @@ from .cameras       import router as cameras_router
 # in routers/__init__.py
 from .subscriptions import router as subscriptions_router
 from .admin_subscriptions import router as admin_subscriptions_router
-
+from .admin_clips   import router as admin_clips_router
 __all__ = [
     "devices_router", "dosing_router", "config_router", "plants_router",
     "supply_chain_router", "farms_router", "cloud_router", "auth_router",
     "users_router", "admin_users_router", "device_comm_router",
-    "admin_router", "cameras_router", "subscriptions_router", "admin_subscriptions_router"
+    "admin_router", "cameras_router", "subscriptions_router", "admin_subscriptions_router", "admin_clips_router"
 ]
