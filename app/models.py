@@ -59,13 +59,17 @@ class User(Base):
                          onupdate=func.now(),
                          nullable=False,
                      )
-    farm_shares = relationship("FarmShare", back_populates="farm", cascade="all, delete-orphan")
-    shared_users = relationship(
-        "User",
+    shared_farms = relationship(
+        "Farm",
         secondary="farm_shares",
-        back_populates="shared_farms",
-        overlaps="farm_shares, user, shared_farms",
+        back_populates="shared_users",
     )
+    farm_shares = relationship(
+        "FarmShare",
+        back_populates="user",
+        cascade="all, delete-orphan",
+    )
+
     # one‐to‐one
     profile      = relationship(
                        "UserProfile",
