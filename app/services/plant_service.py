@@ -49,7 +49,7 @@ async def create_plant(payload, db: AsyncSession, farm_id: int | None = None):
         data["farm_id"] = farm_id
 
     new_plant = Plant(**data)
-    db.add(new_plant)
+    await db.add(new_plant)
     await db.commit()
     await db.refresh(new_plant)
     return new_plant

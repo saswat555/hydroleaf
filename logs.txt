@@ -9339,3 +9339,109 @@ For more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/St
 2025-08-08 05:25:57,179 - app.services.supply_chain_service - ERROR - No valid JSON block found in LLM response.
 2025-08-08 05:25:57,703 - app.main - INFO - POST /admin/device/nonexistent/issue-token • ip=127.0.0.1 • device_id=- • 404 • 0.7ms
 2025-08-08 05:25:57,703 - httpx - INFO - HTTP Request: POST http://testserver/admin/device/nonexistent/issue-token "HTTP/1.1 404 Not Found"
+2025-08-08 05:29:11,375 - passlib.handlers.bcrypt - WARNING - (trapped) error reading bcrypt version
+Traceback (most recent call last):
+  File "/Users/saswatpandey/hydroleaf/env/lib/python3.12/site-packages/passlib/handlers/bcrypt.py", line 620, in _load_backend_mixin
+    version = _bcrypt.__about__.__version__
+              ^^^^^^^^^^^^^^^^^
+AttributeError: module 'bcrypt' has no attribute '__about__'
+2025-08-08 05:29:11,643 - app.main - INFO - POST /api/v1/auth/signup • ip=127.0.0.1 • device_id=- • 201 • 318.6ms
+2025-08-08 05:29:11,644 - httpx - INFO - HTTP Request: POST http://testserver/api/v1/auth/signup "HTTP/1.1 201 Created"
+2025-08-08 05:29:12,047 - app.main - INFO - POST /api/v1/auth/signup • ip=127.0.0.1 • device_id=- • 201 • 255.7ms
+2025-08-08 05:29:12,048 - httpx - INFO - HTTP Request: POST http://testserver/api/v1/auth/signup "HTTP/1.1 201 Created"
+2025-08-08 05:29:12,381 - app.main - INFO - POST /api/v1/auth/signup • ip=127.0.0.1 • device_id=- • 201 • 247.9ms
+2025-08-08 05:29:12,381 - httpx - INFO - HTTP Request: POST http://testserver/api/v1/auth/signup "HTTP/1.1 201 Created"
+2025-08-08 05:29:12,396 - app.main - WARNING - HTTPException Email already registered on /api/v1/auth/signup
+2025-08-08 05:29:12,396 - app.main - INFO - POST /api/v1/auth/signup • ip=127.0.0.1 • device_id=- • 400 • 14.3ms
+2025-08-08 05:29:12,396 - httpx - INFO - HTTP Request: POST http://testserver/api/v1/auth/signup "HTTP/1.1 400 Bad Request"
+2025-08-08 05:29:12,478 - app.main - INFO - POST /api/v1/auth/signup • ip=127.0.0.1 • device_id=- • 422 • 1.1ms
+2025-08-08 05:29:12,479 - httpx - INFO - HTTP Request: POST http://testserver/api/v1/auth/signup "HTTP/1.1 422 Unprocessable Entity"
+2025-08-08 05:29:12,531 - app.main - INFO - POST /api/v1/auth/signup • ip=127.0.0.1 • device_id=- • 422 • 1.1ms
+2025-08-08 05:29:12,532 - httpx - INFO - HTTP Request: POST http://testserver/api/v1/auth/signup "HTTP/1.1 422 Unprocessable Entity"
+2025-08-08 05:29:12,586 - app.main - INFO - POST /api/v1/auth/signup • ip=127.0.0.1 • device_id=- • 422 • 0.9ms
+2025-08-08 05:29:12,586 - httpx - INFO - HTTP Request: POST http://testserver/api/v1/auth/signup "HTTP/1.1 422 Unprocessable Entity"
+2025-08-08 05:29:12,893 - app.main - INFO - POST /api/v1/auth/signup • ip=127.0.0.1 • device_id=- • 201 • 256.5ms
+2025-08-08 05:29:12,893 - httpx - INFO - HTTP Request: POST http://testserver/api/v1/auth/signup "HTTP/1.1 201 Created"
+2025-08-08 05:29:13,128 - app.main - INFO - POST /api/v1/auth/login • ip=127.0.0.1 • device_id=- • 200 • 233.9ms
+2025-08-08 05:29:13,128 - httpx - INFO - HTTP Request: POST http://testserver/api/v1/auth/login "HTTP/1.1 200 OK"
+2025-08-08 05:29:13,449 - app.main - INFO - POST /api/v1/auth/signup • ip=127.0.0.1 • device_id=- • 201 • 249.5ms
+2025-08-08 05:29:13,450 - httpx - INFO - HTTP Request: POST http://testserver/api/v1/auth/signup "HTTP/1.1 201 Created"
+2025-08-08 05:29:13,687 - app.main - WARNING - HTTPException Invalid credentials on /api/v1/auth/login
+2025-08-08 05:29:13,687 - app.main - INFO - POST /api/v1/auth/login • ip=127.0.0.1 • device_id=- • 401 • 237.2ms
+2025-08-08 05:29:13,687 - httpx - INFO - HTTP Request: POST http://testserver/api/v1/auth/login "HTTP/1.1 401 Unauthorized"
+2025-08-08 05:29:13,777 - app.main - WARNING - HTTPException Invalid credentials on /api/v1/auth/login
+2025-08-08 05:29:13,777 - app.main - INFO - POST /api/v1/auth/login • ip=127.0.0.1 • device_id=- • 401 • 9.8ms
+2025-08-08 05:29:13,777 - httpx - INFO - HTTP Request: POST http://testserver/api/v1/auth/login "HTTP/1.1 401 Unauthorized"
+2025-08-08 05:29:13,839 - app.main - INFO - POST /api/v1/auth/login • ip=127.0.0.1 • device_id=- • 422 • 2.2ms
+2025-08-08 05:29:13,839 - httpx - INFO - HTTP Request: POST http://testserver/api/v1/auth/login "HTTP/1.1 422 Unprocessable Entity"
+2025-08-08 05:29:14,152 - app.main - INFO - POST /api/v1/auth/signup • ip=127.0.0.1 • device_id=- • 201 • 262.2ms
+2025-08-08 05:29:14,152 - httpx - INFO - HTTP Request: POST http://testserver/api/v1/auth/signup "HTTP/1.1 201 Created"
+2025-08-08 05:29:14,855 - httpx - INFO - HTTP Request: GET http://127.0.0.1:8001/discovery "HTTP/1.1 200 OK"
+2025-08-08 05:29:14,949 - httpx - INFO - HTTP Request: GET http://127.0.0.1:8002/discovery "HTTP/1.1 200 OK"
+2025-08-08 05:29:15,021 - httpx - INFO - HTTP Request: GET http://127.0.0.1:8001/version "HTTP/1.1 200 OK"
+2025-08-08 05:29:15,090 - httpx - INFO - HTTP Request: GET http://127.0.0.1:8002/version "HTTP/1.1 200 OK"
+2025-08-08 05:29:15,159 - httpx - INFO - HTTP Request: GET http://127.0.0.1:8001/sensor "HTTP/1.1 200 OK"
+2025-08-08 05:29:15,301 - httpx - INFO - HTTP Request: POST http://127.0.0.1:8001/pump "HTTP/1.1 200 OK"
+2025-08-08 05:29:15,318 - httpx - INFO - HTTP Request: POST http://127.0.0.1:8001/dose_monitor "HTTP/1.1 200 OK"
+2025-08-08 05:29:15,385 - httpx - INFO - HTTP Request: POST http://127.0.0.1:8001/pump_calibration "HTTP/1.1 404 Not Found"
+2025-08-08 05:29:15,402 - httpx - INFO - HTTP Request: POST http://127.0.0.1:8001/pump/calibration "HTTP/1.1 404 Not Found"
+2025-08-08 05:29:15,418 - httpx - INFO - HTTP Request: POST http://127.0.0.1:8001/pump_calibration "HTTP/1.1 404 Not Found"
+2025-08-08 05:29:15,434 - httpx - INFO - HTTP Request: POST http://127.0.0.1:8001/pump/calibration "HTTP/1.1 404 Not Found"
+2025-08-08 05:29:15,538 - httpx - INFO - HTTP Request: GET http://127.0.0.1:8002/state "HTTP/1.1 200 OK"
+2025-08-08 05:29:15,607 - httpx - INFO - HTTP Request: POST http://127.0.0.1:8002/toggle "HTTP/1.1 200 OK"
+2025-08-08 05:29:15,780 - httpx - INFO - HTTP Request: GET http://127.0.0.1:8003/state "HTTP/1.1 200 OK"
+2025-08-08 05:29:15,861 - httpx - INFO - HTTP Request: POST http://127.0.0.1:8003/toggle "HTTP/1.1 200 OK"
+2025-08-08 05:29:15,987 - httpx - INFO - HTTP Request: GET http://127.0.0.1:8004/status "HTTP/1.1 200 OK"
+2025-08-08 05:29:20,084 - httpx - INFO - HTTP Request: GET https://google.serper.dev/search?q=optimal+growth+Please+consider+that+the+plant+%27TestPlant%27+is+being+grown+at+%27Berlin%27.&gl=in&hl=en&apiKey=eeaeee2729768c737ca5a6004968a9840677e523&num=5&full=true&output=detailed "HTTP/1.1 200 OK"
+2025-08-08 05:29:20,371 - httpx - INFO - HTTP Request: GET https://www.mdpi.com/2037-0164/16/2/63 "HTTP/1.1 403 Forbidden"
+2025-08-08 05:29:20,371 - app.services.serper - WARNING - HTTP error scraping https://www.mdpi.com/2037-0164/16/2/63: Client error '403 Forbidden' for url 'https://www.mdpi.com/2037-0164/16/2/63'
+For more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/403
+2025-08-08 05:29:20,374 - httpx - INFO - HTTP Request: GET https://www.mdpi.com/2223-7747/11/5/659 "HTTP/1.1 403 Forbidden"
+2025-08-08 05:29:20,374 - app.services.serper - WARNING - HTTP error scraping https://www.mdpi.com/2223-7747/11/5/659: Client error '403 Forbidden' for url 'https://www.mdpi.com/2223-7747/11/5/659'
+For more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/403
+2025-08-08 05:29:20,549 - httpx - INFO - HTTP Request: GET https://www.researchgate.net/publication/353147638_Plant_growth_the_What_the_How_and_the_Why "HTTP/1.1 403 Forbidden"
+2025-08-08 05:29:20,556 - app.services.serper - WARNING - HTTP error scraping https://www.researchgate.net/publication/353147638_Plant_growth_the_What_the_How_and_the_Why: Client error '403 Forbidden' for url 'https://www.researchgate.net/publication/353147638_Plant_growth_the_What_the_How_and_the_Why'
+For more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/403
+2025-08-08 05:29:20,687 - httpx - INFO - HTTP Request: GET https://pmc.ncbi.nlm.nih.gov/articles/PMC10432406/ "HTTP/1.1 403 Forbidden"
+2025-08-08 05:29:20,687 - app.services.serper - WARNING - HTTP error scraping https://pmc.ncbi.nlm.nih.gov/articles/PMC10432406/: Client error '403 Forbidden' for url 'https://pmc.ncbi.nlm.nih.gov/articles/PMC10432406/'
+For more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/403
+2025-08-08 05:29:20,730 - httpx - INFO - HTTP Request: GET https://nph.onlinelibrary.wiley.com/doi/10.1111/nph.17610 "HTTP/1.1 403 Forbidden"
+2025-08-08 05:29:20,732 - app.services.serper - WARNING - HTTP error scraping https://nph.onlinelibrary.wiley.com/doi/10.1111/nph.17610: Client error '403 Forbidden' for url 'https://nph.onlinelibrary.wiley.com/doi/10.1111/nph.17610'
+For more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/403
+2025-08-08 05:29:20,917 - httpx - INFO - HTTP Request: GET http://127.0.0.1:11434/api/models "HTTP/1.1 404 Not Found"
+2025-08-08 05:29:23,325 - app.services.plant_service - INFO - Fetching plants from database...
+2025-08-08 05:29:23,325 - app.services.plant_service - INFO - Fetched 1 plants from the database
+2025-08-08 05:29:23,581 - app.services.plant_service - INFO - Fetching plants from database...
+2025-08-08 05:29:23,582 - app.services.plant_service - INFO - No plants found, returning an empty list.
+2025-08-08 05:29:25,037 - httpx - INFO - HTTP Request: GET https://google.serper.dev/search?q=hydroponics+india&gl=in&hl=en&apiKey=eeaeee2729768c737ca5a6004968a9840677e523&num=5&full=true&output=detailed "HTTP/1.1 200 OK"
+2025-08-08 05:29:25,373 - httpx - INFO - HTTP Request: GET https://risehydroponics.in/ "HTTP/1.1 200 OK"
+2025-08-08 05:29:26,080 - httpx - INFO - HTTP Request: GET https://www.urbankisaan.com/ "HTTP/1.1 200 OK"
+2025-08-08 05:29:26,168 - httpx - INFO - HTTP Request: GET https://www.investindia.gov.in/team-india-blogs/why-hydroponics-holds-key-sustainable-agriculture "HTTP/1.1 200 OK"
+2025-08-08 05:29:26,359 - httpx - INFO - HTTP Request: GET https://briohydroponics.com/ "HTTP/1.1 301 Moved Permanently"
+2025-08-08 05:29:26,362 - app.services.serper - WARNING - HTTP error scraping https://briohydroponics.com/: Redirect response '301 Moved Permanently' for url 'https://briohydroponics.com/'
+Redirect location: 'https://www.briohydroponics.com/'
+For more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/301
+2025-08-08 05:29:27,001 - httpx - INFO - HTTP Request: GET https://enterclimate.com/blog/scope-of-hydroponic-farming-in-india/ "HTTP/1.1 200 OK"
+2025-08-08 05:29:27,135 - app.main - INFO - POST /admin/plans/ • ip=127.0.0.1 • device_id=- • 404 • 0.4ms
+2025-08-08 05:29:27,135 - httpx - INFO - HTTP Request: POST http://testserver/admin/plans/ "HTTP/1.1 404 Not Found"
+2025-08-08 05:29:27,409 - app.main - INFO - POST /admin/plans/ • ip=127.0.0.1 • device_id=- • 404 • 1.0ms
+2025-08-08 05:29:27,410 - httpx - INFO - HTTP Request: POST http://testserver/admin/plans/ "HTTP/1.1 404 Not Found"
+2025-08-08 05:29:27,749 - app.main - INFO - POST /api/v1/auth/signup • ip=127.0.0.1 • device_id=- • 201 • 276.3ms
+2025-08-08 05:29:27,749 - httpx - INFO - HTTP Request: POST http://testserver/api/v1/auth/signup "HTTP/1.1 201 Created"
+2025-08-08 05:29:28,117 - app.main - INFO - POST /api/v1/auth/signup • ip=127.0.0.1 • device_id=- • 201 • 252.1ms
+2025-08-08 05:29:28,117 - httpx - INFO - HTTP Request: POST http://testserver/api/v1/auth/signup "HTTP/1.1 201 Created"
+2025-08-08 05:29:28,489 - app.main - INFO - POST /api/v1/auth/signup • ip=127.0.0.1 • device_id=- • 201 • 253.8ms
+2025-08-08 05:29:28,489 - httpx - INFO - HTTP Request: POST http://testserver/api/v1/auth/signup "HTTP/1.1 201 Created"
+2025-08-08 05:29:28,843 - app.main - INFO - POST /api/v1/auth/signup • ip=127.0.0.1 • device_id=- • 201 • 247.6ms
+2025-08-08 05:29:28,844 - httpx - INFO - HTTP Request: POST http://testserver/api/v1/auth/signup "HTTP/1.1 201 Created"
+2025-08-08 05:29:29,219 - app.main - INFO - POST /api/v1/auth/signup • ip=127.0.0.1 • device_id=- • 201 • 253.6ms
+2025-08-08 05:29:29,219 - httpx - INFO - HTTP Request: POST http://testserver/api/v1/auth/signup "HTTP/1.1 201 Created"
+2025-08-08 05:29:29,589 - app.main - INFO - POST /api/v1/auth/signup • ip=127.0.0.1 • device_id=- • 201 • 249.5ms
+2025-08-08 05:29:29,590 - httpx - INFO - HTTP Request: POST http://testserver/api/v1/auth/signup "HTTP/1.1 201 Created"
+2025-08-08 05:29:29,970 - app.main - INFO - POST /api/v1/auth/signup • ip=127.0.0.1 • device_id=- • 201 • 255.5ms
+2025-08-08 05:29:29,970 - httpx - INFO - HTTP Request: POST http://testserver/api/v1/auth/signup "HTTP/1.1 201 Created"
+2025-08-08 05:29:30,195 - app.services.supply_chain_service - ERROR - JSON Parsing Error: Expecting ',' delimiter: line 1 column 38 (char 37). Response: foo {"outer":{"inner":123,"list":[1,2,3]}} bar
+2025-08-08 05:29:30,356 - app.services.supply_chain_service - ERROR - No valid JSON block found in LLM response.
+2025-08-08 05:29:30,407 - app.services.supply_chain_service - ERROR - No valid JSON block found in LLM response.
+2025-08-08 05:29:30,934 - app.main - INFO - POST /admin/device/nonexistent/issue-token • ip=127.0.0.1 • device_id=- • 404 • 0.8ms
+2025-08-08 05:29:30,935 - httpx - INFO - HTTP Request: POST http://testserver/admin/device/nonexistent/issue-token "HTTP/1.1 404 Not Found"

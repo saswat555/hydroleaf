@@ -16,7 +16,7 @@ async def create_farm(owner_id: int, payload, db: AsyncSession) -> Farm:
     """
     data = payload.model_dump() if hasattr(payload, "model_dump") else dict(payload)
     new_farm = Farm(owner_id=owner_id, **data)
-    db.add(new_farm)
+    await db.add(new_farm)
     await db.commit()
     await db.refresh(new_farm)
     return new_farm

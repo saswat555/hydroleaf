@@ -8,7 +8,7 @@ from typing import Any, Mapping, Sequence
 
 import httpx
 from fastapi import HTTPException
-
+from app.services.device_controller import DeviceController 
 from app.core.database import AsyncSessionLocal
 from app.models import DosingOperation as DosingOperationModel
 
@@ -158,3 +158,6 @@ class DoseManager:
 
     async def cancel_dosing_operation(self, device_id: str, device_endpoint: str):
         return await cancel_dosing_operation(device_id, device_endpoint)
+
+
+__all__ = ["execute_dosing", "cancel_dosing", "DeviceController"]
