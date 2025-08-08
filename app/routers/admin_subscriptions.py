@@ -1,5 +1,6 @@
 # app/routers/admin_subscriptions.py
 
+from datetime import timedelta, timezone, datetime
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import func
@@ -25,7 +26,7 @@ router = APIRouter(
 )
 async def generate_device_activation_key(
     device_id: str,
-    plan_id: int,
+    plan_id: str,
     db: AsyncSession = Depends(get_db),
     admin=Depends(get_current_admin),
 ):
@@ -55,7 +56,7 @@ async def generate_device_activation_key(
     )
     db.add(ak)
     # Flush so that tests in the same transaction can see the key
-    await db.flush()
+    await db.commit()
 
     return ActivationKeyResponse(activation_key=key)
 
@@ -81,6 +82,7 @@ async def issue_device_token(
     if record:
         record.token = token
         record.issued_at = func.now()
+        record.expires_at = datetime.now(timezone.utc) + timedelta(days=30)
     else:
         record = DeviceToken(
             device_id=device_id,
@@ -89,7 +91,7 @@ async def issue_device_token(
         )
         db.add(record)
 
-    # 3) Flush so changes are immediately visible in this transaction
-    await db.flush()
+    # 3) Commit so other sessions see the new/rotated token
+    await db.commit()
 
     return {"device_id": device_id, "token": token}

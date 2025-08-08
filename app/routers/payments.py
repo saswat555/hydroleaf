@@ -23,7 +23,7 @@ from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, File, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.future import select
+from sqlalchemy import select
 
 from app.core.database import get_db
 from app.dependencies import get_current_admin, get_current_user
@@ -42,11 +42,8 @@ router = APIRouter(prefix="/api/v1/payments", tags=["Payments"])
 admin_router = APIRouter(
     prefix="/admin/payments",
     tags=["admin-payments"],
-    dependencies=[Depends(get_current_admin)],          # <-- auth middleware
+    dependencies=[Depends(get_current_admin)],         
 )
-
-# include the admin routes in the generated docs
-router.include_router(admin_router)
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Globals & helpers
@@ -79,7 +76,7 @@ async def create_payment(
         user_id      = user.id,
         device_id    = req.device_id,
         plan_id      = plan.id,
-        amount_cents = plan.price_cents,
+        amount       = plan.price,
         expires_at   = datetime.now(timezone.utc) + timedelta(hours=1),
     )
     db.add(order)
@@ -94,7 +91,7 @@ async def create_payment(
 
 @router.post("/confirm/{order_id}", response_model=PaymentOrderResponse)
 async def confirm_payment(
-    order_id: int,
+    order_id: str,
     req: ConfirmPaymentRequest,
     db:  AsyncSession = Depends(get_db),
     user = Depends(get_current_user),
@@ -119,7 +116,7 @@ async def confirm_payment(
 
 @router.post("/upload/{order_id}", response_model=PaymentOrderResponse)
 async def upload_screenshot(
-    order_id: int,
+    order_id: str,
     file: bytes = File(..., description="JPEG/PNG payment proof"),
     db:   AsyncSession = Depends(get_db),
     user = Depends(get_current_user),
@@ -150,7 +147,7 @@ async def list_orders(db: AsyncSession = Depends(get_db)):
 
 @admin_router.post("/approve/{order_id}", response_model=PaymentOrderResponse)
 async def approve_payment(
-    order_id: int,
+    order_id: str,
     db:   AsyncSession = Depends(get_db),
     _    = Depends(get_current_admin),      # explicit for clarity
 ):
@@ -185,7 +182,7 @@ async def approve_payment(
 
 @admin_router.post("/reject/{order_id}", response_model=PaymentOrderResponse)
 async def reject_payment(
-    order_id: int,
+    order_id: str,
     db:   AsyncSession = Depends(get_db),
     _    = Depends(get_current_admin),
 ):

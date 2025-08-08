@@ -189,24 +189,52 @@ async def encode_and_cleanup(cam_id: str) -> None:
 
                 # 4) leaf crops
                 for det in detections:
-                    if det["name"].lower() == "leaf":
+                    if det.get("name", "").lower() == "leaf":
                         x1, y1, x2, y2 = det["bbox"]
                         crop = cleaned[y1:y2, x1:x2]
                         leaf_dir = proc_dir / "leaf"
                         leaf_dir.mkdir(exist_ok=True)
                         crop_path = leaf_dir / f"{raw_path.stem}_leaf.jpg"
                         cv2.imwrite(str(crop_path), crop)
+                        # fire-and-forget disease classifier (non-blocking)
                         asyncio.create_task(_call_disease_model(crop_path))
+        
+                # 5) persist detections (one row per detection)
+                if cam:
+                    for det in detections:
+                        try:
+                            name = det.get("name", "")
+                            if name:
+                                sess.add(DetectionRecord(
+                                    camera_id=cam_id,
+                                    object_name=name,
+                                    timestamp=func.now(),
+                                ))
+                        except Exception:
+                            pass
+                # 6) append to rolling clip, update stats, purge old content
+                started_new_clip = await _write_to_clip(cam_id, annotated, clips_dir)
+                try:
+                    added_bytes = raw_path.stat().st_size
+                except Exception:
+                    added_bytes = 0
+                await _update_camera_stats(sess, cam, added_bytes=added_bytes, new_clip=started_new_clip)
+                _purge_old_clips(clips_dir)
 
-                # 5) append to clip
+                # 7) delete raw file after processing so it isn’t reprocessed
+                try:
+                    raw_path.unlink(missing_ok=True)
+                except Exception:
+                    pass
+                # 8) append to clip
                 new_clip = await _write_to_clip(cam_id, cleaned, clips_dir)
 
-                # 6) update stats
+                # 9) update stats
                 if cam:
                     added = raw_path.stat().st_size + proc_path.stat().st_size
                     await _update_camera_stats(sess, cam, added_bytes=added, new_clip=new_clip)
 
-                # 7) detection records
+                # 10) detection records
                 if detections:
                     for det in detections:
                         record = DetectionRecord(

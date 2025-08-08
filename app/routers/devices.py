@@ -12,7 +12,7 @@ import logging
 from fastapi import APIRouter, HTTPException, Depends, Query, Request,  WebSocket, Path as PathParam
 from fastapi.responses import JSONResponse, StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.future import select
+from sqlalchemy import select
 import re
 from app.core.config import DEPLOYMENT_MODE  # e.g. "LAN" or "CLOUD"
 from app.models import Device, Subscription, User
@@ -223,7 +223,7 @@ async def create_sensor_device(
         await session.rollback()
         raise HTTPException(status_code=500, detail=f"Error creating sensor device: {e}")
 
-@router.get("", response_model=list[DeviceResponse], summary="List all devices")
+@router.get("/", response_model=list[DeviceResponse], summary="List all devices")
 async def list_devices(db: AsyncSession = Depends(get_db)):
     result = await db.execute(select(Device))
     return result.scalars().all()

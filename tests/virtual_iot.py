@@ -208,6 +208,11 @@ def create_dosing_app() -> FastAPI:
         _enqueue_local(_dosing_state["device_id"], task.dict())
         return {"queued": True}
 
+    @app.post("/pump_calibration")
+    async def pump_calibration():
+        # emulate a stop/cancel action
+        return {"message": "dosing cancelled"}
+
     # start background poller if enabled
     threading.Thread(target=_device_poller, args=(_dosing_state["device_id"],), daemon=True).start()
     return app
@@ -270,8 +275,14 @@ def create_switch_app() -> FastAPI:
 
     @app.get("/state")
     async def state():
-        switches = [{"channel": i + 1, "state": "on" if st else "off"} for i, st in enumerate(_switch_state["channels"])]
-        return {"device_id": _switch_state["device_id"], "switches": switches}
+        channels = [{"channel": i + 1, "state": "on" if st else "off"}
+                    for i, st in enumerate(_switch_state["channels"])]
+        # tests expect "channels"; include "switches" for backwards-compat
+        return {
+            "device_id": _switch_state["device_id"],
+            "channels": channels,
+            "switches": channels,  # optional alias
+        }
 
     @app.post("/toggle")
     async def toggle(cmd: ToggleCommand):

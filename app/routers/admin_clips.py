@@ -43,7 +43,7 @@ async def list_clips(camera_id: str):
             response_class=HTMLResponse,
             summary="Embed HTML5 player for a clip")
 async def play_clip(camera_id: str, clip_name: str):
-    video_url = f"/admin/cameras/{camera_id}/clips/{clip_name}/download"
+    video_url = f"/api/v1/admin/cameras/{camera_id}/clips/{clip_name}/download"
     html = f"""
     <html><body>
       <video controls autoplay style="max-width:100%">

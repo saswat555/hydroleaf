@@ -1,7 +1,7 @@
 # app/routers/admin_subscription_plans.py
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.future import select
+from sqlalchemy import select
 
 from app.dependencies import get_current_admin
 from app.core.database import get_db
@@ -36,7 +36,7 @@ async def list_plans(db: AsyncSession = Depends(get_db)):
     return result.scalars().all()
 
 @router.delete("/{plan_id}")
-async def delete_plan(plan_id: int, db: AsyncSession = Depends(get_db)):
+async def delete_plan(plan_id: str, db: AsyncSession = Depends(get_db)):
     plan = await db.get(SubscriptionPlan, plan_id)
     if not plan:
         raise HTTPException(status_code=404, detail="Plan not found")

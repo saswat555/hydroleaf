@@ -65,7 +65,7 @@ async def _get_account_by_email(
     return res2.scalars().first()
 
 
-def _create_access_token(user_id: int, role: str) -> str:
+def _create_access_token(user_id: str, role: str) -> str:
     expire = datetime.utcnow() + timedelta(hours=ACCESS_TOKEN_EXPIRE_HOURS)
     to_encode = {"user_id": user_id, "role": role, "exp": expire}
     return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
@@ -96,67 +96,41 @@ async def login(
         user=UserResponse.from_orm(account),
     )
 
-
-@router.post(
-    "/signup",
-    response_model=AuthResponse,
-    status_code=status.HTTP_201_CREATED,
-)
-async def signup(
-    user_create: UserCreate,
-    db: AsyncSession = Depends(get_db),
-):
-    # 1) Prevent duplicate in users or admins
+@router.post("/signup", response_model=AuthResponse, status_code=status.HTTP_201_CREATED)
+async def signup(user_create: UserCreate, db: AsyncSession = Depends(get_db)):
     existing = await _get_account_by_email(user_create.email, db)
     if existing:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Email already registered",
-        )
+        raise HTTPException(status_code=400, detail="Email already registered")
 
-    # 2) Create User + nested profile
-    hashed_pw = get_password_hash(user_create.password)
-    user = User(email=user_create.email, hashed_password=hashed_pw, role="user")
+    user = User(email=user_create.email, hashed_password=get_password_hash(user_create.password), role="user")
 
-    # pick nested profile fields if present, else top-level
-    raw = {}
-    if user_create.profile:
-        raw = user_create.profile.dict(exclude_unset=True)
-
+    # Use .model_dump() (pydantic v2) and let it coerce types to str where needed
+    raw = user_create.profile.model_dump(exclude_unset=True) if user_create.profile else {}
     profile = UserProfile(
-        first_name=raw.get("first_name", user_create.first_name),
-        last_name=raw.get("last_name", user_create.last_name),
-        phone=raw.get("phone", user_create.phone),
-        address=raw.get("address", user_create.address),
-        city=raw.get("city", user_create.city),
-        state=raw.get("state", user_create.state),
-        country=raw.get("country", user_create.country),
-        postal_code=raw.get("postal_code", user_create.postal_code),
+        first_name = raw.get("first_name", user_create.first_name),
+        last_name  = raw.get("last_name",  user_create.last_name),
+        phone      = raw.get("phone",      user_create.phone),
+        address    = raw.get("address",    user_create.address),
+        city       = raw.get("city",       user_create.city),
+        state      = raw.get("state",      user_create.state),
+        country    = raw.get("country",    user_create.country),
+        postal_code= raw.get("postal_code",user_create.postal_code),
     )
     user.profile = profile
 
-    # 3) Persist
     db.add(user)
+    # ensure PK exists so the FK on profile is set before commit
+    await db.flush()
+    # now commit
     await db.commit()
 
-    # 3.1) re-fetch *only* the new user + its profile (no farms)
+    # refresh lightweight (no farms)
     stmt = (
         select(User)
-        .options(
-            noload(User.farms),
-            noload(User.shared_farms),
-            selectinload(User.profile),
-        )
+        .options(noload(User.farms), noload(User.shared_farms), selectinload(User.profile))
         .where(User.id == user.id)
     )
-    res = await db.execute(stmt)
-    user = res.scalars().first()
+    user = (await db.execute(stmt)).scalars().first()
 
-    # 4) Issue JWT
     token = _create_access_token(user.id, user.role)
-
-    return AuthResponse(
-        access_token=token,
-        token_type="bearer",
-        user=UserResponse.from_orm(user),
-    )
+    return AuthResponse(access_token=token, token_type="bearer", user=UserResponse.from_orm(user))

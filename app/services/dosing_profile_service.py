@@ -3,7 +3,7 @@
 import logging
 from typing import Any, Dict
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.future import select
+from sqlalchemy import select
 from fastapi import HTTPException
 from app.models import Device, DosingProfile
 from app.services.ph_tds import get_ph_tds_readings

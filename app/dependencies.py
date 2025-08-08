@@ -38,8 +38,8 @@ async def get_current_user(
 ) -> User:
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        user_id: str = payload.get("user_id")
-        if not user_id:
+        user_id = payload.get("user_id")
+        if user_id is None:
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid authentication credentials")
     except InvalidTokenError:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Could not validate credentials")
@@ -103,6 +103,8 @@ async def get_current_device(
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="No active subscription")
 
     plan = await db.get(SubscriptionPlan, sub.plan_id)
+    if not plan:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Subscription plan not found")
     if device.type.value not in plan.device_types:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Plan does not cover this device type")
 

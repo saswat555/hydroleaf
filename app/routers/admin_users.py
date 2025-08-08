@@ -1,7 +1,7 @@
 # app/routers/admin_users.py
 from fastapi import APIRouter, HTTPException, Depends, status
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.future import select
+from sqlalchemy import select
 from sqlalchemy.orm import joinedload
 from typing import List
 import datetime
@@ -34,7 +34,7 @@ async def list_users(
 
 @router.get("/{user_id}", response_model=UserResponse)
 async def get_user(
-    user_id: int,
+    user_id: str,
     db: AsyncSession = Depends(get_db),
     admin: Admin = Depends(get_current_admin)
 ):
@@ -46,7 +46,7 @@ async def get_user(
 
 @router.put("/{user_id}", response_model=UserResponse)
 async def update_user(
-    user_id: int,
+    user_id: str,
     user_update: UserUpdate,
     db: AsyncSession = Depends(get_db),
     admin: Admin = Depends(get_current_admin)
@@ -68,7 +68,7 @@ async def update_user(
 
 @router.delete("/{user_id}")
 async def delete_user(
-    user_id: int,
+    user_id: str,
     db: AsyncSession = Depends(get_db),
     admin: Admin = Depends(get_current_admin)
 ):
@@ -85,12 +85,12 @@ async def delete_user(
 
 @router.post("/impersonate/{user_id}")
 async def impersonate_user(
-    user_id: int,
+    user_id: str,
     db: AsyncSession = Depends(get_db),
     admin: Admin = Depends(get_current_admin)
 ):
     """Admin-only: return a JWT for the target user."""
-    user = await db.get(Admin, user_id)
+    user = await db.get(User, user_id)
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
     

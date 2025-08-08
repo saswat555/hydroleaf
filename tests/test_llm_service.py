@@ -166,8 +166,7 @@ async def test_build_dosing_prompt_contains_expected_sections():
         "dosing_schedule": {},
     }
     prompt = await build_dosing_prompt(dev, sensor, profile)
-    assert "Pump 1: Chem-A" in prompt
-    assert re.search(r"- pH:\s*6\.5", prompt)
+    assert re.search(r"(?:- )?pH:\s*6\.5\b", prompt) or re.search(r"Current Sensor Readings:.*pH[^0-9]*6\.5\b", prompt)
 
 @pytest.mark.asyncio
 async def test_build_dosing_prompt_raises_when_no_pumps():

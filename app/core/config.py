@@ -20,7 +20,10 @@ def _get_int(name: str, default: int) -> int:
 ENVIRONMENT    = os.getenv("ENVIRONMENT", "production").lower()
 DEBUG          = _get_bool("DEBUG", ENVIRONMENT != "production")
 TESTING        = _get_bool("TESTING")
-DEPLOYMENT_MODE = os.getenv("DEPLOYMENT_MODE", "LAN").upper()
+DEPLOYMENT_MODE = (
+    os.getenv("DEPLOYMENT_MODE")
+    or ("CLOUD" if TESTING else "LAN")
+).upper()
 RESET_DB       = _get_bool("RESET_DB")
 API_V1_STR     = os.getenv("API_V1_STR", "/api/v1")
 PROJECT_NAME   = os.getenv("PROJECT_NAME", "Hydroleaf")

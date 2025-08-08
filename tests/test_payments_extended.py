@@ -5,7 +5,7 @@ import pytest
 from httpx import AsyncClient
 
 from app.main import app
-from app.models import PaymentStatus, SubscriptionPlan
+from app.models import PaymentStatus
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Helpers / overrides
@@ -19,21 +19,22 @@ class _DummyAdmin:
 async def _always_admin() -> _DummyAdmin:
     return _DummyAdmin
 
-def _override_admin_dep():
-    """Stub out admin auth for all @admin routes."""
+def _apply_admin_override(monkeypatch):
+    """Scope-limited admin override for FastAPI dependency."""
     from app.dependencies import get_current_admin
-    app.dependency_overrides[get_current_admin] = _always_admin
+    monkeypatch.setitem(app.dependency_overrides, get_current_admin, _always_admin)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Fixtures
 # ─────────────────────────────────────────────────────────────────────────────
 @pytest.fixture
-async def basic_plan(async_client: AsyncClient, signed_up_user):
+async def basic_plan(async_client: AsyncClient, signed_up_user, monkeypatch):
     """
     Admin creates a plan with device_limit=1 for testing.
+    Override is scoped via monkeypatch so it doesn't leak into other tests.
     """
-    _override_admin_dep()
+    _apply_admin_override(monkeypatch)
     resp = await async_client.post(
         "/admin/plans/",
         json={
@@ -41,11 +42,11 @@ async def basic_plan(async_client: AsyncClient, signed_up_user):
             "device_types": ["dosing_unit"],
             "device_limit": 1,
             "duration_days": 30,
-            "price_cents": 10000,
+            "price": 10000,
         },
         headers={"Authorization": "Bearer x"},
     )
-    assert resp.status_code == 201
+    assert resp.status_code == 201, resp.text
     return resp.json()["id"]
 
 @pytest.fixture
@@ -65,20 +66,19 @@ async def dosing_device(async_client: AsyncClient, signed_up_user):
         },
         headers=hdrs,
     )
-    assert resp.status_code == 201
+    assert resp.status_code == 201, resp.text
     return resp.json()["id"]
 
 
-
-
-
 # ─────────────────────────────────────────────────────────────────────────────
-# 2) Payment → Subscription creation
+# 1) Payment → Subscription creation
 # ─────────────────────────────────────────────────────────────────────────────
 @pytest.mark.asyncio
-async def test_payment_happy_path_creates_subscription(async_client: AsyncClient, signed_up_user, basic_plan, dosing_device):
-    _override_admin_dep()
-    _, hdrs = signed_up_user
+async def test_payment_happy_path_creates_subscription(
+    async_client: AsyncClient, signed_up_user, basic_plan, dosing_device, monkeypatch
+):
+    _apply_admin_override(monkeypatch)
+    _, _, hdrs = signed_up_user
 
     # 1) create order
     order = (await async_client.post(
@@ -97,7 +97,7 @@ async def test_payment_happy_path_creates_subscription(async_client: AsyncClient
         headers=hdrs,
         files={"file": ("proof.jpg", b"\xFF\xD8\xFF", "image/jpeg")},
     )
-    assert up.status_code == 200
+    assert up.status_code == 200, up.text
     assert up.json()["screenshot_path"].endswith(".jpg")
 
     # 3) confirm → PROCESSING
@@ -130,9 +130,11 @@ async def test_payment_happy_path_creates_subscription(async_client: AsyncClient
 
 
 @pytest.mark.asyncio
-async def test_double_confirm_errors(async_client: AsyncClient, signed_up_user, basic_plan, dosing_device):
-    _override_admin_dep()
-    _, hdrs = signed_up_user
+async def test_double_confirm_errors(
+    async_client: AsyncClient, signed_up_user, basic_plan, dosing_device, monkeypatch
+):
+    _apply_admin_override(monkeypatch)
+    _, _, hdrs = signed_up_user
 
     order = (await async_client.post(
         "/api/v1/payments/create",
@@ -160,57 +162,79 @@ async def test_double_confirm_errors(async_client: AsyncClient, signed_up_user, 
     assert resp2.status_code == 400
     assert "current status" in resp2.json()["detail"].lower()
 
+
 @pytest.mark.asyncio
-async def test_admin_auth_required_for_approve(async_client: AsyncClient, signed_up_user, basic_plan, dosing_device):
-    # no override
-    _, hdrs = signed_up_user
+async def test_admin_auth_required_for_approve(
+    async_client: AsyncClient, signed_up_user, basic_plan, dosing_device
+):
+    # intentionally DO NOT override admin here
+    _, _, hdrs = signed_up_user
+
     order = (await async_client.post(
         "/api/v1/payments/create",
         json={"device_id": dosing_device, "plan_id": basic_plan},
         headers=hdrs,
     )).json()
     # upload+confirm
-    await async_client.post(f"/api/v1/payments/upload/{order['id']}", headers=hdrs,
-                            files={"file": ("p.jpg", b"x", "image/jpeg")})
-    await async_client.post(f"/api/v1/payments/confirm/{order['id']}",
-                            json={"upi_transaction_id": "TXN-Z"}, headers=hdrs)
+    await async_client.post(
+        f"/api/v1/payments/upload/{order['id']}",
+        headers=hdrs,
+        files={"file": ("p.jpg", b"x", "image/jpeg")},
+    )
+    await async_client.post(
+        f"/api/v1/payments/confirm/{order['id']}",
+        json={"upi_transaction_id": "TXN-Z"},
+        headers=hdrs,
+    )
     # unauthorized approve
     r = await async_client.post(f"/admin/payments/approve/{order['id']}")
     assert r.status_code in (401, 403)
 
+
 @pytest.mark.asyncio
-async def test_reject_pending(async_client: AsyncClient, signed_up_user, basic_plan, dosing_device):
-    _override_admin_dep()
-    _, hdrs = signed_up_user
+async def test_reject_pending(
+    async_client: AsyncClient, signed_up_user, basic_plan, dosing_device, monkeypatch
+):
+    _apply_admin_override(monkeypatch)
+    _, _, hdrs = signed_up_user
+
     order = (await async_client.post(
         "/api/v1/payments/create",
         json={"device_id": dosing_device, "plan_id": basic_plan},
         headers=hdrs,
     )).json()
     # upload only
-    await async_client.post(f"/api/v1/payments/upload/{order['id']}", headers=hdrs,
-                            files={"file": ("r.jpg", b"x", "image/jpeg")})
+    await async_client.post(
+        f"/api/v1/payments/upload/{order['id']}",
+        headers=hdrs,
+        files={"file": ("r.jpg", b"x", "image/jpeg")},
+    )
     # admin reject
     rej = await async_client.post(
         f"/admin/payments/reject/{order['id']}",
         headers={"Authorization": "Bearer admin-token"},
     )
-    assert rej.status_code == 200
-    assert rej.json()["status"] == PaymentStatus.FAILED
+    assert rej.status_code == 200, rej.text
+    # JSON returns a string; normalize to enum for comparison
+    assert PaymentStatus(rej.json()["status"]) is PaymentStatus.FAILED
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# 4) Expiry blocks confirm
+# 2) Expiry blocks confirm
 # ─────────────────────────────────────────────────────────────────────────────
 @pytest.mark.asyncio
-async def test_expiry_blocks_confirm(async_client: AsyncClient, monkeypatch, signed_up_user, basic_plan, dosing_device):
-    _override_admin_dep()
-    _, hdrs = signed_up_user
+async def test_expiry_blocks_confirm(
+    async_client: AsyncClient, monkeypatch, signed_up_user, basic_plan, dosing_device
+):
+    _apply_admin_override(monkeypatch)
+    _, _, hdrs = signed_up_user
 
     import app.routers.payments as pay_mod
     orig = pay_mod.datetime.utcnow
     # make now = 31m before real now, so order.expires_at < real now
-    monkeypatch.setattr(pay_mod.datetime, "utcnow", staticmethod(lambda: orig() - dt.timedelta(minutes=31)))
+    monkeypatch.setattr(
+        pay_mod.datetime, "utcnow", staticmethod(lambda: orig() - dt.timedelta(minutes=31))
+    )
 
     order = (await async_client.post(
         "/api/v1/payments/create",
@@ -238,12 +262,14 @@ async def test_expiry_blocks_confirm(async_client: AsyncClient, monkeypatch, sig
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# 6) Pro-rated Extension & Device-Linking
+# 3) Pro-rated Extension & Device-Linking
 # ─────────────────────────────────────────────────────────────────────────────
 @pytest.mark.asyncio
-async def test_extension_and_device_linking(async_client: AsyncClient, signed_up_user, basic_plan, dosing_device):
-    _override_admin_dep()
-    _, hdrs = signed_up_user
+async def test_extension_and_device_linking(
+    async_client: AsyncClient, monkeypatch, signed_up_user, basic_plan, dosing_device
+):
+    _apply_admin_override(monkeypatch)
+    _, _, hdrs = signed_up_user
 
     # Purchase & activate initial subscription
     ord1 = (await async_client.post(
@@ -251,12 +277,20 @@ async def test_extension_and_device_linking(async_client: AsyncClient, signed_up
         json={"device_id": dosing_device, "plan_id": basic_plan},
         headers=hdrs,
     )).json()
-    await async_client.post(f"/api/v1/payments/upload/{ord1['id']}", headers=hdrs,
-                            files={"file": ("1.jpg", b"x", "image/jpeg")})
-    await async_client.post(f"/api/v1/payments/confirm/{ord1['id']}",
-                            json={"upi_transaction_id": "TXN1"}, headers=hdrs)
-    await async_client.post(f"/admin/payments/approve/{ord1['id']}",
-                            headers={"Authorization": "Bearer admin-token"})
+    await async_client.post(
+        f"/api/v1/payments/upload/{ord1['id']}",
+        headers=hdrs,
+        files={"file": ("1.jpg", b"x", "image/jpeg")},
+    )
+    await async_client.post(
+        f"/api/v1/payments/confirm/{ord1['id']}",
+        json={"upi_transaction_id": "TXN1"},
+        headers=hdrs,
+    )
+    await async_client.post(
+        f"/admin/payments/approve/{ord1['id']}",
+        headers={"Authorization": "Bearer admin-token"},
+    )
 
     # get subscription
     subs = (await async_client.get("/api/v1/subscriptions/", headers=hdrs)).json()
@@ -268,38 +302,45 @@ async def test_extension_and_device_linking(async_client: AsyncClient, signed_up
 
     # Half-way through period: monkeypatch now = start + 15d
     import app.routers.payments as pay_mod
-    monkeypatch_time = start + dt.timedelta(days=15)
-    monkeypatch.setattr(pay_mod.datetime, "utcnow", staticmethod(lambda: monkeypatch_time))
+    halfway = start + dt.timedelta(days=15)
+    monkeypatch.setattr(pay_mod.datetime, "utcnow", staticmethod(lambda: halfway))
 
-    # Create extension order — price_cents should be roughly 5000 (half of 10000)
+    # Create extension order — price should be half of 10000
     ext = (await async_client.post(
         "/api/v1/payments/create",
         json={"subscription_id": sid, "plan_id": basic_plan},
         headers=hdrs,
     )).json()
-    assert ext["price_cents"] == 5000
+    assert ext["price"] == 5000
 
     # Finish extension
-    await async_client.post(f"/api/v1/payments/upload/{ext['id']}", headers=hdrs,
-                            files={"file": ("2.jpg", b"x", "image/jpeg")})
-    await async_client.post(f"/api/v1/payments/confirm/{ext['id']}",
-                            json={"upi_transaction_id": "TXN2"}, headers=hdrs)
-    await async_client.post(f"/admin/payments/approve/{ext['id']}",
-                            headers={"Authorization": "Bearer admin-token"})
+    await async_client.post(
+        f"/api/v1/payments/upload/{ext['id']}",
+        headers=hdrs,
+        files={"file": ("2.jpg", b"x", "image/jpeg")},
+    )
+    await async_client.post(
+        f"/api/v1/payments/confirm/{ext['id']}",
+        json={"upi_transaction_id": "TXN2"},
+        headers=hdrs,
+    )
+    await async_client.post(
+        f"/admin/payments/approve/{ext['id']}",
+        headers={"Authorization": "Bearer admin-token"},
+    )
 
     # After approve, subscription end = old_end + 30d
     subs2 = (await async_client.get("/api/v1/subscriptions/", headers=hdrs)).json()[0]
     new_end = dt.datetime.fromisoformat(subs2["end_date"].rstrip("Z"))
     assert (new_end - end).days == 30
 
-    # Device-linking up to device_limit=1 still only allows 1
+    # Device-linking up to device_limit=1 still only allows 1 (second link should fail)
     r1 = await async_client.post(
         f"/api/v1/subscriptions/{sid}/devices",
         json={"device_id": dosing_device},
         headers=hdrs,
     )
-    # should succeed for the original device
-    assert r1.status_code == 200
+    assert r1.status_code == 200  # original device is fine
 
     # Register a second device
     second = (await async_client.post(
@@ -314,7 +355,7 @@ async def test_extension_and_device_linking(async_client: AsyncClient, signed_up
         headers=hdrs,
     )).json()["id"]
 
-    # Now limit = 1 + (extended?) → we expect limit still 1, so this fails
+    # Limit remains 1 in this flow → second link should fail
     r2 = await async_client.post(
         f"/api/v1/subscriptions/{sid}/devices",
         json={"device_id": second},

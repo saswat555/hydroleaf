@@ -17,7 +17,7 @@ from __future__ import annotations
 
 import logging
 import secrets
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import delete, func, select
@@ -80,6 +80,7 @@ async def authenticate_cloud(
         if rec:
             rec.token = new_token
             rec.issued_at = func.now()
+            rec.expires_at = datetime.now(timezone.utc) + timedelta(days=30)
         else:
             db.add(
                 DeviceToken(

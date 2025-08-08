@@ -94,12 +94,11 @@ async def list_authenticated_devices(db: AsyncSession = Depends(get_db)):
         {
             "device_id": tok.device_id,
             "token": tok.token,
-            "issued_at": tok.issued_at.isoformat()
-            if isinstance(tok.issued_at, datetime)
-            else tok.issued_at,
+            "issued_at": getattr(tok.issued_at, "isoformat", lambda: tok.issued_at)(),
         }
         for tok in rows.scalars().all()
     ]
+
 
 
 # ─────────────────────────────────────────────────────────────────────────────

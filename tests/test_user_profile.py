@@ -4,7 +4,7 @@ import pytest
 
 @pytest.mark.asyncio
 async def test_get_and_update_profile(async_client, signed_up_user):
-    _, token, hdrs = signed_up_user
+    _, _, hdrs = signed_up_user
     # get
     me = (await async_client.get("/api/v1/users/me", headers=hdrs)).json()
     assert "email" in me

@@ -1,5 +1,6 @@
 # tests/services/test_farm_service.py
 
+import uuid
 import pytest
 from fastapi import HTTPException
 from types import SimpleNamespace
@@ -26,7 +27,6 @@ class DummyResult:
 
 class FakeFarmSession:
     def __init__(self, farms=None, single=None):
-        # farms: what execute() will return for list_farms_for_user
         # single: what get(Farm, pk) will return
         self._farms = farms or []
         self._single = single
@@ -40,7 +40,6 @@ class FakeFarmSession:
         return self._single
 
     async def add(self, obj):
-        # record the exact object you tried to add
         self.last_added = obj
 
     async def commit(self):
@@ -58,7 +57,7 @@ class FakeFarmSession:
 @pytest.mark.asyncio
 async def test_create_farm_success():
     sess = FakeFarmSession()
-    owner_id = 42
+    owner_id = str(uuid.uuid4())
     payload = {
         "name": "Test Farm",
         "address": "123 Garden Lane",
@@ -87,11 +86,12 @@ async def test_get_farm_by_id_not_found():
 
 @pytest.mark.asyncio
 async def test_list_farms_for_user():
-    f1 = Farm(id=1, owner_id=5, name="A", address="AddrA", latitude=0, longitude=0)
-    f2 = Farm(id=2, owner_id=5, name="B", address="AddrB", latitude=1, longitude=1)
+    user_id = str(uuid.uuid4())
+    f1 = Farm(id=str(uuid.uuid4()), owner_id=user_id, name="A", address="AddrA", latitude=0, longitude=0)
+    f2 = Farm(id=str(uuid.uuid4()), owner_id=user_id, name="B", address="AddrB", latitude=1, longitude=1)
     sess = FakeFarmSession(farms=[f1, f2])
 
-    farms = await list_farms_for_user(user_id=5, db=sess)
+    farms = await list_farms_for_user(user_id=user_id, db=sess)
 
     # we get back exactly what we seeded
     assert farms == [f1, f2]
@@ -107,7 +107,7 @@ async def test_share_farm_not_found():
 @pytest.mark.asyncio
 async def test_share_farm_success_records_and_returns_association():
     # prepare a farm
-    farm = Farm(id=7, owner_id=3, name="Shared Farm", address="X", latitude=0, longitude=0)
+    farm = Farm(id=str(uuid.uuid4()), owner_id=str(uuid.uuid4()), name="Shared Farm", address="X", latitude=0, longitude=0)
     sess = FakeFarmSession(single=farm)
     sub_user_id = 99
 
@@ -121,21 +121,21 @@ async def test_share_farm_success_records_and_returns_association():
 
     # 3) and that the return has the right attributes
     assert isinstance(assoc, SimpleNamespace)
-    assert assoc.farm_id == 7
+    assert assoc.farm_id == farm.id
     assert assoc.user_id == sub_user_id
 
 
 @pytest.mark.asyncio
 async def test_get_farm_by_id_success():
     # retrieving a known farm yields the exact ORM object
-    farm = Farm(id=8, owner_id=2, name="Farm8", address="Addr8", latitude=8.8, longitude=9.9)
+    farm = Farm(id=str(uuid.uuid4()), owner_id=str(uuid.uuid4()), name="Farm8", address="Addr8", latitude=8.8, longitude=9.9)
     sess = FakeFarmSession(single=farm)
-    result = await get_farm_by_id(8, db=sess)
+    result = await get_farm_by_id(farm.id, db=sess)
     assert result is farm
 
 @pytest.mark.asyncio
 async def test_list_farms_for_user_empty():
     # user with no farms returns []
     sess = FakeFarmSession(farms=[])
-    farms = await list_farms_for_user(user_id=99, db=sess)
+    farms = await list_farms_for_user(user_id=str(uuid.uuid4()), db=sess)
     assert farms == []

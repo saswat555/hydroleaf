@@ -20,21 +20,40 @@ MODEL_1_5B = os.getenv("MODEL_1_5B", "deepseek-r1:1.5b")
 MODEL_7B = os.getenv("MODEL_7B", "gemma3")
 LLM_REQUEST_TIMEOUT = int(os.getenv("LLM_REQUEST_TIMEOUT", "300"))
 
+# app/services/supply_chain_service.py
 def extract_json_from_response(response_text: str) -> Dict:
-    """
-    Extract and parse JSON from an LLM response while handling errors gracefully.
-    """
     try:
-        response_text = response_text.replace("'", '"').strip()
-        json_match = re.search(r"(\{.*?\})", response_text, flags=re.DOTALL)
-        if json_match:
-            cleaned_json = json_match.group(1)
-            return json.loads(cleaned_json)
-        else:
-            logger.error("No valid JSON block found in LLM response.")
+        s = response_text.replace("'", '"').strip()
+        start = s.find("{")
+        if start == -1:
             raise HTTPException(status_code=500, detail="Invalid JSON from LLM")
-    except json.JSONDecodeError as e:
-        logger.error(f"JSON Parsing Error: {e}. Response: {response_text}")
+
+        depth = 0
+        in_str = False
+        esc = False
+        end = None
+        for i, ch in enumerate(s[start:], start=start):
+            if in_str:
+                if esc:
+                    esc = False
+                elif ch == "\\":
+                    esc = True
+                elif ch == '"':
+                    in_str = False
+            else:
+                if ch == '"':
+                    in_str = True
+                elif ch == "{":
+                    depth += 1
+                elif ch == "}":
+                    depth -= 1
+                    if depth == 0:
+                        end = i + 1
+                        break
+        if end is None:
+            raise HTTPException(status_code=500, detail="Malformed JSON format from LLM")
+        return json.loads(s[start:end])
+    except json.JSONDecodeError:
         raise HTTPException(status_code=500, detail="Malformed JSON format from LLM")
 
 async def call_llm(prompt: str, model_name: str = MODEL_1_5B) -> Dict:

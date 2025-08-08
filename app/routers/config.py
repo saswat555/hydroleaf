@@ -92,7 +92,7 @@ async def get_device_profiles(
 
 @router.delete("/dosing-profiles/{profile_id}")
 async def delete_dosing_profile(
-    profile_id: int,
+    profile_id: str,
     db: AsyncSession = Depends(get_db)
 ):
     """Delete a dosing profile"""

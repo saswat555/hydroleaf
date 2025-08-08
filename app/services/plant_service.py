@@ -1,6 +1,6 @@
 import logging
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.future import select
+from sqlalchemy import select
 from fastapi import HTTPException
 from app.models import Farm, Plant
 logger = logging.getLogger(__name__)
@@ -26,14 +26,14 @@ async def get_all_plants(db: AsyncSession):
         return []
 
 
-async def get_plant_by_id(plant_id: int, db: AsyncSession):
+async def get_plant_by_id(plant_id: str, db: AsyncSession):
     """Retrieve a specific plant by ID."""
     plant = await db.get(Plant, plant_id)
     if not plant:
         raise HTTPException(status_code=404, detail="Plant not found")
     return plant
 
-async def create_plant(payload, db: AsyncSession, farm_id: int | None = None):
+async def create_plant(payload, db: AsyncSession, farm_id: str | None = None):
     """
     Create a new plant.  Accepts either a PlantCreate Pydantic model or a dict.
 
@@ -54,7 +54,7 @@ async def create_plant(payload, db: AsyncSession, farm_id: int | None = None):
     await db.refresh(new_plant)
     return new_plant
 
-async def delete_plant(plant_id: int, db: AsyncSession):
+async def delete_plant(plant_id: str, db: AsyncSession):
     """Delete a plant by ID."""
     plant = await db.get(Plant, plant_id)
     if not plant:
@@ -63,7 +63,7 @@ async def delete_plant(plant_id: int, db: AsyncSession):
     await db.commit()
     return {"message": "Plant deleted successfully"}
 
-async def list_plants_by_farm(farm_id: int, db: AsyncSession) -> list[Plant]:
+async def list_plants_by_farm(farm_id: str, db: AsyncSession) -> list[Plant]:
     """
     Retrieve all plants belonging to a given farm.
     """
@@ -77,7 +77,7 @@ async def list_plants_by_farm(farm_id: int, db: AsyncSession) -> list[Plant]:
         logger.error(f"Failed to list plants for farm {farm_id}: {e}")
         return []
 
-async def list_plants_by_farm(farm_id: int, db: AsyncSession):
+async def list_plants_by_farm(farm_id: str, db: AsyncSession):
     """
     (Stub) List all plants for a given farm.
     Eventually this should filter by Plant.farm_id, but for now

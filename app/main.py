@@ -24,7 +24,7 @@ from app.schemas import HealthCheck, DatabaseHealthCheck, FullHealthCheck
 from app.routers.auth import router as auth_router
 from app.routers.devices import router as devices_router
 from app.routers.farms import router as farms_router
-from app.routers.payments import router as payments_router
+from app.routers.payments import router as payments_router, admin_router as payments_admin_router
 from app.routers.subscriptions import router as subscriptions_router
 from app.routers.cameras import router as cameras_router
 from app.routers.device_comm import router as device_comm_router
@@ -179,7 +179,7 @@ app.include_router(auth_router,        prefix=f"{API_V1_STR}/auth",        tags=
 app.include_router(device_comm_router, prefix=f"{API_V1_STR}/device_comm", tags=["Device Comm"])
 app.include_router(cloud_router,       prefix=f"{API_V1_STR}/cloud",       tags=["Cloud"])
 # These already define /api/v1/... inside the files – include as-is
-app.include_router(payments_router)
+app.include_router(payments_admin_router, prefix=f"{API_V1_STR}")
 app.include_router(subscriptions_router)
 app.include_router(cameras_router,     prefix=f"{API_V1_STR}/cameras",     tags=["Cameras"])
 app.include_router(admin_subscriptions_router, prefix=f"{API_V1_STR}")

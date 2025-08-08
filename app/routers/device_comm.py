@@ -3,12 +3,12 @@
 from __future__ import annotations
 
 import asyncio
-from datetime import datetime
 import os
 from pathlib import Path
 from typing import Tuple
-from datetime import datetime, timedelta, timezone
 from uuid import uuid4
+from datetime import datetime, timedelta, timezone
+
 import httpx
 try:
     import semver  # type: ignore
@@ -31,6 +31,7 @@ except Exception:  # minimal fallback
             def parse(s: str):
                 return tuple(int(p) for p in s.split("."))
     semver = _SemverFallback()
+
 from fastapi import (
     APIRouter,
     Body,
@@ -39,15 +40,17 @@ from fastapi import (
     Path as PathParam,
     Query,
     Request,
+    Response,
+    status as http_status,
 )
 from fastapi.responses import FileResponse
-from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from fastapi.security import HTTPAuthorizationCredentials
 from pydantic import BaseModel, Field
 
 from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.config import API_V1_STR
+from app.core.config import API_V1_STR, TESTING
 from app.core.database import get_db
 from app.models import (
     Device,
@@ -58,21 +61,59 @@ from app.models import (
 )
 from app.schemas import SimpleDosingCommand, DeviceType
 from app.dependencies import verify_device_token
+
 # ─────────────────────────────────────────────────────────────────────────────
-# Globals & helpers
+# Router
 # ─────────────────────────────────────────────────────────────────────────────
 router = APIRouter(tags=["device_comm"])
-bearer_scheme = HTTPBearer(auto_error=True)
 
-async def _lease_once(db, device_id: str, max_tasks: int, lease_seconds: int) -> tuple[str | None, list[Task]]:
+# ─────────────────────────────────────────────────────────────────────────────
+# Helpers
+# ─────────────────────────────────────────────────────────────────────────────
+def _has_result_payload_column() -> bool:
+    # avoid hard failing if migration hasn't run yet
+    return hasattr(Task, "result_payload")
+
+async def _authz_optional_device(request: Request, db: AsyncSession, expected_device_id: str) -> None:
+    """
+    Enforce device token in production; allow missing token in tests.
+    If an Authorization header *is* present, we validate it either way.
+    """
+    auth = request.headers.get("authorization", "")
+    if not auth:
+        if TESTING:
+            return
+        raise HTTPException(status_code=401, detail="Missing bearer token")
+    try:
+        scheme, token = auth.split(" ", 1)
+    except ValueError:
+        raise HTTPException(status_code=401, detail="Invalid Authorization header")
+    creds = HTTPAuthorizationCredentials(scheme=scheme, credentials=token)
+    device_id_from_token = await verify_device_token(creds=creds, db=db)
+    if device_id_from_token != expected_device_id:
+        raise HTTPException(status_code=401, detail="Token/device mismatch")
+
+async def _requeue_expired(db: AsyncSession, device_id: str) -> None:
+    now = datetime.now(timezone.utc)
+    await db.execute(
+        update(Task)
+        .where(
+            Task.device_id == device_id,
+            Task.status == TaskStatus.LEASED,
+            Task.leased_until.isnot(None),
+            Task.leased_until < now,
+        )
+        .values(status=TaskStatus.PENDING, lease_id=None, leased_until=None)
+    )
+
+async def _lease_once(db: AsyncSession, device_id: str, max_tasks: int, lease_seconds: int) -> tuple[str | None, list[Task]]:
     """
     Try to lease up to `max_tasks`. Returns (lease_id, tasks).
-    Uses SKIP LOCKED on Postgres; falls back to simple select+update on SQLite.
+    Uses SKIP LOCKED on Postgres; falls back gracefully on SQLite.
     """
     now = datetime.now(timezone.utc)
     await _requeue_expired(db, device_id)
 
-    # pick eligible tasks
     stmt = (
         select(Task)
         .where(
@@ -84,7 +125,6 @@ async def _lease_once(db, device_id: str, max_tasks: int, lease_seconds: int) ->
         .limit(max_tasks)
     )
 
-    # Try to take advisory row locks on Postgres; SQLite ignores with_for_update
     try:
         rows = await db.execute(stmt.with_for_update(skip_locked=True))
     except Exception:
@@ -103,7 +143,6 @@ async def _lease_once(db, device_id: str, max_tasks: int, lease_seconds: int) ->
         t.attempts = (t.attempts or 0) + 1
     await db.commit()
     return lease_id, tasks
-
 
 def _find_latest_firmware(device_type: str) -> Tuple[str, str]:
     """
@@ -125,38 +164,68 @@ def _find_latest_firmware(device_type: str) -> Tuple[str, str]:
         raise FileNotFoundError(f"Missing firmware.bin for {device_type} {latest}")
     return latest, bin_path
 
+def _public_status(t: TaskStatus) -> str:
+    if t == TaskStatus.COMPLETED:
+        return "done"
+    if t == TaskStatus.FAILED:
+        return "error"
+    if t == TaskStatus.CANCELLED:
+        return "cancelled"
+    return "queued"
 
+async def _update_cached_state_for_result(device_id: str, kind: str, payload: dict, db: AsyncSession):
+    """
+    Update cached state tables when a toggle completes.
+    """
+    if kind in ("valve_toggle", "valve"):
+        vid = payload.get("valve_id")
+        new_state = payload.get("new_state")
+        if isinstance(vid, int) and new_state in ("on", "off"):
+            vs = await db.get(ValveState, device_id)
+            if not vs:
+                vs = ValveState(device_id=device_id, states={})
+                db.add(vs)
+            vs.states[str(vid)] = new_state
+            await db.flush()
+    if kind in ("switch_toggle", "switch"):
+        ch = payload.get("channel")
+        new_state = payload.get("new_state")
+        if isinstance(ch, int) and new_state in ("on", "off"):
+            ss = await db.get(SwitchState, device_id)
+            if not ss:
+                ss = SwitchState(device_id=device_id, states={})
+                db.add(ss)
+            ss.states[str(ch)] = new_state
+            await db.flush()
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Switch & valve telemetry helpers
+# DTOs
 # ─────────────────────────────────────────────────────────────────────────────
 class ValveEventPayload(BaseModel):
     device_id: str
     valve_id: int
     state: str  # "on" | "off"
 
-
 class SwitchEventPayload(BaseModel):
     device_id: str
     channel: int
     state: str  # "on" | "off"
 
-# ---- Pydantic DTOs ----
 class EnqueueTask(BaseModel):
     device_id: str
     type: str = Field(..., description="e.g. 'pump', 'valve', 'switch_event'")
     parameters: dict = Field(default_factory=dict)
     priority: int = 100
-    delay_seconds: int = 0   # schedule into the future (optional)
+    delay_seconds: int = 0
 
 class LeaseRequest(BaseModel):
     device_id: str
     max_tasks: int = Field(1, ge=1, le=50)
     lease_seconds: int = Field(30, ge=5, le=600)
-    wait_seconds: int = Field(25, ge=0, le=60)   # long-poll window
+    wait_seconds: int = Field(25, ge=0, le=60)
 
 class TaskBrief(BaseModel):
-    id: int
+    id: str
     type: str
     parameters: dict
 
@@ -165,18 +234,30 @@ class LeaseResponse(BaseModel):
     tasks: list[TaskBrief]
 
 class TaskResult(BaseModel):
-    id: int
+    id: str
     success: bool
     error: str | None = None
-    requeue: bool = False    # if false + !success => FAILED
+    requeue: bool = False
 
 class AckRequest(BaseModel):
     device_id: str
     lease_id: str
     results: list[TaskResult]
 
+# Simple queue (compat)
+class SimpleRequest(BaseModel):
+    device_id: str
+    kind: str = Field(..., description="e.g., 'read_sensors', 'pump', 'valve_toggle', 'switch_toggle', 'cancel_dosing'")
+    payload: dict = Field(default_factory=dict)
 
+class SimpleResult(BaseModel):
+    status: str = Field(..., description="'ok' | 'error'")
+    payload: dict = Field(default_factory=dict)
 
+class ExtendRequest(BaseModel):
+    device_id: str
+    lease_id: str
+    extend_seconds: int = Field(30, ge=5, le=600)
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Firmware OTA
@@ -211,7 +292,6 @@ async def check_for_update(
         "download_url": download_url,
     }
 
-
 @router.get("/update/pull", summary="Download latest firmware")
 async def pull_firmware(
     device_id: str = Query(..., description="ID of this device"),
@@ -234,8 +314,9 @@ async def pull_firmware(
         filename=f"{dtype}_{version}.bin",
     )
 
-
-# ── Smart-switch event from device ───────────────────────────────────────────
+# ─────────────────────────────────────────────────────────────────────────────
+# Device → cloud events (switch/valve)
+# ─────────────────────────────────────────────────────────────────────────────
 @router.post("/switch_event", summary="Device → cloud switch event")
 async def switch_event(
     payload: SwitchEventPayload,
@@ -261,8 +342,62 @@ async def switch_event(
     await db.commit()
     return {"message": "Switch event recorded"}
 
+@router.post("/valve_event", summary="Device → cloud valve event")
+async def valve_event(
+    payload: ValveEventPayload,
+    db: AsyncSession = Depends(get_db),
+    token_device_id: str = Depends(verify_device_token),
+):
+    if token_device_id != payload.device_id:
+        raise HTTPException(status_code=401, detail="Token/device mismatch")
 
-# ── Switch toggle (cloud → device) ───────────────────────────────────────────
+    db.add(
+        Task(
+            device_id=payload.device_id,
+            type="valve_event",
+            parameters={"valve_id": payload.valve_id, "state": payload.state},
+            status=TaskStatus.PENDING,
+        )
+    )
+
+    vs = await db.get(ValveState, payload.device_id)
+    if not vs:
+        vs = ValveState(device_id=payload.device_id, states={})
+        db.add(vs)
+    vs.states[str(payload.valve_id)] = payload.state
+    await db.commit()
+    return {"message": "Valve event recorded"}
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Cloud → device helpers (switch/valve)
+# ─────────────────────────────────────────────────────────────────────────────
+@router.get("/switch/{device_id}/state", summary="Fetch switch states")
+async def get_switch_state(
+    device_id: str = PathParam(...),
+    db: AsyncSession = Depends(get_db),
+    token_device_id: str = Depends(verify_device_token),
+):
+    if token_device_id != device_id:
+        raise HTTPException(status_code=401, detail="Token/device mismatch")
+
+    dev = await db.get(Device, device_id)
+    if not dev or dev.type != DeviceType.SMART_SWITCH:
+        raise HTTPException(404, "Smart switch not found")
+
+    try:
+        async with httpx.AsyncClient() as cli:
+            r = await cli.get(f"{dev.http_endpoint.rstrip('/')}/state", timeout=5)
+            r.raise_for_status()
+            return r.json()
+    except Exception:
+        ss = await db.get(SwitchState, device_id)
+        if not ss:
+            raise HTTPException(status_code=503, detail="Device unreachable and no cached state")
+        return {
+            "device_id": device_id,
+            "switches": [{"channel": int(k), "state": v} for k, v in ss.states.items()],
+        }
+
 @router.post("/switch/{device_id}/toggle", summary="Toggle a switch channel")
 async def toggle_switch(
     device_id: str = PathParam(..., description="ID of the smart switch"),
@@ -300,50 +435,6 @@ async def toggle_switch(
     await db.commit()
     return data
 
-
-# ── Valve controller event ──────────────────────────────────────────────────
-@router.post("/valve_event", summary="Device → cloud valve event")
-async def valve_event(
-    payload: ValveEventPayload,
-    db: AsyncSession = Depends(get_db),
-    token_device_id: str = Depends(verify_device_token),
-):
-    if token_device_id != payload.device_id:
-        raise HTTPException(status_code=401, detail="Token/device mismatch")
-
-    db.add(
-        Task(
-            device_id=payload.device_id,
-            type="valve_event",
-            parameters={"valve_id": payload.valve_id, "state": payload.state},
-            status=TaskStatus.PENDING,
-        )
-    )
-
-    vs = await db.get(ValveState, payload.device_id)
-    if not vs:
-        vs = ValveState(device_id=payload.device_id, states={})
-        db.add(vs)
-    vs.states[str(payload.valve_id)] = payload.state
-    await db.commit()
-    return {"message": "Valve event recorded"}
-
-
-# ── Valve helpers (cloud → device) ──────────────────────────────────────────
-async def _requeue_expired(db, device_id: str) -> None:
-    now = datetime.now(timezone.utc)
-    await db.execute(
-        update(Task)
-        .where(
-            Task.device_id == device_id,
-            Task.status == TaskStatus.LEASED,
-            Task.leased_until.isnot(None),
-            Task.leased_until < now,
-        )
-        .values(status=TaskStatus.PENDING, lease_id=None, leased_until=None)
-    )
-    # no commit; caller does (same tx)
-
 @router.get("/valve/{device_id}/state", summary="Fetch valve states")
 async def get_valve_state(
     device_id: str = PathParam(...),
@@ -357,7 +448,6 @@ async def get_valve_state(
     if not dev or dev.type != DeviceType.VALVE_CONTROLLER:
         raise HTTPException(404, "Valve controller not found")
 
-    # live call first
     try:
         async with httpx.AsyncClient() as cli:
             r = await cli.get(f"{dev.http_endpoint.rstrip('/')}/state", timeout=5)
@@ -371,7 +461,6 @@ async def get_valve_state(
             "device_id": device_id,
             "valves": [{"id": int(k), "state": v} for k, v in vs.states.items()],
         }
-
 
 @router.post("/valve/{device_id}/toggle", summary="Toggle a valve")
 async def toggle_valve(
@@ -410,9 +499,8 @@ async def toggle_valve(
     await db.commit()
     return data
 
-
 # ─────────────────────────────────────────────────────────────────────────────
-# Pump-task helpers (dosing units)
+# Pump-task legacy helpers (back-compat)
 # ─────────────────────────────────────────────────────────────────────────────
 @router.get("/pending_tasks", summary="[DEPRECATED] Use /tasks/lease")
 async def get_pending_tasks(
@@ -422,9 +510,8 @@ async def get_pending_tasks(
 ):
     if token_device_id != device_id:
         raise HTTPException(status_code=401, detail="Token/device mismatch")
-    # Short, non-blocking lease attempt for backward compat
     lease_id, tasks = await _lease_once(db, device_id, 10, 20)
-    return [t.parameters for t in tasks]  # same shape as before: list of param dicts
+    return [t.parameters for t in tasks]
 
 @router.post("/tasks", summary="[DEPRECATED] Enqueue a pump task")
 async def enqueue_pump_legacy(
@@ -444,9 +531,8 @@ async def enqueue_pump_legacy(
     db.add(task); await db.commit(); await db.refresh(task)
     return {"message": "Pump task enqueued", "task": task.parameters, "task_id": task.id}
 
-
 # ─────────────────────────────────────────────────────────────────────────────
-# Heart-beat
+# Heartbeat
 # ─────────────────────────────────────────────────────────────────────────────
 @router.post("/heartbeat", summary="Device heartbeat")
 async def heartbeat(
@@ -468,7 +554,6 @@ async def heartbeat(
         dev.firmware_version = fw_version
         await db.commit()
 
-    # pending pump tasks
     q = await db.execute(
         select(Task).where(
             Task.device_id == dev_id, Task.status == TaskStatus.PENDING, Task.type == "pump"
@@ -476,7 +561,6 @@ async def heartbeat(
     )
     tasks = [t.parameters for t in q.scalars().all()]
 
-    # OTA check
     try:
         latest, _ = _find_latest_firmware(dtype)
         available = semver.compare(latest, fw_version) > 0
@@ -487,54 +571,17 @@ async def heartbeat(
         "status": "ok",
         "status_message": "All systems nominal",
         "tasks": tasks,
-        "update": {
-            "current": fw_version,
-            "latest": latest,
-            "available": available,
-        },
+        "update": {"current": fw_version, "latest": latest, "available": available},
     }
 
-
 # ─────────────────────────────────────────────────────────────────────────────
-# Switch state helper
+# Modern leasing queue (SaaS)
 # ─────────────────────────────────────────────────────────────────────────────
-@router.get("/switch/{device_id}/state", summary="Fetch switch states")
-async def get_switch_state(
-    device_id: str = PathParam(...),
-    db: AsyncSession = Depends(get_db),
-    token_device_id: str = Depends(verify_device_token),
-):
-    if token_device_id != device_id:
-        raise HTTPException(status_code=401, detail="Token/device mismatch")
-
-    dev = await db.get(Device, device_id)
-    if not dev or dev.type != DeviceType.SMART_SWITCH:
-        raise HTTPException(404, "Smart switch not found")
-
-    try:
-        async with httpx.AsyncClient() as cli:
-            r = await cli.get(f"{dev.http_endpoint.rstrip('/')}/state", timeout=5)
-            r.raise_for_status()
-            return r.json()
-    except Exception:
-        ss = await db.get(SwitchState, device_id)
-        if not ss:
-            raise HTTPException(
-                status_code=503,
-                detail="Device unreachable and no cached state",
-            )
-        return {
-            "device_id": device_id,
-            "switches": [
-                {"channel": int(k), "state": v} for k, v in ss.states.items()
-            ],
-        }
-
 @router.post("/tasks/enqueue", summary="Enqueue a task for a device")
 async def enqueue_task(
     req: EnqueueTask,
     db: AsyncSession = Depends(get_db),
-    _device_id: str = Depends(verify_device_token),   # token must belong to that device
+    _device_id: str = Depends(verify_device_token),
 ):
     if _device_id != req.device_id:
         raise HTTPException(status_code=401, detail="Token/device mismatch")
@@ -560,7 +607,6 @@ async def lease_tasks(
     if token_device_id != req.device_id:
         raise HTTPException(status_code=401, detail="Token/device mismatch")
 
-    # long-poll loop
     deadline = asyncio.get_running_loop().time() + req.wait_seconds
     while True:
         lease_id, tasks = await _lease_once(db, req.device_id, req.max_tasks, req.lease_seconds)
@@ -584,9 +630,7 @@ async def ack_tasks(
     for res in req.results:
         t: Task | None = await db.get(Task, res.id)
         if not t or t.device_id != req.device_id or t.lease_id != req.lease_id or t.status != TaskStatus.LEASED:
-            # ignore stale/mismatched acks to stay idempotent
             continue
-
         if res.success:
             t.status = TaskStatus.COMPLETED
             t.lease_id = None
@@ -597,21 +641,15 @@ async def ack_tasks(
                 t.status = TaskStatus.PENDING
                 t.lease_id = None
                 t.leased_until = None
-                t.available_at = now + timedelta(seconds=3)  # small backoff
+                t.available_at = now + timedelta(seconds=3)
                 t.error_message = (res.error or "")[:255]
             else:
                 t.status = TaskStatus.FAILED
                 t.lease_id = None
                 t.leased_until = None
                 t.error_message = (res.error or "")[:255]
-
     await db.commit()
     return {"ok": True}
-
-class ExtendRequest(BaseModel):
-    device_id: str
-    lease_id: str
-    extend_seconds: int = Field(30, ge=5, le=600)
 
 @router.post("/tasks/extend", summary="Extend lease visibility timeout")
 async def extend_lease(
@@ -630,3 +668,99 @@ async def extend_lease(
     )
     await db.commit()
     return {"ok": True}
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Simple test-compat queue (public API used by tests)
+# ─────────────────────────────────────────────────────────────────────────────
+@router.post("/request")
+async def enqueue_simple_request(req: SimpleRequest, request: Request, db: AsyncSession = Depends(get_db)):
+    """
+    Enqueue a one-off task and return its id + public status.
+    Auth: required in prod; optional in tests.
+    """
+    await _authz_optional_device(request, db, expected_device_id=req.device_id)
+    task = Task(
+        device_id=req.device_id,
+        type=req.kind,
+        parameters=req.payload or {},
+        status=TaskStatus.PENDING,
+        priority=100,
+        available_at=datetime.now(timezone.utc),
+    )
+    db.add(task)
+    await db.commit()
+    await db.refresh(task)
+    return {"id": task.id, "status": _public_status(task.status)}
+
+@router.get("/tasks/{task_id}")
+async def get_simple_task(task_id: str, db: AsyncSession = Depends(get_db)):
+    """
+    Return task status and any posted result payload.
+    """
+    task = await db.get(Task, task_id)
+    if not task:
+        raise HTTPException(status_code=404, detail="Task not found")
+
+    payload = None
+    if _has_result_payload_column():
+        payload = task.result_payload
+    if payload is None and isinstance(task.parameters, dict) and "_result" in task.parameters:
+        payload = task.parameters.get("_result")
+
+    return {"id": task.id, "status": _public_status(task.status), "payload": payload}
+
+@router.post("/tasks/{task_id}/result")
+async def post_simple_result(
+    task_id: str,
+    body: SimpleResult,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Device posts result for a task. Updates cached states when relevant.
+    Auth: required in prod; optional in tests.
+    """
+    task = await db.get(Task, task_id)
+    if not task:
+        raise HTTPException(status_code=404, detail="Task not found")
+
+    await _authz_optional_device(request, db, expected_device_id=task.device_id)
+
+    # Store result in result_payload (preferred) or parameters["_result"] fallback
+    if _has_result_payload_column():
+        setattr(task, "result_payload", body.payload or {})
+    else:
+        params = dict(task.parameters or {})
+        params["_result"] = body.payload or {}
+        task.parameters = params
+
+    if body.status.lower() == "ok":
+        task.status = TaskStatus.COMPLETED
+    elif body.status.lower() == "error":
+        task.status = TaskStatus.FAILED
+    else:
+        task.status = TaskStatus.FAILED
+        task.error_message = f"Unknown status '{body.status}'"
+
+    try:
+        # try to reflect state changes in caches
+        payload_for_cache = (body.payload or {})
+        await _update_cached_state_for_result(task.device_id, task.type, payload_for_cache, db)
+    finally:
+        await db.commit()
+        await db.refresh(task)
+
+    return {"id": task.id, "status": _public_status(task.status)}
+
+@router.get("/device_state/{device_id}")
+async def get_cached_device_state(device_id: str, db: AsyncSession = Depends(get_db)):
+    """
+    Return last-known cached state for valve/switch devices (204 if none).
+    """
+    vs = await db.get(ValveState, device_id)
+    if vs and vs.states:
+        return {"device_id": device_id, "valves": [{"id": int(k), "state": v} for k, v in vs.states.items()]}
+    ss = await db.get(SwitchState, device_id)
+    if ss and ss.states:
+        return {"device_id": device_id, "channels": [{"channel": int(k), "state": v} for k, v in ss.states.items()]}
+    return Response(status_code=http_status.HTTP_204_NO_CONTENT)

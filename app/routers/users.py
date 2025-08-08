@@ -19,7 +19,7 @@ async def get_my_profile(current_user: User = Depends(get_current_user)):
     return current_user
 
 
-async def _email_taken(db: AsyncSession, email: str, exclude_user_id: int) -> bool:
+async def _email_taken(db: AsyncSession, email: str, exclude_user_id: str) -> bool:
     """
     Check if `email` is already used by another User or any Admin.
     """

@@ -1,7 +1,7 @@
 # tests/test_farm_endpoints.py
 
 import pytest
-
+import uuid
 @pytest.mark.asyncio
 async def test_farm_crud_http(async_client, signed_up_user):
     _, _, hdrs = signed_up_user
@@ -22,6 +22,7 @@ async def test_farm_crud_http(async_client, signed_up_user):
     assert r.status_code == 201
     farm = r.json()
     farm_id = farm["id"]
+    uuid.UUID(str(farm_id))
     assert farm["name"] == payload["name"]
 
     # 3) List now contains it

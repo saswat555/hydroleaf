@@ -21,7 +21,7 @@ async def fetch_all_plants(db: AsyncSession = Depends(get_db)):
     return plants 
 
 @router.get("/{plant_id}", response_model=PlantResponse)
-async def fetch_plant(plant_id: int, db: AsyncSession = Depends(get_db)):
+async def fetch_plant(plant_id: str, db: AsyncSession = Depends(get_db)):
     """Retrieve a plant by ID."""
     return await get_plant_by_id(plant_id, db)
 
@@ -31,12 +31,12 @@ async def add_plant(plant: PlantCreate, db: AsyncSession = Depends(get_db)):
     return await create_plant(plant, db)
 
 @router.delete("/{plant_id}")
-async def remove_plant(plant_id: int, db: AsyncSession = Depends(get_db)):
+async def remove_plant(plant_id: str, db: AsyncSession = Depends(get_db)):
     """Delete a plant by ID."""
     return await delete_plant(plant_id, db)
 
 @router.post("/execute-dosing/{plant_id}", response_model=PlantDosingResponse)
-async def execute_dosing(plant_id: int, db: AsyncSession = Depends(get_db)):
+async def execute_dosing(plant_id: str, db: AsyncSession = Depends(get_db)):
     """
     Execute a dosing operation by checking the latest sensor readings and applying the correct amount of nutrients.
     

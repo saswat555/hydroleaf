@@ -2,7 +2,7 @@ import pytest
 from httpx import AsyncClient
 from app.main import app
 import jwt
-
+import uuid
 # Base URL for auth endpoints
 AUTH_URL = "/api/v1/auth"
 
@@ -210,5 +210,5 @@ async def test_token_payload_contains_user_and_role(async_client: AsyncClient, s
     _, token, _ = signed_up_user
     # decode without verifying signature
     decoded = jwt.decode(token, options={"verify_signature": False})
-    assert decoded.get("user_id") is not None
+    uuid.UUID(str(decoded.get("user_id")))  
     assert decoded.get("role") == "user"

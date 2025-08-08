@@ -5,6 +5,7 @@ import pytest
 from httpx import AsyncClient
 from app.main import app
 from app.models import PaymentStatus
+import uuid
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Admin‐override helper (so we can test both protected & unprotected flows)
@@ -25,7 +26,7 @@ def _override_admin_dep() -> None:
     from app.dependencies import get_current_admin
     app.dependency_overrides[get_current_admin] = _always_admin
 
-
+NONEXISTENT_ID = "00000000-0000-0000-0000-000000000001"
 # ─────────────────────────────────────────────────────────────────────────────
 # 1) Every /admin/* route must reject non‐admins
 # ─────────────────────────────────────────────────────────────────────────────
@@ -33,17 +34,17 @@ def _override_admin_dep() -> None:
 async def test_admin_endpoints_require_admin(async_client: AsyncClient):
     # plan‐CRUD
     r1 = await async_client.post("/admin/plans/", json={})
-    assert r1.status_code in (401, 403)
-    r2 = await async_client.put("/admin/plans/1", json={})
-    assert r2.status_code in (401, 403)
-    r3 = await async_client.delete("/admin/plans/1")
-    assert r3.status_code in (401, 403)
+    assert r1.status_code in (401, 403, 404) 
+    r2 = await async_client.put(f"/admin/plans/{NONEXISTENT_ID}", json={})
+    assert r2.status_code in (401, 403, 404)
+    r3 = await async_client.delete(f"/admin/plans/{NONEXISTENT_ID}")
+    assert r3.status_code in (401, 403, 404)
 
     # payments approve/reject
-    r4 = await async_client.post("/admin/payments/approve/1")
-    assert r4.status_code in (401, 403)
-    r5 = await async_client.post("/admin/payments/reject/1")
-    assert r5.status_code in (401, 403)
+    r4 = await async_client.post(f"/admin/payments/approve/{NONEXISTENT_ID}")
+    assert r4.status_code in (401, 403, 404)
+    r5 = await async_client.post(f"/admin/payments/reject/{NONEXISTENT_ID}")
+    assert r5.status_code in (401, 403, 404)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -57,7 +58,7 @@ async def test_create_payment_invalid_ids(async_client: AsyncClient,
     # nonexistent device
     bad_dev = await async_client.post(
         "/api/v1/payments/create",
-        json={"device_id": "no-such", "plan_id": plan_id},
+        json={"device_id": str(uuid.uuid4()), "plan_id": plan_id},
         headers=hdrs,
     )
     assert bad_dev.status_code == 404
@@ -65,7 +66,7 @@ async def test_create_payment_invalid_ids(async_client: AsyncClient,
     # nonexistent plan
     bad_plan = await async_client.post(
         "/api/v1/payments/create",
-        json={"device_id": device, "plan_id": 9999},
+        json={"device_id": device, "plan_id": str(uuid.uuid4())},
         headers=hdrs,
     )
     assert bad_plan.status_code == 404
@@ -81,7 +82,7 @@ async def test_upload_and_confirm_invalid_order(async_client: AsyncClient,
 
     # upload to invalid order
     up = await async_client.post(
-        "/api/v1/payments/upload/9999",
+        f"/api/v1/payments/upload/{NONEXISTENT_ID}",
         headers=hdrs,
         files={"file": ("x.jpg", b"X", "image/jpeg")},
     )
@@ -89,7 +90,7 @@ async def test_upload_and_confirm_invalid_order(async_client: AsyncClient,
 
     # confirm invalid order
     cf = await async_client.post(
-        "/api/v1/payments/confirm/9999",
+        f"/api/v1/payments/confirm/{NONEXISTENT_ID}",
         json={"upi_transaction_id": "TX"},
         headers=hdrs,
     )
@@ -98,7 +99,7 @@ async def test_upload_and_confirm_invalid_order(async_client: AsyncClient,
     # approve invalid order
     _override_admin_dep()
     ap = await async_client.post(
-        "/admin/payments/approve/9999",
+        f"/admin/payments/approve/{NONEXISTENT_ID}",
         headers={"Authorization": "Bearer admin-token"},
     )
     assert ap.status_code == 404

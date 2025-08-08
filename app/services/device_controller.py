@@ -18,19 +18,13 @@ def _normalize_base(url: str) -> str:
 
 
 class DeviceController:
-    """
-    Helper for a device's local HTTP API.
-
-    NOTE: tests sometimes monkeypatch httpx.AsyncClient with tiny fakes that
-    lack `.raise_for_status()`. Prefer `status_code` checks to keep things
-    tolerant under tests.
-    """
-
-    def __init__(self, device_ip: str):
-        self.base_url = _normalize_base(device_ip)
+    def __init__(self, base_url: str, *, timeout: float = 2.0):
+        self.base_url = base_url if base_url.startswith(("http://", "https://")) else f"http://{base_url}"
+        self._client = httpx.AsyncClient(timeout=timeout)
 
     # ---------- Common helpers ----------
-
+    def _url(self, path: str) -> str:
+        return f"{self.base_url}{path}"
     async def _get_json(self, path: str, *, timeout: float = 5.0) -> Dict[str, Any]:
         async with httpx.AsyncClient() as client:
             r = await client.get(f"{self.base_url}{path}", timeout=timeout)
@@ -116,37 +110,25 @@ class DeviceController:
         endpoint = "/dose_monitor" if combined else "/pump"
         return await self._post_json(endpoint, {"pump": pump, "amount": amount}, timeout=5)
 
-    async def cancel_dosing(self) -> Dict[str, Any]:
-        """
-        Post a stop command to any of the known endpoints and normalize
-        the response message to what tests expect.
-        """
-        candidates = (
-            "/pump_calibration",   # legacy (what tests mention)
-            "/pump/calibration",   # alt legacy
-            "/dosing/stop",        # new
-        )
-        for path in candidates:
-            r = await self._client.post(f"{self.base_url}{path}", json={"command": "stop"})
-            if r.status_code < 400:
-                return {"message": "dosing cancelled"}
-        # if device replies non-JSON or 404s, still normalize
-        return {"message": "dosing cancelled"}
+    async def cancel_dosing(self):
+        for path in ("/pump_calibration", "/pump/calibration", "/dosing/stop"):
+            try:
+                r = await self._client.post(self._url(path), json={"command": "stop"})
+                if r.status_code < 500:
+                    return r.json()
+            except httpx.RequestError:
+                continue
+        raise httpx.RequestError("All stop endpoints failed")
 
     # ---------- Generic state (valves & switches) ----------
 
-    async def get_state(self) -> Dict[str, Any]:
-        r = await self._client.get(f"{self.base_url}/state")
+    async def get_state(self):
+        r = await self._client.get(self._url("/state"))
         r.raise_for_status()
-        raw = r.json()
-        # normalize keys for switches
-        if raw.get("device_id","").startswith("switch") and "channels" not in raw:
-            ch = raw.get("state") or raw.get("channels_state") or []
-            raw["channels"] = ch
-        return raw
+        return r.json()
     # ---------- Valves & switches actions ----------
 
-    async def toggle_valve(self, valve_id: int) -> Dict[str, Any]:
+    async def toggle_valve(self, valve_id: str) -> Dict[str, Any]:
         if not isinstance(valve_id, int) or not (1 <= valve_id <= 4):
             raise ValueError("valve_id must be in 1–4")
         return await self._post_json("/toggle", {"valve_id": valve_id}, timeout=5)
@@ -161,7 +143,9 @@ class DeviceController:
     async def get_status(self) -> Dict[str, Any]:
         """Fetch `/status` from CCTV device."""
         return await self._get_json("/status", timeout=5)
-
+    
+    async def aclose(self):
+        await self._client.aclose()
 
 # --- tiny factory kept for tests ------------------------------------------------
 def get_device_controller(device_ip: str) -> DeviceController:
